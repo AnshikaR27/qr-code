@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@14 . --typescript --tailwind --app --no-eslint --src-dir --import-alias \"@/*\" --yes)",
+      "Read(//c/Users/12ans/Downloads/**)",
+      "Bash(npx create-next-app@14 qrcode-temp --typescript --tailwind --app --no-eslint --src-dir --import-alias \"@/*\" --yes)",
+      "Bash(cp -r C:/Users/12ans/Downloads/qrcode-temp/. C:/Users/12ans/Downloads/qrcode/)",
+      "Bash(rm -rf C:/Users/12ans/Downloads/qrcode-temp)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest init --defaults -y)"
+    ]
+  }
+}
