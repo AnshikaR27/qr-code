@@ -24,6 +24,51 @@ import { cn } from '@/lib/utils';
 import { SPICE_LEVELS, ALLERGEN_OPTIONS } from '@/lib/constants';
 import type { Category, Product } from '@/types';
 
+// ── Client-side image compression ────────────────────────────────────────────
+
+function compressImage(
+  file: File,
+  { maxWidth, quality }: { maxWidth: number; quality: number }
+): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('Canvas not supported'));
+      ctx.drawImage(img, 0, 0, w, h);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error('Compression failed'));
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to load image'));
+    };
+
+    img.src = url;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface DishFormProps {
   open: boolean;
   onClose: () => void;
@@ -101,8 +146,9 @@ export default function DishForm({
     }
     setUploading(true);
     try {
+      const compressed = await compressImage(file, { maxWidth: 1024, quality: 0.8 });
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', compressed);
       const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Upload failed');
