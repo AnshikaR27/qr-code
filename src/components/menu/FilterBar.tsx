@@ -3,11 +3,11 @@
 import { cn } from '@/lib/utils';
 import type { DietFilter } from '@/lib/constants';
 
-const FILTERS: { value: DietFilter; label: string; icon: string }[] = [
-  { value: 'all',     label: 'All',     icon: '🍽️' },
-  { value: 'veg',     label: 'Veg',     icon: '🟢' },
-  { value: 'non_veg', label: 'Non-Veg', icon: '🔴' },
-  { value: 'jain',    label: 'Jain',    icon: '🌿' },
+const FILTERS: { value: DietFilter; label: string; dot: string }[] = [
+  { value: 'all',     label: 'All',     dot: '' },
+  { value: 'veg',     label: 'Veg',     dot: '#16a34a' },
+  { value: 'non_veg', label: 'Non-Veg', dot: '#dc2626' },
+  { value: 'jain',    label: 'Jain',    dot: '#d97706' },
 ];
 
 interface Props {
@@ -18,9 +18,10 @@ interface Props {
 
 export default function FilterBar({ active, onChange, primaryColor }: Props) {
   return (
-    <div
-      className="flex gap-2 px-5 py-2.5 overflow-x-auto scrollbar-hide bg-white/90 backdrop-blur-md border-b border-gray-100"
-    >
+    <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-gray-200 overflow-x-auto scrollbar-hide">
+      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider flex-shrink-0 mr-1">
+        Filter
+      </span>
       {FILTERS.map((f) => {
         const isActive = active === f.value;
         return (
@@ -28,23 +29,20 @@ export default function FilterBar({ active, onChange, primaryColor }: Props) {
             key={f.value}
             onClick={() => onChange(f.value)}
             className={cn(
-              'flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full',
-              'text-xs font-bold transition-all duration-200 active:scale-95 select-none',
-            )}
-            style={
+              'flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border',
+              'text-xs font-semibold transition-all duration-150 active:scale-95 select-none',
               isActive
-                ? {
-                    backgroundColor: primaryColor,
-                    color: 'white',
-                    boxShadow: `0 3px 10px ${primaryColor}50`,
-                  }
-                : {
-                    backgroundColor: `${primaryColor}10`,
-                    color: `${primaryColor}cc`,
-                  }
-            }
+                ? 'border-transparent text-white'
+                : 'border-gray-200 text-gray-600 bg-white',
+            )}
+            style={isActive ? { backgroundColor: primaryColor, borderColor: primaryColor } : {}}
           >
-            <span className="text-[12px]">{f.icon}</span>
+            {f.dot && (
+              <span
+                className="w-2 h-2 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: f.dot }}
+              />
+            )}
             {f.label}
           </button>
         );

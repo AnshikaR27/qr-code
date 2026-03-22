@@ -12,63 +12,43 @@ interface Props {
   primaryColor: string;
 }
 
-/* Indian standard veg/non-veg symbol */
-function VegSymbol({ isVeg }: { isVeg: boolean }) {
+/* Indian standard veg/non-veg square symbol */
+function VegDot({ isVeg }: { isVeg: boolean }) {
   const color = isVeg ? '#16a34a' : '#dc2626';
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="flex-shrink-0 mt-0.5">
-      <rect x="1" y="1" width="16" height="16" rx="2.5" stroke={color} strokeWidth="2" fill="white" />
-      <circle cx="9" cy="9" r="4.5" fill={color} />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
+      <rect x="1" y="1" width="14" height="14" rx="2" stroke={color} strokeWidth="2" fill="white" />
+      <circle cx="8" cy="8" r="4" fill={color} />
     </svg>
   );
 }
 
-/* Chili spice indicator */
-function SpiceIndicator({ level }: { level: number }) {
-  if (level === 0) return null;
-  return (
-    <span className="flex items-center gap-0.5 text-[13px] leading-none">
-      {Array.from({ length: level }).map((_, i) => (
-        <span key={i}>🌶️</span>
-      ))}
-    </span>
-  );
-}
-
-/* Qty stepper */
-function QtyControl({
-  qty, onAdd, onRemove, primaryColor, compact,
-}: {
-  qty: number; onAdd: () => void; onRemove: () => void; primaryColor: string; compact?: boolean;
+/* Qty stepper — Swiggy style: outlined border, colored text + icons */
+function QtyControl({ qty, onAdd, onRemove, primaryColor }: {
+  qty: number; onAdd: () => void; onRemove: () => void; primaryColor: string;
 }) {
   return (
     <div
-      className={cn(
-        'flex items-center rounded-full overflow-hidden animate-scale-in',
-        compact ? 'h-8' : 'h-9',
-      )}
-      style={{
-        border: `2.5px solid ${primaryColor}`,
-        boxShadow: `0 2px 10px ${primaryColor}30`,
-      }}
+      className="flex items-center rounded-lg overflow-hidden border-2"
+      style={{ borderColor: primaryColor }}
     >
       <button
         onClick={onRemove}
-        className="flex items-center justify-center text-white active:opacity-70 transition-opacity"
-        style={{ backgroundColor: primaryColor, width: compact ? '30px' : '36px', height: '100%' }}
+        className="w-8 h-8 flex items-center justify-center active:opacity-60 transition-opacity"
+        style={{ color: primaryColor }}
       >
         <Minus className="w-3.5 h-3.5" strokeWidth={3} />
       </button>
       <span
-        className={cn('font-black text-center', compact ? 'w-7 text-sm' : 'w-8 text-base')}
+        className="w-7 text-center text-sm font-black"
         style={{ color: primaryColor }}
       >
         {qty}
       </span>
       <button
         onClick={onAdd}
-        className="flex items-center justify-center text-white active:opacity-70 transition-opacity"
-        style={{ backgroundColor: primaryColor, width: compact ? '30px' : '36px', height: '100%' }}
+        className="w-8 h-8 flex items-center justify-center text-white active:opacity-60 transition-opacity"
+        style={{ backgroundColor: primaryColor }}
       >
         <Plus className="w-3.5 h-3.5" strokeWidth={3} />
       </button>
@@ -85,185 +65,116 @@ export default function DishCard({ product, isPopular, primaryColor }: Props) {
   return (
     <div
       className={cn(
-        'relative bg-white rounded-[18px] overflow-hidden',
-        'animate-fade-in-up',
-        product.is_available ? 'active:scale-[0.99]' : 'opacity-60',
+        'bg-white border-b border-gray-100 px-4 py-4',
+        !product.is_available && 'opacity-50',
       )}
-      style={{
-        borderLeft: `4px solid ${primaryColor}`,
-        boxShadow: `0 2px 16px ${primaryColor}18, 0 1px 4px rgba(0,0,0,0.06)`,
-        transition: 'box-shadow 0.2s ease, transform 0.15s ease',
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = `0 6px 28px ${primaryColor}30, 0 2px 8px rgba(0,0,0,0.08)`;
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = `0 2px 16px ${primaryColor}18, 0 1px 4px rgba(0,0,0,0.06)`;
-      }}
     >
-      {hasImage ? (
-        /* ── WITH IMAGE ── */
-        <div className="flex gap-0 p-4">
-          {/* Left info */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2 pr-3">
-            {/* Badges row */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <VegSymbol isVeg={product.is_veg} />
-              {isPopular && (
-                <span
-                  className="text-[10px] font-black px-2 py-0.5 rounded-full text-white tracking-wide"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  ★ BESTSELLER
-                </span>
-              )}
-              {product.is_jain && (
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 tracking-wide">
-                  JAIN
-                </span>
-              )}
-            </div>
+      <div className="flex gap-3">
+        {/* Left: all text content */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          {/* Veg/non-veg dot */}
+          <VegDot isVeg={product.is_veg} />
 
-            {/* Name */}
-            <div>
-              <p className="text-[15px] font-bold text-gray-900 leading-snug">{product.name}</p>
-              {product.name_hindi && (
-                <p className="text-xs font-medium text-gray-400 mt-0.5">{product.name_hindi}</p>
-              )}
-            </div>
+          {/* Bestseller badge */}
+          {isPopular && (
+            <span className="text-[11px] font-bold text-amber-600 flex items-center gap-1">
+              ★ Bestseller
+            </span>
+          )}
 
-            {/* Description */}
-            {product.description && (
-              <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2">
-                {product.description}
-              </p>
-            )}
+          {/* Jain badge */}
+          {product.is_jain && (
+            <span className="text-[11px] font-bold text-emerald-700">✦ Jain</span>
+          )}
 
-            {/* Price + spice */}
-            <div className="flex items-center gap-2 mt-auto">
-              <span
-                className="text-[17px] font-black"
-                style={{ color: primaryColor }}
-              >
-                {formatPrice(product.price)}
-              </span>
-              <SpiceIndicator level={product.spice_level} />
-            </div>
+          {/* Name */}
+          <p className="text-[15px] font-bold text-gray-900 leading-snug">{product.name}</p>
+          {product.name_hindi && (
+            <p className="text-[12px] text-gray-400 font-medium">{product.name_hindi}</p>
+          )}
 
-            {!product.is_available && (
-              <span className="text-[11px] font-bold text-red-500">Currently Unavailable</span>
-            )}
-          </div>
+          {/* Price */}
+          <p className="text-[15px] font-bold text-gray-900 mt-0.5">
+            {formatPrice(product.price)}
+          </p>
 
-          {/* Right: image + button */}
+          {/* Description */}
+          {product.description && (
+            <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2 mt-0.5">
+              {product.description}
+            </p>
+          )}
+
+          {/* Spice level */}
+          {product.spice_level > 0 && (
+            <p className="text-[12px] text-gray-400">
+              {'🌶️'.repeat(product.spice_level)}
+            </p>
+          )}
+
+          {!product.is_available && (
+            <span className="text-[11px] font-bold text-red-500 mt-1">Not available</span>
+          )}
+        </div>
+
+        {/* Right: image + ADD button */}
+        {hasImage && (
           <div className="flex flex-col items-center gap-2.5 flex-shrink-0">
-            <div
-              className="relative w-[92px] h-[92px] rounded-[14px] overflow-hidden"
-              style={{ boxShadow: `0 4px 12px rgba(0,0,0,0.15)` }}
-            >
+            <div className="relative w-[118px] h-[118px] rounded-2xl overflow-hidden bg-gray-100">
               <Image
                 src={product.image_url!}
                 alt={product.name}
                 fill
                 className="object-cover"
-                sizes="92px"
+                sizes="118px"
               />
             </div>
 
             {product.is_available && (
-              qty === 0 ? (
-                <button
-                  onClick={() => addItem(product)}
-                  className="w-[92px] py-2.5 rounded-full text-sm font-black text-white tracking-wider transition-all duration-150 active:scale-95"
-                  style={{
-                    backgroundColor: primaryColor,
-                    boxShadow: `0 4px 14px ${primaryColor}55`,
-                  }}
-                >
-                  ADD
-                </button>
-              ) : (
-                <QtyControl
-                  qty={qty}
-                  onAdd={() => addItem(product)}
-                  onRemove={() => updateQuantity(product.id, qty - 1)}
-                  primaryColor={primaryColor}
-                  compact
-                />
-              )
-            )}
-          </div>
-        </div>
-      ) : (
-        /* ── WITHOUT IMAGE (intentionally minimal) ── */
-        <div className="p-4">
-          {/* Top row */}
-          <div className="flex items-start gap-2 mb-2">
-            <VegSymbol isVeg={product.is_veg} />
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-start gap-1.5">
-                <span className="text-[15px] font-bold text-gray-900 leading-snug">{product.name}</span>
-                {isPopular && (
-                  <span
-                    className="text-[10px] font-black px-2 py-0.5 rounded-full text-white tracking-wide mt-0.5"
-                    style={{ backgroundColor: primaryColor }}
+              <div className="-mt-5 z-10">
+                {qty === 0 ? (
+                  <button
+                    onClick={() => addItem(product)}
+                    className="px-7 py-1.5 rounded-lg bg-white text-sm font-black border-2 transition-all active:scale-95 shadow-sm"
+                    style={{ borderColor: primaryColor, color: primaryColor }}
                   >
-                    ★ BESTSELLER
-                  </span>
-                )}
-                {product.is_jain && (
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 tracking-wide mt-0.5">
-                    JAIN
-                  </span>
+                    ADD
+                  </button>
+                ) : (
+                  <div className="shadow-sm">
+                    <QtyControl
+                      qty={qty}
+                      onAdd={() => addItem(product)}
+                      onRemove={() => updateQuantity(product.id, qty - 1)}
+                      primaryColor={primaryColor}
+                    />
+                  </div>
                 )}
               </div>
-              {product.name_hindi && (
-                <p className="text-xs font-medium text-gray-400 mt-0.5">{product.name_hindi}</p>
-              )}
-            </div>
-          </div>
-
-          {product.description && (
-            <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2 mb-3 pl-[26px]">
-              {product.description}
-            </p>
-          )}
-
-          {/* Bottom: price + add */}
-          <div className="flex items-center justify-between pl-[26px]">
-            <div className="flex items-center gap-2">
-              <span className="text-[17px] font-black" style={{ color: primaryColor }}>
-                {formatPrice(product.price)}
-              </span>
-              <SpiceIndicator level={product.spice_level} />
-              {!product.is_available && (
-                <span className="text-[11px] font-bold text-red-500">Unavailable</span>
-              )}
-            </div>
-
-            {product.is_available && (
-              qty === 0 ? (
-                <button
-                  onClick={() => addItem(product)}
-                  className="px-6 py-2.5 rounded-full text-sm font-black text-white tracking-wider transition-all duration-150 active:scale-95"
-                  style={{
-                    backgroundColor: primaryColor,
-                    boxShadow: `0 4px 14px ${primaryColor}55`,
-                  }}
-                >
-                  ADD
-                </button>
-              ) : (
-                <QtyControl
-                  qty={qty}
-                  onAdd={() => addItem(product)}
-                  onRemove={() => updateQuantity(product.id, qty - 1)}
-                  primaryColor={primaryColor}
-                  compact
-                />
-              )
             )}
           </div>
+        )}
+      </div>
+
+      {/* ADD button for no-image cards — sits at bottom right */}
+      {!hasImage && product.is_available && (
+        <div className="flex justify-end mt-3">
+          {qty === 0 ? (
+            <button
+              onClick={() => addItem(product)}
+              className="px-7 py-1.5 rounded-lg bg-white text-sm font-black border-2 transition-all active:scale-95"
+              style={{ borderColor: primaryColor, color: primaryColor }}
+            >
+              ADD
+            </button>
+          ) : (
+            <QtyControl
+              qty={qty}
+              onAdd={() => addItem(product)}
+              onRemove={() => updateQuantity(product.id, qty - 1)}
+              primaryColor={primaryColor}
+            />
+          )}
         </div>
       )}
     </div>

@@ -27,27 +27,19 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const [cartOpen, setCartOpen] = useState(false);
   const prevCountRef = useRef(0);
   const [cartVisible, setCartVisible] = useState(false);
-  const [cartBouncing, setCartBouncing] = useState(false);
 
   const { items, getTotal, getItemCount } = useCart();
   const itemCount = getItemCount();
   const total = getTotal();
   const p = restaurant.primary_color;
 
-  // Spring bounce when first item is added, smooth slide for subsequent changes
   useEffect(() => {
     const prev = prevCountRef.current;
-    if (itemCount > 0 && prev === 0) {
-      setCartVisible(true);
-      setCartBouncing(true);
-      setTimeout(() => setCartBouncing(false), 600);
-    } else if (itemCount === 0) {
-      setCartVisible(false);
-    }
+    if (itemCount > 0 && prev === 0) setCartVisible(true);
+    else if (itemCount === 0) setCartVisible(false);
     prevCountRef.current = itemCount;
   }, [itemCount]);
 
-  // Popular threshold: top 10% by order_count
   const popularThreshold = useMemo(() => {
     const counts = products.map((p) => p.order_count).filter((c) => c > 0);
     if (!counts.length) return Infinity;
@@ -84,15 +76,12 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   }, [filtered, categories, activeCategory]);
 
   return (
-    <div
-      className="min-h-screen pb-32"
-      style={{ backgroundColor: `${p}07` }}
-    >
-      {/* Hero header */}
+    <div className="min-h-screen bg-gray-100 pb-28">
+      {/* Header */}
       <MenuHeader restaurant={restaurant} />
 
       {/* Sticky controls */}
-      <div className="sticky top-0 z-10" style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}>
+      <div className="sticky top-0 z-10 shadow-sm">
         <CategoryTabs
           categories={categories}
           activeId={activeCategory}
@@ -103,115 +92,73 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         <SearchBar value={search} onChange={setSearch} primaryColor={p} />
       </div>
 
-      {/* Dish list */}
-      <div className="px-4 pt-6 space-y-8">
+      {/* Dish sections */}
+      <div className="mt-2 space-y-2">
         {grouped.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="bg-white flex flex-col items-center justify-center py-20 gap-3">
             <div className="text-5xl">🔍</div>
-            <p className="font-black text-gray-600 text-lg">Nothing found</p>
-            <p className="text-sm text-gray-400 text-center">
+            <p className="font-bold text-gray-600">No results found</p>
+            <p className="text-sm text-gray-400 text-center px-8">
               Try adjusting your search or filter
             </p>
           </div>
         )}
 
         {grouped.map(({ category, items: groupItems }, gi) => (
-          <section key={category?.id ?? `g-${gi}`}>
+          <div key={category?.id ?? `g-${gi}`} className="bg-white">
             {/* Section header */}
             {activeCategory === 'all' && (
-              <div className="flex items-center gap-3 mb-4">
-                <div
-                  className="w-1.5 h-6 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: p }}
-                />
+              <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
                 <div>
-                  <h2 className="text-[16px] font-black text-gray-900 leading-tight">
+                  <h2 className="text-[15px] font-black text-gray-900">
                     {category?.name ?? 'Other'}
                   </h2>
                   {category?.name_hindi && (
-                    <p className="text-xs font-medium text-gray-400 mt-0.5">
+                    <p className="text-[11px] text-gray-400 font-medium mt-0.5">
                       {category.name_hindi}
                     </p>
                   )}
                 </div>
-                <div
-                  className="ml-auto px-2.5 py-0.5 rounded-full text-xs font-bold"
-                  style={{ backgroundColor: `${p}15`, color: p }}
-                >
-                  {groupItems.length}
-                </div>
+                <span className="text-xs font-semibold text-gray-400">
+                  {groupItems.length} item{groupItems.length !== 1 ? 's' : ''}
+                </span>
               </div>
             )}
 
-            <div className="space-y-3">
-              {groupItems.map((product, pi) => (
-                <div
-                  key={product.id}
-                  style={{ animationDelay: `${pi * 50}ms` }}
-                >
-                  <DishCard
-                    product={product}
-                    isPopular={product.order_count > 0 && product.order_count >= popularThreshold}
-                    primaryColor={p}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
+            {/* Dish cards — no gaps, just border-b separators inside DishCard */}
+            {groupItems.map((product, pi) => (
+              <DishCard
+                key={product.id}
+                product={product}
+                isPopular={product.order_count > 0 && product.order_count >= popularThreshold}
+                primaryColor={p}
+              />
+            ))}
+          </div>
         ))}
       </div>
 
-      {/* Cart bar — spring bounce on first item, smooth slide after */}
+      {/* Cart bottom bar */}
       <div
         className={cn(
-          'fixed bottom-0 left-0 right-0 z-20 px-4 pb-5 pt-2',
-          cartBouncing ? 'animate-cart-bounce' : cartVisible ? 'cart-spring-enter' : 'cart-spring-exit',
-          !cartVisible && !cartBouncing ? 'pointer-events-none' : '',
+          'fixed bottom-0 left-0 right-0 z-20 px-4 pb-5 pt-2 transition-transform duration-300',
+          cartVisible ? 'translate-y-0' : 'translate-y-[120%] pointer-events-none',
         )}
-        style={
-          !cartBouncing
-            ? {
-                transform: cartVisible ? 'translateY(0)' : 'translateY(110%)',
-                transition: cartVisible
-                  ? 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
-                  : 'transform 0.3s ease-in',
-              }
-            : {}
-        }
       >
-        {/* Frosted glass backdrop */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: `linear-gradient(to top, ${p}18 0%, transparent 100%)`,
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-          }}
-        />
-
         <button
           onClick={() => setCartOpen(true)}
-          className="relative w-full flex items-center justify-between px-5 py-4 rounded-2xl text-white active:scale-[0.97] transition-transform"
-          style={{
-            background: `linear-gradient(135deg, ${restaurant.secondary_color} 0%, ${p} 100%)`,
-            boxShadow: `0 8px 32px ${p}60, 0 2px 8px rgba(0,0,0,0.15)`,
-          }}
+          className="w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-white active:scale-[0.98] transition-transform shadow-2xl"
+          style={{ backgroundColor: p, boxShadow: `0 8px 30px ${p}70` }}
         >
-          {/* Left */}
           <span className="flex items-center gap-3">
-            <span
-              className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-black"
-              style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-            >
+            <span className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-sm font-black">
               {itemCount}
             </span>
             <span className="text-[15px] font-black tracking-wide">View Cart</span>
           </span>
-
-          {/* Right */}
-          <span className="flex items-center gap-2.5">
+          <span className="flex items-center gap-2">
             <span className="text-[15px] font-black">{formatPrice(total)}</span>
-            <ShoppingBag className="w-5 h-5 opacity-90" />
+            <ShoppingBag className="w-4.5 h-4.5 opacity-90" />
           </span>
         </button>
       </div>

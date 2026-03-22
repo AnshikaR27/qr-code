@@ -23,16 +23,9 @@ export default function CategoryTabs({ categories, activeId, onSelect, primaryCo
   const allItems = [{ id: 'all', name: 'All', name_hindi: null }, ...categories];
 
   return (
-    <div className="relative bg-white/90 backdrop-blur-md border-b border-gray-100">
-      {/* Left fade */}
-      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10"
-        style={{ background: 'linear-gradient(to right, rgba(255,255,255,0.95), transparent)' }} />
-      {/* Right fade */}
-      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10"
-        style={{ background: 'linear-gradient(to left, rgba(255,255,255,0.95), transparent)' }} />
-
+    <div className="bg-white border-b border-gray-200">
       <div
-        className="flex gap-2.5 overflow-x-auto scrollbar-hide px-5 py-3.5"
+        className="flex overflow-x-auto scrollbar-hide"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {allItems.map((cat) => {
@@ -43,27 +36,18 @@ export default function CategoryTabs({ categories, activeId, onSelect, primaryCo
               ref={isActive ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
               className={cn(
-                'flex-shrink-0 flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-bold',
-                'transition-all duration-250 whitespace-nowrap select-none',
-                'active:scale-95',
-                isActive
-                  ? 'text-white shadow-lg scale-[1.04]'
-                  : 'text-gray-500 hover:text-gray-700'
+                'flex-shrink-0 relative px-5 py-3.5 text-sm font-bold whitespace-nowrap',
+                'transition-colors duration-150 select-none',
+                isActive ? 'text-gray-900' : 'text-gray-500',
               )}
-              style={
-                isActive
-                  ? {
-                      backgroundColor: primaryColor,
-                      boxShadow: `0 4px 14px ${primaryColor}55`,
-                    }
-                  : {
-                      backgroundColor: `${primaryColor}12`,
-                    }
-              }
             >
               {cat.name}
-              {cat.name_hindi && (
-                <span className="text-[10px] opacity-70 font-medium">{cat.name_hindi}</span>
+              {/* Active underline */}
+              {isActive && (
+                <span
+                  className="absolute bottom-0 left-3 right-3 h-[3px] rounded-full"
+                  style={{ backgroundColor: primaryColor }}
+                />
               )}
             </button>
           );
