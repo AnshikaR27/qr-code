@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Upload, X, Leaf, FlameKindling } from 'lucide-react';
 import {
@@ -89,6 +89,59 @@ export default function DishForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Shared upload logic used by both the file picker and clipboard paste
+  const uploadFile = useCallback(async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Clipboard item is not an image');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be under 5MB');
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed');
+      setForm((prev) => ({ ...prev, image_url: data.url }));
+      toast.success('Image uploaded');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
+  // Listen for Ctrl+V paste when the dialog is open
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePaste(e: ClipboardEvent) {
+      // Don't intercept paste inside text inputs / textareas
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            uploadFile(file);
+          }
+          break;
+        }
+      }
+    }
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [open, uploadFile]);
+
   // Reset form when dialog opens/closes or editProduct changes
   function handleOpenChange(isOpen: boolean) {
     if (!isOpen) {
@@ -129,30 +182,8 @@ export default function DishForm({
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be under 5MB');
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Upload failed');
-      set('image_url', data.url);
-      toast.success('Image uploaded');
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed');
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
+    await uploadFile(file);
+    if (fileRef.current) fileRef.current.value = '';
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -380,19 +411,27 @@ export default function DishForm({
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={uploading}
-                className="flex items-center gap-2 px-3 py-2 border border-dashed rounded-md text-sm text-muted-foreground hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                {uploading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Upload className="w-4 h-4" />
+              <div
+                className={cn(
+                  'border border-dashed rounded-md transition-colors',
+                  uploading ? 'opacity-50' : 'hover:bg-gray-50 cursor-pointer'
                 )}
-                {uploading ? 'Uploading…' : 'Upload photo'}
-              </button>
+                onClick={() => !uploading && fileRef.current?.click()}
+              >
+                <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                  {uploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                  ) : (
+                    <Upload className="w-4 h-4 flex-shrink-0" />
+                  )}
+                  <span>{uploading ? 'Uploading…' : 'Upload photo'}</span>
+                  {!uploading && (
+                    <span className="ml-1 text-xs text-muted-foreground/60 border border-dashed rounded px-1.5 py-0.5 font-mono">
+                      Ctrl+V to paste
+                    </span>
+                  )}
+                </div>
+              </div>
             )}
             <input
               ref={fileRef}
