@@ -1,182 +1,287 @@
 'use client';
 
 import Image from 'next/image';
-import { Plus, Minus } from 'lucide-react';
-import { cn, formatPrice } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
+import { formatPrice } from '@/lib/utils';
 import type { Product } from '@/types';
 
-interface Props {
-  product: Product;
-  isPopular: boolean;
-  primaryColor: string;
+function hexToRgb(hex: string) {
+  const h = hex.startsWith('#') ? hex.slice(1) : hex;
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
 }
 
-/* Indian standard veg/non-veg square symbol */
-function VegDot({ isVeg }: { isVeg: boolean }) {
+function VegSymbol({ isVeg }: { isVeg: boolean }) {
   const color = isVeg ? '#16a34a' : '#dc2626';
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-      <rect x="1" y="1" width="14" height="14" rx="2" stroke={color} strokeWidth="2" fill="white" />
-      <circle cx="8" cy="8" r="4" fill={color} />
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <rect x="1" y="1" width="12" height="12" rx="1.5" stroke={color} strokeWidth="1.5" fill="rgba(0,0,0,0.5)" />
+      <circle cx="7" cy="7" r="3.5" fill={color} />
     </svg>
   );
 }
 
-/* Qty stepper — Swiggy style: outlined border, colored text + icons */
-function QtyControl({ qty, onAdd, onRemove, primaryColor }: {
-  qty: number; onAdd: () => void; onRemove: () => void; primaryColor: string;
-}) {
-  return (
-    <div
-      className="flex items-center rounded-lg overflow-hidden border-2"
-      style={{ borderColor: primaryColor }}
-    >
-      <button
-        onClick={onRemove}
-        className="w-8 h-8 flex items-center justify-center active:opacity-60 transition-opacity"
-        style={{ color: primaryColor }}
-      >
-        <Minus className="w-3.5 h-3.5" strokeWidth={3} />
-      </button>
-      <span
-        className="w-7 text-center text-sm font-black"
-        style={{ color: primaryColor }}
-      >
-        {qty}
-      </span>
-      <button
-        onClick={onAdd}
-        className="w-8 h-8 flex items-center justify-center text-white active:opacity-60 transition-opacity"
-        style={{ backgroundColor: primaryColor }}
-      >
-        <Plus className="w-3.5 h-3.5" strokeWidth={3} />
-      </button>
-    </div>
-  );
+interface Props {
+  product: Product;
+  rank: 1 | 2 | 3 | null;
+  primaryColor: string;
+  onTap: (product: Product) => void;
 }
 
-export default function DishCard({ product, isPopular, primaryColor }: Props) {
+export default function DishCard({ product, rank, primaryColor, onTap }: Props) {
   const { items, addItem, updateQuantity } = useCart();
   const cartItem = items.find((i) => i.product_id === product.id);
   const qty = cartItem?.quantity ?? 0;
+  const { r, g, b } = hexToRgb(primaryColor);
   const hasImage = !!product.image_url;
 
+  function handleAdd(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (product.is_available) addItem(product);
+  }
+
+  function handleRemove(e: React.MouseEvent) {
+    e.stopPropagation();
+    updateQuantity(product.id, qty - 1);
+  }
+
+  function handleIncrease(e: React.MouseEvent) {
+    e.stopPropagation();
+    addItem(product);
+  }
+
   return (
-    <div
-      className={cn(
-        'bg-white border-b border-gray-100 px-4 py-4',
-        !product.is_available && 'opacity-50',
-      )}
-    >
-      <div className="flex gap-3">
-        {/* Left: all text content */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-          {/* Veg/non-veg dot */}
-          <VegDot isVeg={product.is_veg} />
-
-          {/* Bestseller badge */}
-          {isPopular && (
-            <span className="text-[11px] font-bold text-amber-600 flex items-center gap-1">
-              ★ Bestseller
+    <div onClick={() => onTap(product)} style={{ cursor: 'pointer' }}>
+      {/* Square card area */}
+      <div
+        style={{
+          aspectRatio: '1',
+          borderRadius: 14,
+          overflow: 'hidden',
+          position: 'relative',
+          background: 'linear-gradient(145deg, #1a1a1a, #111)',
+        }}
+      >
+        {hasImage ? (
+          <Image
+            src={product.image_url!}
+            alt={product.name}
+            fill
+            style={{ objectFit: 'cover' }}
+            sizes="(max-width: 420px) 50vw, 200px"
+          />
+        ) : (
+          /* Branded no-image placeholder */
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: `linear-gradient(145deg, rgba(${r},${g},${b},0.08), #0a0a0a 60%, rgba(${r},${g},${b},0.04))`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {/* Dot pattern */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                opacity: 0.03,
+                backgroundImage: `radial-gradient(circle, ${primaryColor} 1px, transparent 1px)`,
+                backgroundSize: '16px 16px',
+              }}
+            />
+            {/* Ring with initial */}
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: '50%',
+                border: `1.5px solid rgba(${r},${g},${b},0.2)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                zIndex: 1,
+              }}
+            >
+              <span style={{ fontSize: 22, fontWeight: 800, color: `rgba(${r},${g},${b},0.4)` }}>
+                {product.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <span
+              style={{
+                marginTop: 8,
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: '0.1em',
+                color: `rgba(${r},${g},${b},0.25)`,
+                textTransform: 'uppercase',
+                position: 'relative',
+                zIndex: 1,
+              }}
+            >
+              {product.is_veg ? 'PURE VEG' : 'NON VEG'}
             </span>
-          )}
+          </div>
+        )}
 
-          {/* Jain badge */}
-          {product.is_jain && (
-            <span className="text-[11px] font-bold text-emerald-700">✦ Jain</span>
-          )}
+        {/* Sold out overlay */}
+        {!product.is_available && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <span style={{ color: '#999', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em' }}>
+              SOLD OUT
+            </span>
+          </div>
+        )}
 
-          {/* Name */}
-          <p className="text-[15px] font-bold text-gray-900 leading-snug">{product.name}</p>
-          {product.name_hindi && (
-            <p className="text-[12px] text-gray-400 font-medium">{product.name_hindi}</p>
-          )}
+        {/* #N Most liked badge — top left */}
+        {rank && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              backgroundColor: primaryColor,
+              padding: '3px 8px',
+              borderRadius: 6,
+              color: '#fff',
+              fontSize: 10,
+              fontWeight: 800,
+              boxShadow: `0 2px 8px rgba(${r},${g},${b},0.4)`,
+            }}
+          >
+            #{rank} Most liked
+          </div>
+        )}
 
-          {/* Price */}
-          <p className="text-[15px] font-bold text-gray-900 mt-0.5">
-            {formatPrice(product.price)}
-          </p>
-
-          {/* Description */}
-          {product.description && (
-            <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2 mt-0.5">
-              {product.description}
-            </p>
-          )}
-
-          {/* Spice level */}
-          {product.spice_level > 0 && (
-            <p className="text-[12px] text-gray-400">
-              {'🌶️'.repeat(product.spice_level)}
-            </p>
-          )}
-
-          {!product.is_available && (
-            <span className="text-[11px] font-bold text-red-500 mt-1">Not available</span>
-          )}
+        {/* Veg badge — top right */}
+        <div style={{ position: 'absolute', top: 8, right: 8 }}>
+          <VegSymbol isVeg={product.is_veg} />
         </div>
 
-        {/* Right: image + ADD button */}
-        {hasImage && (
-          <div className="flex flex-col items-center gap-2.5 flex-shrink-0">
-            <div className="relative w-[118px] h-[118px] rounded-2xl overflow-hidden bg-gray-100">
-              <Image
-                src={product.image_url!}
-                alt={product.name}
-                fill
-                className="object-cover"
-                sizes="118px"
-              />
-            </div>
-
-            {product.is_available && (
-              <div className="-mt-5 z-10">
-                {qty === 0 ? (
-                  <button
-                    onClick={() => addItem(product)}
-                    className="px-7 py-1.5 rounded-lg bg-white text-sm font-black border-2 transition-all active:scale-95 shadow-sm"
-                    style={{ borderColor: primaryColor, color: primaryColor }}
-                  >
-                    ADD
-                  </button>
-                ) : (
-                  <div className="shadow-sm">
-                    <QtyControl
-                      qty={qty}
-                      onAdd={() => addItem(product)}
-                      onRemove={() => updateQuantity(product.id, qty - 1)}
-                      primaryColor={primaryColor}
-                    />
-                  </div>
-                )}
+        {/* + / [− qty +] button — bottom right */}
+        {product.is_available && (
+          <div style={{ position: 'absolute', bottom: 8, right: 8 }}>
+            {qty === 0 ? (
+              <button
+                onClick={handleAdd}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(0,0,0,0.75)',
+                  border: '1px solid #333',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  color: '#fff',
+                  fontSize: 20,
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                +
+              </button>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.85)',
+                  border: `1px solid ${primaryColor}`,
+                  borderRadius: 20,
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  overflow: 'hidden',
+                }}
+              >
+                <button
+                  onClick={handleRemove}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    background: 'none',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: 16,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  −
+                </button>
+                <span
+                  style={{
+                    color: '#fff',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    minWidth: 16,
+                    textAlign: 'center',
+                  }}
+                >
+                  {qty}
+                </span>
+                <button
+                  onClick={handleIncrease}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    background: 'none',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: 16,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  +
+                </button>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* ADD button for no-image cards — sits at bottom right */}
-      {!hasImage && product.is_available && (
-        <div className="flex justify-end mt-3">
-          {qty === 0 ? (
-            <button
-              onClick={() => addItem(product)}
-              className="px-7 py-1.5 rounded-lg bg-white text-sm font-black border-2 transition-all active:scale-95"
-              style={{ borderColor: primaryColor, color: primaryColor }}
-            >
-              ADD
-            </button>
-          ) : (
-            <QtyControl
-              qty={qty}
-              onAdd={() => addItem(product)}
-              onRemove={() => updateQuantity(product.id, qty - 1)}
-              primaryColor={primaryColor}
-            />
+      {/* Text below the square */}
+      <div style={{ padding: '10px 4px 0' }}>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>
+          {product.name}
+        </p>
+        {product.name_hindi && (
+          <p style={{ margin: '1px 0 0', fontSize: 10, fontWeight: 500, color: '#555' }}>
+            {product.name_hindi}
+          </p>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#999' }}>
+            {formatPrice(product.price)}
+          </span>
+          {product.spice_level > 0 && (
+            <span style={{ fontSize: 11 }}>{'🌶️'.repeat(product.spice_level)}</span>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

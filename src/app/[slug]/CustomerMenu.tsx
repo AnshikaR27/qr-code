@@ -1,17 +1,25 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ShoppingBag } from 'lucide-react';
 import MenuHeader from '@/components/menu/MenuHeader';
 import CategoryTabs from '@/components/menu/CategoryTabs';
 import FilterBar from '@/components/menu/FilterBar';
-import SearchBar from '@/components/menu/SearchBar';
 import DishCard from '@/components/menu/DishCard';
 import CartSheet from '@/components/menu/CartSheet';
+import DishDetailSheet from '@/components/menu/DishDetailSheet';
 import { useCart } from '@/hooks/useCart';
-import { cn, formatPrice } from '@/lib/utils';
+import { formatPrice } from '@/lib/utils';
 import type { Category, Product, Restaurant } from '@/types';
 import type { DietFilter } from '@/lib/constants';
+
+function hexToRgb(hex: string) {
+  const h = hex.startsWith('#') ? hex.slice(1) : hex;
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
 
 interface Props {
   restaurant: Restaurant;
@@ -25,13 +33,17 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const [dietFilter, setDietFilter] = useState<DietFilter>('all');
   const [search, setSearch] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
+  const [selectedDish, setSelectedDish] = useState<Product | null>(null);
   const prevCountRef = useRef(0);
   const [cartVisible, setCartVisible] = useState(false);
 
   const { items, getTotal, getItemCount } = useCart();
   const itemCount = getItemCount();
   const total = getTotal();
-  const p = restaurant.primary_color;
+  const p = restaurant.primary_color.startsWith('#')
+    ? restaurant.primary_color
+    : `#${restaurant.primary_color}`;
+  const { r, g, b } = hexToRgb(p);
 
   useEffect(() => {
     const prev = prevCountRef.current;
@@ -40,129 +52,242 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     prevCountRef.current = itemCount;
   }, [itemCount]);
 
-  const popularThreshold = useMemo(() => {
-    const counts = products.map((p) => p.order_count).filter((c) => c > 0);
-    if (!counts.length) return Infinity;
-    counts.sort((a, b) => b - a);
-    return counts[Math.max(0, Math.floor(counts.length * 0.1) - 1)];
+  // Top 3 dishes by order_count for "Most liked" badges
+  const topDishIds = useMemo(() => {
+    const sorted = [...products]
+      .filter((d) => d.order_count > 0)
+      .sort((a, b) => b.order_count - a.order_count)
+      .slice(0, 3);
+    return new Map(sorted.map((d, i) => [d.id, (i + 1) as 1 | 2 | 3]));
   }, [products]);
 
   const filtered = useMemo(() => {
-    let r = products;
-    if (activeCategory !== 'all') r = r.filter((p) => p.category_id === activeCategory);
-    if (dietFilter === 'veg')     r = r.filter((p) => p.is_veg);
-    if (dietFilter === 'non_veg') r = r.filter((p) => !p.is_veg);
-    if (dietFilter === 'jain')    r = r.filter((p) => p.is_jain);
+    let result = products;
+    if (activeCategory !== 'all') result = result.filter((d) => d.category_id === activeCategory);
+    if (dietFilter === 'veg') result = result.filter((d) => d.is_veg);
+    if (dietFilter === 'non_veg') result = result.filter((d) => !d.is_veg);
+    if (dietFilter === 'jain') result = result.filter((d) => d.is_jain);
     if (search.trim()) {
       const q = search.toLowerCase();
-      r = r.filter((p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.name_hindi && p.name_hindi.toLowerCase().includes(q))
+      result = result.filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          (d.name_hindi && d.name_hindi.toLowerCase().includes(q))
       );
     }
-    return r;
+    return result;
   }, [products, activeCategory, dietFilter, search]);
 
   const grouped = useMemo(() => {
-    if (activeCategory !== 'all') return [{ category: null as Category | null, items: filtered }];
+    if (activeCategory !== 'all') {
+      return [{ category: null as Category | null, items: filtered }];
+    }
     const groups: { category: Category | null; items: Product[] }[] = [];
     categories.forEach((cat) => {
-      const catItems = filtered.filter((p) => p.category_id === cat.id);
+      const catItems = filtered.filter((d) => d.category_id === cat.id);
       if (catItems.length) groups.push({ category: cat, items: catItems });
     });
-    const uncategorised = filtered.filter((p) => !p.category_id);
+    const uncategorised = filtered.filter((d) => !d.category_id);
     if (uncategorised.length) groups.push({ category: null, items: uncategorised });
     return groups;
   }, [filtered, categories, activeCategory]);
 
   return (
-    <div className="min-h-screen bg-gray-100 pb-28">
+    <div
+      style={{
+        backgroundColor: '#000',
+        minHeight: '100vh',
+        maxWidth: 420,
+        margin: '0 auto',
+        paddingBottom: 120,
+      }}
+    >
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes cartPop {
+          0%   { transform: translateY(100%); }
+          60%  { transform: translateY(-5px); }
+          100% { transform: translateY(0); }
+        }
+        * { -webkit-tap-highlight-color: transparent; }
+        input[type="search"]::-webkit-search-cancel-button { display: none; }
+        input::placeholder { color: #444; }
+      `}</style>
+
       {/* Header */}
       <MenuHeader restaurant={restaurant} />
 
       {/* Sticky controls */}
-      <div className="sticky top-0 z-10 shadow-sm">
+      <div style={{ position: 'sticky', top: 0, zIndex: 10 }}>
         <CategoryTabs
           categories={categories}
           activeId={activeCategory}
           onSelect={setActiveCategory}
           primaryColor={p}
         />
-        <FilterBar active={dietFilter} onChange={setDietFilter} primaryColor={p} />
-        <SearchBar value={search} onChange={setSearch} primaryColor={p} />
+        <div style={{ backgroundColor: '#000', paddingTop: 10 }}>
+          <FilterBar
+            active={dietFilter}
+            onChange={setDietFilter}
+            search={search}
+            onSearch={setSearch}
+            primaryColor={p}
+          />
+        </div>
       </div>
 
       {/* Dish sections */}
-      <div className="mt-2 space-y-2">
+      <div style={{ padding: '0 14px', marginTop: 8 }}>
         {grouped.length === 0 && (
-          <div className="bg-white flex flex-col items-center justify-center py-20 gap-3">
-            <div className="text-5xl">🔍</div>
-            <p className="font-bold text-gray-600">No results found</p>
-            <p className="text-sm text-gray-400 text-center px-8">
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '80px 32px',
+              gap: 12,
+            }}
+          >
+            <div style={{ fontSize: 48 }}>🔍</div>
+            <p style={{ color: '#fff', fontWeight: 700, margin: 0 }}>No results found</p>
+            <p style={{ color: '#555', fontSize: 13, textAlign: 'center', margin: 0 }}>
               Try adjusting your search or filter
             </p>
           </div>
         )}
 
         {grouped.map(({ category, items: groupItems }, gi) => (
-          <div key={category?.id ?? `g-${gi}`} className="bg-white">
-            {/* Section header */}
+          <div key={category?.id ?? `g-${gi}`} style={{ marginBottom: 32 }}>
+            {/* Category heading */}
             {activeCategory === 'all' && (
-              <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
-                <div>
-                  <h2 className="text-[15px] font-black text-gray-900">
-                    {category?.name ?? 'Other'}
-                  </h2>
-                  {category?.name_hindi && (
-                    <p className="text-[11px] text-gray-400 font-medium mt-0.5">
-                      {category.name_hindi}
-                    </p>
-                  )}
-                </div>
-                <span className="text-xs font-semibold text-gray-400">
-                  {groupItems.length} item{groupItems.length !== 1 ? 's' : ''}
-                </span>
+              <div style={{ marginBottom: 14 }}>
+                <h2
+                  style={{
+                    margin: 0,
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 22,
+                    fontWeight: 600,
+                    color: '#fff',
+                    letterSpacing: '-0.2px',
+                  }}
+                >
+                  {category?.name ?? 'Other'}
+                </h2>
+                {category?.name_hindi && (
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: '#555', fontWeight: 500 }}>
+                    {category.name_hindi}
+                  </p>
+                )}
               </div>
             )}
 
-            {/* Dish cards — no gaps, just border-b separators inside DishCard */}
-            {groupItems.map((product, pi) => (
-              <DishCard
-                key={product.id}
-                product={product}
-                isPopular={product.order_count > 0 && product.order_count >= popularThreshold}
-                primaryColor={p}
-              />
-            ))}
+            {/* 2-column grid */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 10,
+              }}
+            >
+              {groupItems.map((product, pi) => (
+                <div
+                  key={product.id}
+                  style={{
+                    animation: 'fadeIn 0.3s ease forwards',
+                    animationDelay: `${pi * 50}ms`,
+                    opacity: 0,
+                  }}
+                >
+                  <DishCard
+                    product={product}
+                    rank={topDishIds.get(product.id) ?? null}
+                    primaryColor={p}
+                    onTap={setSelectedDish}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Cart bottom bar */}
+      {/* Cart bar */}
       <div
-        className={cn(
-          'fixed bottom-0 left-0 right-0 z-20 px-4 pb-5 pt-2 transition-transform duration-300',
-          cartVisible ? 'translate-y-0' : 'translate-y-[120%] pointer-events-none',
-        )}
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '100%',
+          maxWidth: 420,
+          zIndex: 30,
+          padding: '6px 14px 16px',
+          pointerEvents: cartVisible ? 'auto' : 'none',
+        }}
       >
+        {/* Frost gradient */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to top, rgba(0,0,0,0.95) 60%, transparent)',
+            pointerEvents: 'none',
+          }}
+        />
         <button
           onClick={() => setCartOpen(true)}
-          className="w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-white active:scale-[0.98] transition-transform shadow-2xl"
-          style={{ backgroundColor: p, boxShadow: `0 8px 30px ${p}70` }}
+          style={{
+            position: 'relative',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 18px',
+            borderRadius: 14,
+            border: 'none',
+            cursor: 'pointer',
+            backgroundColor: p,
+            boxShadow: `0 4px 24px rgba(${r},${g},${b},0.5), 0 0 0 1px rgba(${r},${g},${b},0.3)`,
+            transform: cartVisible ? 'translateY(0)' : 'translateY(110%)',
+            transition: 'transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }}
         >
-          <span className="flex items-center gap-3">
-            <span className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-sm font-black">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 900,
+              }}
+            >
               {itemCount}
             </span>
-            <span className="text-[15px] font-black tracking-wide">View Cart</span>
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="text-[15px] font-black">{formatPrice(total)}</span>
-            <ShoppingBag className="w-4.5 h-4.5 opacity-90" />
-          </span>
+            <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>View Cart</span>
+          </div>
+          <span style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>{formatPrice(total)}</span>
         </button>
       </div>
 
+      {/* Dish detail bottom sheet */}
+      <DishDetailSheet
+        product={selectedDish}
+        rank={selectedDish ? (topDishIds.get(selectedDish.id) ?? null) : null}
+        primaryColor={p}
+        onClose={() => setSelectedDish(null)}
+      />
+
+      {/* Cart sheet */}
       <CartSheet
         open={cartOpen}
         onClose={() => setCartOpen(false)}

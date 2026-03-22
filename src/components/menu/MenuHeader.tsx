@@ -1,58 +1,103 @@
 import Image from 'next/image';
-import { MapPin, Clock } from 'lucide-react';
 import type { Restaurant } from '@/types';
 
-interface Props { restaurant: Restaurant }
+interface Props {
+  restaurant: Restaurant;
+}
+
+function hexToRgb(hex: string) {
+  const h = hex.startsWith('#') ? hex.slice(1) : hex;
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
 
 export default function MenuHeader({ restaurant }: Props) {
-  const { primary_color, name, city, logo_url } = restaurant;
+  const { name, city, logo_url, primary_color, secondary_color } = restaurant;
+  const p = primary_color.startsWith('#') ? primary_color : `#${primary_color}`;
+  const s = secondary_color.startsWith('#') ? secondary_color : `#${secondary_color}`;
+  const { r, g, b } = hexToRgb(p);
 
   return (
-    <div className="bg-white border-b border-gray-200">
-      {/* Top brand bar */}
-      <div
-        className="h-1.5 w-full"
-        style={{ background: `linear-gradient(90deg, ${primary_color}, ${primary_color}99)` }}
-      />
+    <header style={{ backgroundColor: s }}>
+      {/* 3px accent stripe */}
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${p}, transparent)` }} />
 
-      <div className="px-4 pt-4 pb-4">
-        <div className="flex items-center gap-3.5">
-          {/* Logo */}
-          <div
-            className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center border border-gray-100"
-            style={{ backgroundColor: `${primary_color}12` }}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '20px 18px 16px' }}>
+        {/* Logo circle */}
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: `linear-gradient(135deg, ${p}, rgba(${r},${g},${b},0.6))`,
+            border: `1.5px solid rgba(${r},${g},${b},0.4)`,
+            boxShadow: `0 0 20px rgba(${r},${g},${b},0.3)`,
+          }}
+        >
+          {logo_url ? (
+            <Image
+              src={logo_url}
+              alt={name}
+              width={44}
+              height={44}
+              style={{ objectFit: 'cover', width: '100%', height: '100%' }}
+            />
+          ) : (
+            <span style={{ color: '#fff', fontSize: 18, fontWeight: 800 }}>
+              {name.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
+
+        {/* Name + city */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1
+            style={{
+              margin: 0,
+              color: '#fff',
+              fontSize: 17,
+              fontWeight: 800,
+              letterSpacing: '-0.2px',
+              lineHeight: 1.2,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
           >
-            {logo_url ? (
-              <Image src={logo_url} alt={name} width={64} height={64} className="object-cover w-full h-full" />
-            ) : (
-              <span
-                className="text-2xl font-black"
-                style={{ color: primary_color }}
-              >
-                {name.charAt(0).toUpperCase()}
-              </span>
-            )}
-          </div>
-
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-black text-gray-900 leading-tight truncate">{name}</h1>
-
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-              {city && (
-                <span className="flex items-center gap-1 text-xs text-gray-500 font-medium">
-                  <MapPin className="w-3 h-3" />
-                  {city}
-                </span>
-              )}
-              <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: '#1ca672' }}>
-                <Clock className="w-3 h-3" />
-                Open Now
-              </span>
-            </div>
-          </div>
+            {name}
+          </h1>
+          {city && (
+            <p
+              style={{
+                margin: '3px 0 0',
+                color: '#666',
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: '0.05em',
+              }}
+            >
+              {city.toUpperCase()} · OPEN NOW
+            </p>
+          )}
+          {/* Brand underline */}
+          <div
+            style={{
+              marginTop: 6,
+              height: 2,
+              width: '60%',
+              background: `linear-gradient(90deg, ${p}, transparent)`,
+            }}
+          />
         </div>
       </div>
-    </div>
+    </header>
   );
 }

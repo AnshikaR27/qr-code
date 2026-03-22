@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { cn } from '@/lib/utils';
 import type { Category } from '@/types';
 
 interface Props {
@@ -23,10 +22,26 @@ export default function CategoryTabs({ categories, activeId, onSelect, primaryCo
   const allItems = [{ id: 'all', name: 'All', name_hindi: null }, ...categories];
 
   return (
-    <div className="bg-white border-b border-gray-200">
+    <div
+      style={{
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid #1a1a1a',
+      }}
+    >
+      <style>{`
+        .cat-tabs-scroll::-webkit-scrollbar { display: none; }
+      `}</style>
       <div
-        className="flex overflow-x-auto scrollbar-hide"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="cat-tabs-scroll"
+        style={{
+          display: 'flex',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
       >
         {allItems.map((cat) => {
           const isActive = activeId === cat.id;
@@ -35,20 +50,22 @@ export default function CategoryTabs({ categories, activeId, onSelect, primaryCo
               key={cat.id}
               ref={isActive ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
-              className={cn(
-                'flex-shrink-0 relative px-5 py-3.5 text-sm font-bold whitespace-nowrap',
-                'transition-colors duration-150 select-none',
-                isActive ? 'text-gray-900' : 'text-gray-500',
-              )}
+              style={{
+                flexShrink: 0,
+                padding: '12px 16px 10px',
+                background: 'none',
+                border: 'none',
+                borderBottom: `2px solid ${isActive ? primaryColor : 'transparent'}`,
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: isActive ? 800 : 500,
+                color: isActive ? '#fff' : '#555',
+                whiteSpace: 'nowrap',
+                transition: 'color 0.15s',
+                userSelect: 'none',
+              }}
             >
               {cat.name}
-              {/* Active underline */}
-              {isActive && (
-                <span
-                  className="absolute bottom-0 left-3 right-3 h-[3px] rounded-full"
-                  style={{ backgroundColor: primaryColor }}
-                />
-              )}
             </button>
           );
         })}
