@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { placeOrderSchema } from '@/lib/validators';
 
 export async function POST(req: NextRequest) {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   } = parsed.data;
 
   // Verify restaurant exists
-  const { data: restaurant, error: restErr } = await supabaseAdmin
+  const { data: restaurant, error: restErr } = await getSupabaseAdmin()
     .from('restaurants')
     .select('id')
     .eq('id', restaurant_id)
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   // Fetch product prices server-side — never trust client prices
   const productIds = items.map((i) => i.product_id);
-  const { data: dbProducts, error: prodErr } = await supabaseAdmin
+  const { data: dbProducts, error: prodErr } = await getSupabaseAdmin()
     .from('products')
     .select('id, price, name, is_available')
     .in('id', productIds)
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   }, 0);
 
   // Insert order
-  const { data: order, error: orderErr } = await supabaseAdmin
+  const { data: order, error: orderErr } = await getSupabaseAdmin()
     .from('orders')
     .insert({
       restaurant_id,
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     };
   });
 
-  const { error: itemsErr } = await supabaseAdmin.from('order_items').insert(orderItems);
+  const { error: itemsErr } = await getSupabaseAdmin().from('order_items').insert(orderItems);
 
   if (itemsErr) {
     console.error('Order items insert error:', itemsErr);

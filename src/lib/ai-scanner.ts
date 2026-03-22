@@ -1,7 +1,11 @@
 import Groq from 'groq-sdk';
 import { z } from 'zod';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let groq: Groq | null = null;
+function getGroq() {
+  if (!groq) groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  return groq;
+}
 
 const EXTRACTION_PROMPT = `Extract all dishes from this restaurant menu image.
 Return a JSON array where each item has:
@@ -29,7 +33,7 @@ export async function extractMenuFromImage(
   imageBase64: string,
   mimeType: string
 ): Promise<ScannedDish[]> {
-  const response = await groq.chat.completions.create({
+  const response = await getGroq().chat.completions.create({
     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
     max_tokens: 4096,
     messages: [
