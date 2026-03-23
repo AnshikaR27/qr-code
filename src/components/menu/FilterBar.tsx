@@ -58,7 +58,7 @@ export default function FilterBar({ active, onChange, search, onSearch, primaryC
               cursor: 'pointer',
               userSelect: 'none',
               transition: 'all 0.15s',
-              backgroundColor: isActive ? primaryColor : 'transparent',
+              backgroundColor: isActive ? (f.value === 'all' ? '#333' : primaryColor) : 'transparent',
               color: isActive ? '#fff' : '#666',
               border: isActive ? 'none' : `1px solid rgba(${r},${g},${b},0.15)`,
             }}

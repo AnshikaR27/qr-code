@@ -40,9 +40,8 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const { items, getTotal, getItemCount } = useCart();
   const itemCount = getItemCount();
   const total = getTotal();
-  const p = restaurant.primary_color.startsWith('#')
-    ? restaurant.primary_color
-    : `#${restaurant.primary_color}`;
+  const rawColor = restaurant.primary_color || '#333';
+  const p = rawColor.startsWith('#') ? rawColor : `#${rawColor}`;
   const { r, g, b } = hexToRgb(p);
 
   useEffect(() => {
@@ -251,6 +250,8 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
             border: 'none',
             cursor: 'pointer',
             backgroundColor: p,
+            color: '#fff',
+            fontWeight: 700,
             boxShadow: `0 4px 24px rgba(${r},${g},${b},0.5), 0 0 0 1px rgba(${r},${g},${b},0.3)`,
             transform: cartVisible ? 'translateY(0)' : 'translateY(110%)',
             transition: 'transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -262,7 +263,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
                 width: 28,
                 height: 28,
                 borderRadius: '50%',
-                backgroundColor: 'rgba(255,255,255,0.2)',
+                backgroundColor: 'rgba(0,0,0,0.25)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
