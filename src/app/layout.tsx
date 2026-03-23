@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Cormorant_Garamond } from 'next/font/google';
+import { Inter, Cormorant_Garamond, Playfair_Display } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import PostHogProvider from '@/components/PostHogProvider';
 import * as Sentry from '@sentry/nextjs';
@@ -10,6 +10,11 @@ const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
   weight: ['500', '600', '700'],
   variable: '--font-serif',
+});
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['600', '700', '800'],
+  variable: '--font-display',
 });
 
 export function generateMetadata(): Metadata {
@@ -24,7 +29,7 @@ export function generateMetadata(): Metadata {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${cormorant.variable}`}>
+    <html lang="en" className={`${inter.variable} ${cormorant.variable} ${playfair.variable}`}>
       <body className="font-sans antialiased">
         <PostHogProvider>
           {children}

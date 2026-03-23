@@ -9,6 +9,27 @@ export function formatPrice(amount: number): string {
   return `₹${amount.toFixed(2).replace(/\.00$/, '')}`;
 }
 
+export function getContrastText(hex: string): '#FFFFFF' | '#1D1D1D' {
+  const h = hex.startsWith('#') ? hex.slice(1) : hex;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#1D1D1D' : '#FFFFFF';
+}
+
+export function getSafeAccent(hexColor: string): string {
+  const hex = hexColor.startsWith('#') ? hexColor.slice(1) : hexColor;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (luminance > 0.7) {
+    return `rgb(${Math.floor(r * 0.6)}, ${Math.floor(g * 0.6)}, ${Math.floor(b * 0.6)})`;
+  }
+  return hexColor;
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()
