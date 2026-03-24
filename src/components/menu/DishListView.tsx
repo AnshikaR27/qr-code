@@ -19,8 +19,6 @@ interface Props {
   onBack: () => void;
   onCategoryChange: (id: string) => void;
   onTapDish: (product: Product) => void;
-  itemCount: number;
-  onCartOpen: () => void;
   searchOpen: boolean;
   onSearchToggle: () => void;
   search: string;
@@ -38,8 +36,6 @@ export default function DishListView({
   onBack,
   onCategoryChange,
   onTapDish,
-  itemCount,
-  onCartOpen,
   searchOpen,
   onSearchToggle,
   search,
@@ -98,8 +94,6 @@ export default function DishListView({
         view="list"
         restaurant={restaurant}
         primaryColor={primaryColor}
-        itemCount={itemCount}
-        onCartOpen={onCartOpen}
         categoryName={category.name}
         onBack={onBack}
         onSearchToggle={onSearchToggle}

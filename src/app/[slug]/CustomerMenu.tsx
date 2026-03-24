@@ -127,8 +127,6 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
             onBack={handleBack}
             onCategoryChange={handleCategorySelect}
             onTapDish={setSelectedDish}
-            itemCount={itemCount}
-            onCartOpen={() => setCartOpen(true)}
             searchOpen={searchOpen}
             onSearchToggle={() => setSearchOpen((o) => !o)}
             search={search}
