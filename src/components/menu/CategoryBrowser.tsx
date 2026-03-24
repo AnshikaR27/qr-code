@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import CategoryCard from './CategoryCard';
+import { getDarkBrand } from '@/lib/utils';
 import type { Category, Product } from '@/types';
 
 interface Props {
@@ -49,7 +50,7 @@ export default function CategoryBrowser({
   }, [cartItems, products]);
 
   return (
-    <div style={{ backgroundColor: '#000000', minHeight: '100vh' }}>
+    <div style={{ backgroundColor: getDarkBrand(primaryColor), minHeight: '100vh' }}>
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(12px); }

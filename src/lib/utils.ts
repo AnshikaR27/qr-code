@@ -30,6 +30,26 @@ export function getSafeAccent(hexColor: string): string {
   return hexColor;
 }
 
+// Creates a very dark version of any color for premium dark backgrounds
+export function getDarkBrand(hexColor: string): string {
+  const hex = hexColor.startsWith('#') ? hexColor.slice(1) : hexColor;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  // Darken to ~8-12% of original — creates a rich deep tone
+  return `rgb(${Math.floor(r * 0.1 + 5)}, ${Math.floor(g * 0.1 + 5)}, ${Math.floor(b * 0.1 + 5)})`;
+}
+
+// Slightly lighter version for navbar distinction
+export function getNavbarBrand(hexColor: string): string {
+  const hex = hexColor.startsWith('#') ? hexColor.slice(1) : hexColor;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  // Darken to ~15-18% of original — slightly lighter than page bg
+  return `rgb(${Math.floor(r * 0.15 + 10)}, ${Math.floor(g * 0.15 + 10)}, ${Math.floor(b * 0.15 + 10)})`;
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

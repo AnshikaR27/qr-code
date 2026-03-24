@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { getDarkBrand } from '@/lib/utils';
 import MenuHeader from '@/components/menu/MenuHeader';
 import CategoryBrowser from '@/components/menu/CategoryBrowser';
 import DishListView from '@/components/menu/DishListView';
@@ -65,7 +66,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         maxWidth: 420,
         margin: '0 auto',
         minHeight: '100vh',
-        backgroundColor: selectedCategory ? '#FFFFFF' : '#000000',
+        backgroundColor: selectedCategory ? '#FFFFFF' : getDarkBrand(primaryColor),
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -89,8 +90,6 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
             view="browser"
             restaurant={restaurant}
             primaryColor={primaryColor}
-            itemCount={itemCount}
-            onCartOpen={() => setCartOpen(true)}
           />
 
           <CategoryBrowser

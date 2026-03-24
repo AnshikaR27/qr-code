@@ -1,15 +1,13 @@
 'use client';
 
 import Image from 'next/image';
-import { getContrastText } from '@/lib/utils';
+import { getNavbarBrand } from '@/lib/utils';
 import type { Restaurant } from '@/types';
 
 interface Props {
   view: 'browser' | 'list';
   restaurant: Restaurant;
   primaryColor: string;
-  itemCount: number;
-  onCartOpen: () => void;
   // View 2 specific
   categoryName?: string;
   onBack?: () => void;
@@ -20,8 +18,6 @@ export default function MenuHeader({
   view,
   restaurant,
   primaryColor,
-  itemCount,
-  onCartOpen,
   categoryName,
   onBack,
   onSearchToggle,
@@ -99,22 +95,27 @@ export default function MenuHeader({
     );
   }
 
-  // View 1 — browser header
-  const badgeText = getContrastText(primaryColor);
+  // View 1 — brand-adaptive navbar, visually distinct from page
+  const hasLogo = Boolean(restaurant.logo_url);
+  const tagline = restaurant.city ?? '';
 
   return (
     <div
       style={{
-        backgroundColor: '#000000',
-        padding: '18px 16px',
+        backgroundColor: getNavbarBrand(primaryColor),
+        padding: '16px 18px',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        gap: 14,
+        position: 'sticky',
+        top: 0,
+        zIndex: 20,
       }}
     >
-      {/* Left: logo + name */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {restaurant.logo_url && (
+      {hasLogo ? (
+        /* Mode A — logo image */
+        <>
           <div
             style={{
               width: 40,
@@ -122,23 +123,56 @@ export default function MenuHeader({
               borderRadius: '50%',
               overflow: 'hidden',
               flexShrink: 0,
+              border: '1.5px solid rgba(255,255,255,0.15)',
             }}
           >
             <Image
-              src={restaurant.logo_url}
+              src={restaurant.logo_url!}
               alt={restaurant.name}
               width={40}
               height={40}
               style={{ objectFit: 'cover', width: '100%', height: '100%' }}
             />
           </div>
-        )}
+          <div>
+            <p
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-display)',
+                fontSize: 18,
+                fontWeight: 700,
+                color: '#FFFFFF',
+                lineHeight: 1.2,
+              }}
+            >
+              {restaurant.name}
+            </p>
+            {tagline && (
+              <p
+                style={{
+                  margin: 0,
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 10,
+                  fontWeight: 500,
+                  color: 'rgba(255,255,255,0.4)',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  marginTop: 2,
+                }}
+              >
+                {tagline}
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        /* Mode B — text-only logo (no circle, no placeholder) */
         <div>
           <p
             style={{
               margin: 0,
               fontFamily: 'var(--font-display)',
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: 700,
               color: '#FFFFFF',
               lineHeight: 1.2,
@@ -146,70 +180,25 @@ export default function MenuHeader({
           >
             {restaurant.name}
           </p>
-          <p
-            style={{
-              margin: 0,
-              fontFamily: 'var(--font-sans)',
-              fontSize: 10,
-              fontWeight: 500,
-              color: '#999',
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              marginTop: 2,
-            }}
-          >
-            Happiness Brewed
-          </p>
+          {tagline && (
+            <p
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-sans)',
+                fontSize: 10,
+                fontWeight: 500,
+                color: 'rgba(255,255,255,0.4)',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                marginTop: 2,
+              }}
+            >
+              {tagline}
+            </p>
+          )}
         </div>
-      </div>
-
-      {/* Right: cart icon */}
-      <div style={{ position: 'relative' }}>
-        <button
-          onClick={onCartOpen}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
-            border: '1.5px solid #FFFFFF',
-            background: 'transparent',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-          aria-label="Cart"
-        >
-          {/* Shopping bag icon */}
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <path d="M16 10a4 4 0 0 1-8 0" />
-          </svg>
-        </button>
-        {itemCount > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: -6,
-              right: -6,
-              width: 18,
-              height: 18,
-              borderRadius: '50%',
-              backgroundColor: primaryColor,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 10,
-              fontWeight: 800,
-              color: badgeText,
-              fontFamily: 'var(--font-sans)',
-            }}
-          >
-            {itemCount}
-          </div>
-        )}
-      </div>
+      )}
+      {/* RIGHT SIDE — Nothing. Cart is only the floating button at bottom-right. */}
     </div>
   );
 }
