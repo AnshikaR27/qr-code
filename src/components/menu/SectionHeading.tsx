@@ -1,57 +1,54 @@
-'use client';
+import chroma from 'chroma-js';
+import { getCategoryAccent } from '@/lib/palette';
+import type { BrandPalette } from '@/lib/palette';
+import type { Category } from '@/types';
 
 interface Props {
-  title: string;
-  primaryColor: string;
-  isOpen: boolean;
-  onToggle: () => void;
+  category: Category;
+  palette: BrandPalette;
 }
 
-export default function SectionHeading({ title, primaryColor, isOpen, onToggle }: Props) {
+export default function SectionHeading({ category, palette }: Props) {
+  const [h] = chroma(palette.primary).hsl();
+  const hue = isNaN(h) ? 30 : h;
+  const accentColor = getCategoryAccent(hue, category.name);
+
   return (
-    <div
-      style={{
-        padding: '16px 16px 8px',
-        display: 'flex',
-        alignItems: 'center',
-        cursor: 'pointer',
-        userSelect: 'none',
-      }}
-      onClick={onToggle}
-    >
-      <span
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 16,
-          fontWeight: 700,
-          color: '#1D1D1D',
-          flexShrink: 0,
-        }}
-      >
-        {title}
-      </span>
+    <div style={{ padding: '24px 16px 8px' }}>
       <div
         style={{
-          flex: 1,
-          height: 1.5,
-          backgroundColor: primaryColor,
-          marginLeft: 10,
-          marginRight: 10,
-        }}
-      />
-      <span
-        style={{
-          fontSize: 14,
-          color: '#999',
-          flexShrink: 0,
-          lineHeight: 1,
-          transition: 'transform 0.2s',
-          display: 'inline-block',
-          transform: isOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+          fontFamily: 'var(--font-sans)',
+          fontSize: 18,
+          fontWeight: 800,
+          color: palette.dark,
+          lineHeight: 1.2,
         }}
       >
-        ∧
-      </span>
+        {category.name}
+      </div>
+      {category.name_hindi && (
+        <div
+          style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: 13,
+            fontWeight: 400,
+            color: palette.midDark,
+            marginTop: 4,
+          }}
+        >
+          {category.name_hindi}
+        </div>
+      )}
+      {/* Category accent line */}
+      <div
+        style={{
+          width: 40,
+          height: 3,
+          borderRadius: 2,
+          backgroundColor: accentColor,
+          marginTop: 8,
+        }}
+      />
     </div>
   );
 }

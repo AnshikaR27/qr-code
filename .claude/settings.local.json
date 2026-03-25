@@ -11,7 +11,9 @@
       "Bash(npx tsc:*)",
       "Bash(timeout 15 npm run dev)",
       "Bash(npx shadcn@latest init --style default -y)",
-      "Bash(npx shadcn@latest init --help)"
+      "Bash(npx shadcn@latest init --help)",
+      "Bash(npx next:*)",
+      "Bash(ls /c/Users/12ans/Downloads/qrcode/src/app/[slug]/CustomerMenu.tsx)"
     ]
   }
 }
