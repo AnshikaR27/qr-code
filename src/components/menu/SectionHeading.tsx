@@ -15,7 +15,7 @@ export default function SectionHeading({ category, tokens }: Props) {
           fontFamily: tokens.fontBody,
           fontSize: 10,
           fontWeight: 700,
-          color: tokens.primary,
+          color: tokens.textMuted,
           textTransform: 'uppercase',
           letterSpacing: '0.22em',
           marginBottom: 8,

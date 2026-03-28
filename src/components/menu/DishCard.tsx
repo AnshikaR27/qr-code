@@ -18,11 +18,12 @@ const BURST = [
   (55 * Math.PI) / 180,
 ];
 
-function VegBadge({ isVeg, veg, nonveg }: { isVeg: boolean; veg: string; nonveg: string }) {
+function VegBadge({ isVeg, veg, nonveg, cardBg }: { isVeg: boolean; veg: string; nonveg: string; cardBg: string }) {
   const color = isVeg ? veg : nonveg;
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
-      <rect x="1" y="1" width="16" height="16" rx="2" stroke={color} strokeWidth="2" fill="white" />
+      {/* fill uses cardBg not "white" so it's visible on dark card surfaces */}
+      <rect x="1" y="1" width="16" height="16" rx="2" stroke={color} strokeWidth="2" fill={cardBg} />
       <circle cx="9" cy="9" r="4.5" fill={color} />
     </svg>
   );
@@ -103,9 +104,10 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
   }
 
   const addBtnTransform = addPressed ? 'scale(0.95)' : addHovered ? 'scale(1.05)' : 'scale(1)';
+  // Max 10% opacity (1a) on all accent glows — keeps effect subtle on any theme color
   const addBtnShadow = addHovered && !addPressed
-    ? `0 6px 20px ${tokens.primary}55`
-    : `0 4px 16px ${tokens.primary}40`;
+    ? `0 6px 20px ${tokens.primary}1a`
+    : `0 4px 16px ${tokens.primary}1a`;
 
   return (
     // Outer wrapper — owns the scroll-reveal opacity/translateY
@@ -178,7 +180,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
           <div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
               <div style={{ paddingTop: 2 }}>
-                <VegBadge isVeg={dish.is_veg} veg={tokens.veg} nonveg={tokens.nonveg} />
+                <VegBadge isVeg={dish.is_veg} veg={tokens.veg} nonveg={tokens.nonveg} cardBg={tokens.cardBg} />
               </div>
               <span
                 style={{
@@ -320,7 +322,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
                     alignItems: 'center',
                     backgroundColor: tokens.success,
                     borderRadius: 24,
-                    boxShadow: `0 4px 16px ${tokens.success}4d`,
+                    boxShadow: `0 4px 16px ${tokens.success}1a`,
                   }}
                 >
                   <button

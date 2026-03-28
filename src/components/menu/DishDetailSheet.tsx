@@ -6,11 +6,11 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
-function VegBadge({ isVeg, veg, nonveg }: { isVeg: boolean; veg: string; nonveg: string }) {
+function VegBadge({ isVeg, veg, nonveg, cardBg }: { isVeg: boolean; veg: string; nonveg: string; cardBg: string }) {
   const color = isVeg ? veg : nonveg;
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
-      <rect x="1" y="1" width="16" height="16" rx="2" stroke={color} strokeWidth="2" fill="white" />
+      <rect x="1" y="1" width="16" height="16" rx="2" stroke={color} strokeWidth="2" fill={cardBg} />
       <circle cx="9" cy="9" r="4.5" fill={color} />
     </svg>
   );
@@ -52,7 +52,7 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
   const dish = product;
   const cartItem = items.find((i) => i.product_id === dish.id);
   const cartQty = cartItem?.quantity ?? 0;
-  const neonShadow = `${tokens.accent}4d`;
+  const neonShadow = `${tokens.accent}1a`;
 
   function handleAddToOrder() {
     if (cartQty === 0) {
@@ -157,7 +157,7 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
                 flexWrap: 'wrap',
               }}
             >
-              <VegBadge isVeg={product.is_veg} veg={tokens.veg} nonveg={tokens.nonveg} />
+              <VegBadge isVeg={product.is_veg} veg={tokens.veg} nonveg={tokens.nonveg} cardBg={tokens.cardBg} />
               {isBestseller && (
                 <span
                   style={{

@@ -165,7 +165,7 @@ export default function FloatingFilters({
                         fontWeight: 600,
                         background: dietFilter === v ? tokens.ctaGradient : tokens.surfaceLow,
                         color: dietFilter === v ? '#fff' : tokens.textMuted,
-                        boxShadow: dietFilter === v ? `0 4px 14px ${tokens.primary}40` : 'none',
+                        boxShadow: dietFilter === v ? `0 4px 14px ${tokens.primary}1a` : 'none',
                         transition: 'all 0.15s ease',
                       }}
                     >
@@ -205,7 +205,7 @@ export default function FloatingFilters({
                         fontWeight: 600,
                         background: sortBy === v ? tokens.ctaGradient : tokens.surfaceLow,
                         color: sortBy === v ? '#fff' : tokens.textMuted,
-                        boxShadow: sortBy === v ? `0 4px 14px ${tokens.primary}40` : 'none',
+                        boxShadow: sortBy === v ? `0 4px 14px ${tokens.primary}1a` : 'none',
                         transition: 'all 0.15s ease',
                       }}
                     >

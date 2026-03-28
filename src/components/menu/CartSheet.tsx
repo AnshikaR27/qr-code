@@ -123,7 +123,7 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
                         x="1" y="1" width="16" height="16" rx="2.5"
                         stroke={item.is_veg ? tokens.veg : tokens.nonveg}
                         strokeWidth="2"
-                        fill="white"
+                        fill={tokens.cardBg}
                       />
                       <circle
                         cx="9" cy="9" r="4.5"
@@ -162,8 +162,8 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
                       </span>
                       <button
                         onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
-                        style={{ backgroundColor: tokens.primary }}
+                        className="w-7 h-7 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+                        style={{ backgroundColor: tokens.primary, color: '#fff' }}
                       >
                         <Plus className="w-3 h-3" strokeWidth={3} />
                       </button>
@@ -178,7 +178,10 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
                       </span>
                       <button
                         onClick={() => removeItem(item.product_id)}
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"
+                        className="w-6 h-6 rounded-full flex items-center justify-center transition-all"
+                        style={{ color: tokens.textMuted }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = tokens.error; e.currentTarget.style.backgroundColor = `${tokens.error}15`; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = tokens.textMuted; e.currentTarget.style.backgroundColor = 'transparent'; }}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -234,7 +237,7 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
                         ? {
                             backgroundColor: tokens.primary,
                             color: '#fff',
-                            boxShadow: `0 4px 12px ${tokens.primary}45`,
+                            boxShadow: `0 4px 12px ${tokens.primary}1a`,
                           }
                         : { color: tokens.textMuted }
                     }
@@ -312,7 +315,7 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
                   style={{
                     background: tokens.ctaGradient,
                     color: '#fff',
-                    boxShadow: `0 6px 24px ${tokens.accent}55`,
+                    boxShadow: `0 6px 24px ${tokens.accent}1a`,
                   }}
                 >
                   Place Order →

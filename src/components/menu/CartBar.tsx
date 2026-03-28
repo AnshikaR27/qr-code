@@ -104,7 +104,7 @@ export default function CartBar({ tokens, itemCount, total, onOpen }: Props) {
             borderRadius: 24,
             background: tokens.ctaGradient,
             color: '#fff',
-            boxShadow: `0 -4px 40px -10px ${tokens.text}1a, 0 6px 28px ${tokens.primary}45`,
+            boxShadow: `0 -4px 40px -10px ${tokens.text}1a, 0 6px 28px ${tokens.primary}1a`,
             border: 'none',
             cursor: 'pointer',
           }}
