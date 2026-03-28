@@ -24,7 +24,9 @@ export default function MenuNavbar({ restaurant, tokens, itemCount, onCartOpen }
 
       <div
         style={{
-          background: tokens.headerGradient,
+          backgroundColor: `${tokens.navBg}cc`,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           padding: '14px 16px',
           display: 'flex',
           alignItems: 'center',

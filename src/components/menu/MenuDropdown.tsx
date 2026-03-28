@@ -35,8 +35,7 @@ export default function MenuDropdown({ categories, activeCategoryId, tokens, onS
         onClick={() => setOpen(true)}
         style={{
           padding: '12px 16px',
-          backgroundColor: tokens.bg,
-          borderBottom: `1.5px solid ${tokens.border}`,
+          backgroundColor: tokens.navBg,
           display: 'flex',
           alignItems: 'center',
           gap: 6,

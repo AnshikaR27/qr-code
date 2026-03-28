@@ -121,13 +121,13 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
                     >
                       <rect
                         x="1" y="1" width="16" height="16" rx="2.5"
-                        stroke={item.is_veg ? '#0F8A00' : '#E23744'}
+                        stroke={item.is_veg ? tokens.veg : tokens.nonveg}
                         strokeWidth="2"
                         fill="white"
                       />
                       <circle
                         cx="9" cy="9" r="4.5"
-                        fill={item.is_veg ? '#0F8A00' : '#E23744'}
+                        fill={item.is_veg ? tokens.veg : tokens.nonveg}
                       />
                     </svg>
 
@@ -190,26 +190,32 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
                     value={item.notes}
                     onChange={(e) => updateNotes(item.product_id, e.target.value)}
                     placeholder="Special instructions (less spicy, no onion…)"
-                    className="w-full ml-[28px] text-xs px-3 py-2 rounded-xl border-2 outline-none transition-all"
+                    className="w-full ml-[28px] text-xs px-3 py-1.5 outline-none"
                     style={{
-                      backgroundColor: `${tokens.primary}06`,
-                      borderColor: `${tokens.primary}20`,
+                      backgroundColor: tokens.surfaceLow,
+                      border: 'none',
+                      borderBottom: '2px solid transparent',
+                      borderRadius: '8px 8px 0 0',
                       color: tokens.textMuted,
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease',
                     }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = `${tokens.primary}50`; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = `${tokens.primary}20`; }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.backgroundColor = tokens.bg;
+                      e.currentTarget.style.borderBottomColor = tokens.accent;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.backgroundColor = tokens.surfaceLow;
+                      e.currentTarget.style.borderBottomColor = 'transparent';
+                    }}
                   />
                 </div>
               ))}
             </div>
 
-            {/* Footer */}
+            {/* Footer — tonal surface shift instead of border-t per No-Line rule */}
             <div
-              className="flex-shrink-0 px-5 pt-3 pb-6 space-y-3 border-t"
-              style={{
-                backgroundColor: tokens.cardBg,
-                borderColor: tokens.border,
-              }}
+              className="flex-shrink-0 px-5 pt-3 pb-6 space-y-3"
+              style={{ backgroundColor: tokens.surfaceLow }}
             >
               {/* Order type toggle */}
               <div
@@ -246,42 +252,43 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
                     value={customerName}
                     onChange={(e) => { setCustomerName(e.target.value); setNameError(''); }}
                     placeholder="Your name *"
-                    className={cn(
-                      'w-full text-sm px-4 py-3 rounded-xl border-2 outline-none transition-all',
-                      nameError ? 'border-red-400 bg-red-50' : ''
-                    )}
-                    style={
-                      !nameError
-                        ? {
-                            borderColor: `${tokens.primary}30`,
-                            backgroundColor: `${tokens.primary}06`,
-                            color: tokens.text,
-                          }
-                        : {}
-                    }
+                    className="w-full text-sm px-4 py-3 outline-none"
+                    style={{
+                      backgroundColor: nameError ? `${tokens.error}12` : tokens.bg,
+                      border: 'none',
+                      borderBottom: nameError
+                        ? `2px solid ${tokens.error}`
+                        : '2px solid transparent',
+                      borderRadius: '10px 10px 0 0',
+                      color: tokens.text,
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease',
+                    }}
                     onFocus={(e) => {
-                      if (!nameError) e.currentTarget.style.borderColor = `${tokens.primary}70`;
+                      if (!nameError) e.currentTarget.style.borderBottomColor = tokens.accent;
                     }}
                     onBlur={(e) => {
-                      if (!nameError) e.currentTarget.style.borderColor = `${tokens.primary}30`;
+                      if (!nameError) e.currentTarget.style.borderBottomColor = 'transparent';
                     }}
                   />
                   {nameError && (
-                    <p className="text-xs text-red-500 font-semibold px-1">{nameError}</p>
+                    <p className="text-xs font-semibold px-1" style={{ color: tokens.error }}>{nameError}</p>
                   )}
                   <input
                     type="tel"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     placeholder="Phone number (optional)"
-                    className="w-full text-sm px-4 py-3 rounded-xl border-2 outline-none transition-all"
+                    className="w-full text-sm px-4 py-3 outline-none"
                     style={{
-                      borderColor: `${tokens.primary}30`,
-                      backgroundColor: `${tokens.primary}06`,
+                      backgroundColor: tokens.bg,
+                      border: 'none',
+                      borderBottom: '2px solid transparent',
+                      borderRadius: '10px 10px 0 0',
                       color: tokens.text,
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease',
                     }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = `${tokens.primary}70`; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = `${tokens.primary}30`; }}
+                    onFocus={(e) => { e.currentTarget.style.borderBottomColor = tokens.accent; }}
+                    onBlur={(e) => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
                   />
                 </div>
               )}

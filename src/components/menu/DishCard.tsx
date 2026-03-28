@@ -4,8 +4,8 @@ import { useCart } from '@/hooks/useCart';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
-function VegBadge({ isVeg }: { isVeg: boolean }) {
-  const color = isVeg ? '#0F8A00' : '#E23744';
+function VegBadge({ isVeg, veg, nonveg }: { isVeg: boolean; veg: string; nonveg: string }) {
+  const color = isVeg ? veg : nonveg;
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
       <rect x="1" y="1" width="16" height="16" rx="2" stroke={color} strokeWidth="2" fill="white" />
@@ -26,7 +26,6 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
   const { items, addItem, updateQuantity } = useCart();
   const cartItem = items.find((i) => i.product_id === dish.id);
   const qty = cartItem?.quantity ?? 0;
-  const popShadow = `${tokens.primary}4d`;
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
@@ -43,24 +42,39 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
     updateQuantity(dish.id, qty - 1);
   }
 
+  // Tap scale feedback handlers
+  function scaleDown(e: React.MouseEvent | React.TouchEvent) {
+    (e.currentTarget as HTMLDivElement).style.transform = 'scale(0.98)';
+  }
+  function scaleUp(e: React.MouseEvent | React.TouchEvent) {
+    (e.currentTarget as HTMLDivElement).style.transform = '';
+  }
+
   return (
     <div
       onClick={dish.is_available ? onTap : undefined}
+      onMouseDown={dish.is_available ? scaleDown : undefined}
+      onMouseUp={dish.is_available ? scaleUp : undefined}
+      onMouseLeave={dish.is_available ? scaleUp : undefined}
+      onTouchStart={dish.is_available ? scaleDown : undefined}
+      onTouchEnd={dish.is_available ? scaleUp : undefined}
       style={{
-        margin: '0 16px 12px',
+        margin: '0 16px 16px',
         borderRadius: 16,
+        // Ghost border at 15% opacity per DESIGN.md "The Ghost Border Fallback"
+        border: `1px solid ${tokens.border}26`,
         backgroundColor: tokens.cardBg,
         overflow: 'hidden',
         cursor: dish.is_available ? 'pointer' : 'default',
         opacity: dish.is_available ? 1 : 0.4,
         display: 'flex',
         flexDirection: 'row',
-        transition: 'all 0.2s ease',
+        transition: 'transform 0.12s ease',
         animation: 'fadeUp 0.4s ease both',
         animationDelay: `${index * 40}ms`,
       }}
     >
-      {/* Left — Image (only if exists) */}
+      {/* Left — Image */}
       {dish.image_url && (
         <div
           style={{
@@ -70,6 +84,8 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
             margin: '12px 0 12px 12px',
             borderRadius: 12,
             overflow: 'hidden',
+            // Warm ambient shadow on image per DESIGN.md
+            boxShadow: `0 4px 16px ${tokens.text}14`,
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -94,7 +110,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
       >
         {/* Top section */}
         <div>
-          {/* Row 1: Veg badge + Name + badges */}
+          {/* Row 1: Veg badge + Name */}
           <div
             style={{
               display: 'flex',
@@ -105,7 +121,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
             }}
           >
             <div style={{ paddingTop: 2 }}>
-              <VegBadge isVeg={dish.is_veg} />
+              <VegBadge isVeg={dish.is_veg} veg={tokens.veg} nonveg={tokens.nonveg} />
             </div>
             <span
               style={{
@@ -125,14 +141,14 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
             </span>
           </div>
 
-          {/* Bestseller + Jain badges row */}
+          {/* Bestseller + Jain badges */}
           {(isBestseller || dish.is_jain) && (
             <div style={{ display: 'flex', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
               {isBestseller && (
                 <span
                   style={{
-                    backgroundColor: tokens.accent,
-                    color: '#fff',
+                    backgroundColor: tokens.badgeBg,
+                    color: tokens.badgeText,
                     fontSize: 9,
                     fontWeight: 800,
                     borderRadius: 4,
@@ -145,7 +161,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
               {dish.is_jain && (
                 <span
                   style={{
-                    backgroundColor: tokens.bg,
+                    backgroundColor: tokens.surfaceLow,
                     color: tokens.primary,
                     fontSize: 9,
                     fontWeight: 800,
@@ -159,7 +175,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
             </div>
           )}
 
-          {/* Row 2: Hindi name */}
+          {/* Hindi name */}
           {dish.name_hindi && (
             <div
               style={{
@@ -174,7 +190,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
             </div>
           )}
 
-          {/* Row 3: Description */}
+          {/* Description */}
           {dish.description && (
             <div
               style={{
@@ -193,7 +209,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
           )}
         </div>
 
-        {/* Row 4: Price + Add button */}
+        {/* Price + Add button */}
         <div
           style={{
             display: 'flex',
@@ -226,7 +242,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
                 fontFamily: tokens.fontBody,
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#E23744',
+                color: tokens.error,
               }}
             >
               Sold out
@@ -237,19 +253,24 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
             qty === 0 ? (
               <button
                 onClick={handleAdd}
+                onMouseDown={(e) => { e.stopPropagation(); e.currentTarget.style.transform = 'scale(0.92)'; }}
+                onMouseUp={(e) => { e.currentTarget.style.transform = ''; }}
+                onTouchStart={(e) => { e.stopPropagation(); e.currentTarget.style.transform = 'scale(0.92)'; }}
+                onTouchEnd={(e) => { e.currentTarget.style.transform = ''; }}
                 style={{
-                  backgroundColor: tokens.primary,
+                  background: tokens.ctaGradient,
                   color: '#fff',
                   fontFamily: tokens.fontBody,
                   fontSize: 14,
                   fontWeight: 800,
                   padding: '8px 18px',
-                  borderRadius: 50,
+                  borderRadius: 24,
                   border: 'none',
                   cursor: 'pointer',
-                  boxShadow: `0 2px 10px ${popShadow}`,
+                  boxShadow: `0 4px 16px ${tokens.primary}40`,
                   flexShrink: 0,
                   lineHeight: 1,
+                  transition: 'transform 0.1s ease',
                 }}
               >
                 ⊕ Add
@@ -259,10 +280,11 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: tokens.primary,
-                  borderRadius: 50,
-                  boxShadow: `0 2px 10px ${popShadow}`,
+                  backgroundColor: tokens.success,
+                  borderRadius: 24,
+                  boxShadow: `0 4px 16px ${tokens.success}4d`,
                   flexShrink: 0,
+                  transition: 'box-shadow 0.2s ease',
                 }}
               >
                 <button

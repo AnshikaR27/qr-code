@@ -28,6 +28,16 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     [restaurant.design_tokens]
   );
 
+  // Expose per-restaurant token colors for the global Toaster to pick up
+  useEffect(() => {
+    document.documentElement.style.setProperty('--toast-success', tokens.success);
+    document.documentElement.style.setProperty('--toast-error', tokens.error);
+    return () => {
+      document.documentElement.style.removeProperty('--toast-success');
+      document.documentElement.style.removeProperty('--toast-error');
+    };
+  }, [tokens.success, tokens.error]);
+
   const [activeTab, setActiveTab] = useState(categories[0]?.id ?? '');
   const [dietFilter, setDietFilter] = useState<DietFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('default');
@@ -118,10 +128,9 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
           from { transform: translateY(100%); }
           to   { transform: translateY(0); }
         }
-        @keyframes addPop {
-          0%   { transform: scale(1); }
-          50%  { transform: scale(0.92); }
-          100% { transform: scale(1); }
+        /* Category tab underline slides smoothly */
+        .cat-tab-btn {
+          transition: color 0.2s ease, border-color 0.25s cubic-bezier(0.4,0,0.2,1);
         }
       `}</style>
 

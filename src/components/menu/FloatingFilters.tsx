@@ -77,7 +77,8 @@ export default function FloatingFilters({
           fontFamily: tokens.fontBody,
           fontSize: 13,
           fontWeight: 700,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          // Ambient shadow per DESIGN.md
+          boxShadow: `0 8px 32px -8px ${tokens.text}26`,
           cursor: 'pointer',
           transition: 'opacity 0.3s ease, transform 0.3s ease',
           opacity: visible ? 1 : 0,
@@ -162,8 +163,9 @@ export default function FloatingFilters({
                         fontFamily: tokens.fontBody,
                         fontSize: 13,
                         fontWeight: 600,
-                        backgroundColor: dietFilter === v ? tokens.primary : tokens.bg,
+                        background: dietFilter === v ? tokens.ctaGradient : tokens.surfaceLow,
                         color: dietFilter === v ? '#fff' : tokens.textMuted,
+                        boxShadow: dietFilter === v ? `0 4px 14px ${tokens.primary}40` : 'none',
                         transition: 'all 0.15s ease',
                       }}
                     >
@@ -201,8 +203,9 @@ export default function FloatingFilters({
                         fontFamily: tokens.fontBody,
                         fontSize: 13,
                         fontWeight: 600,
-                        backgroundColor: sortBy === v ? tokens.primary : tokens.bg,
+                        background: sortBy === v ? tokens.ctaGradient : tokens.surfaceLow,
                         color: sortBy === v ? '#fff' : tokens.textMuted,
+                        boxShadow: sortBy === v ? `0 4px 14px ${tokens.primary}40` : 'none',
                         transition: 'all 0.15s ease',
                       }}
                     >
@@ -218,7 +221,7 @@ export default function FloatingFilters({
                 style={{
                   width: '100%',
                   padding: 14,
-                  borderRadius: 14,
+                  borderRadius: 24,
                   background: tokens.ctaGradient,
                   color: '#fff',
                   fontFamily: tokens.fontBody,

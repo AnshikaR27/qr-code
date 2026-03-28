@@ -8,18 +8,37 @@ interface Props {
 
 export default function SectionHeading({ category, tokens }: Props) {
   return (
-    <div style={{ padding: '24px 16px 8px' }}>
+    <div style={{ padding: '44px 20px 12px' }}>
+      {/* Editorial label above — small spaced-out sans-serif per DESIGN.md */}
+      <div
+        style={{
+          fontFamily: tokens.fontBody,
+          fontSize: 10,
+          fontWeight: 700,
+          color: tokens.primary,
+          textTransform: 'uppercase',
+          letterSpacing: '0.22em',
+          marginBottom: 8,
+        }}
+      >
+        — Menu
+      </div>
+
+      {/* Large serif headline — the "Brand Moment" */}
       <div
         style={{
           fontFamily: tokens.fontHeading,
-          fontSize: 18,
+          fontSize: 28,
           fontWeight: 800,
           color: tokens.text,
-          lineHeight: 1.2,
+          lineHeight: 1.1,
+          letterSpacing: '-0.02em',
         }}
       >
         {category.name}
       </div>
+
+      {/* Hindi name */}
       {category.name_hindi && (
         <div
           style={{
@@ -27,22 +46,12 @@ export default function SectionHeading({ category, tokens }: Props) {
             fontSize: 13,
             fontWeight: 400,
             color: tokens.textMuted,
-            marginTop: 4,
+            marginTop: 6,
           }}
         >
           {category.name_hindi}
         </div>
       )}
-      {/* Category accent line */}
-      <div
-        style={{
-          width: 40,
-          height: 3,
-          borderRadius: 2,
-          backgroundColor: tokens.primary,
-          marginTop: 8,
-        }}
-      />
     </div>
   );
 }

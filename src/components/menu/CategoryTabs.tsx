@@ -14,7 +14,7 @@ export default function CategoryTabs({ categories, activeTab, tokens, onSelect }
   return (
     <div
       style={{
-        backgroundColor: tokens.bg,
+        backgroundColor: tokens.navBg,
         display: 'flex',
         overflowX: 'auto',
         padding: '0 16px',
@@ -31,6 +31,7 @@ export default function CategoryTabs({ categories, activeTab, tokens, onSelect }
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
+            className="cat-tab-btn"
             style={{
               flexShrink: 0,
               padding: '12px 0',
@@ -43,7 +44,6 @@ export default function CategoryTabs({ categories, activeTab, tokens, onSelect }
               fontWeight: active ? 700 : 500,
               color: active ? tokens.text : tokens.textMuted,
               borderBottom: active ? `3px solid ${tokens.accent}` : '3px solid transparent',
-              transition: 'all 0.2s ease',
               whiteSpace: 'nowrap',
             }}
           >

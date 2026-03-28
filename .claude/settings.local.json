@@ -13,7 +13,16 @@
       "Bash(npx shadcn@latest init --style default -y)",
       "Bash(npx shadcn@latest init --help)",
       "Bash(npx next:*)",
-      "Bash(ls /c/Users/12ans/Downloads/qrcode/src/app/[slug]/CustomerMenu.tsx)"
+      "Bash(ls /c/Users/12ans/Downloads/qrcode/src/app/[slug]/CustomerMenu.tsx)",
+      "Bash(python3:*)",
+      "Bash(sort -t'|' -k2 -r)",
+      "Bash(ls:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(cd:*)",
+      "Bash(npx supabase:*)",
+      "Bash(vercel --prod)",
+      "Bash(npm run:*)",
+      "Bash(grep:*)"
     ]
   }
 }

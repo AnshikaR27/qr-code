@@ -9,6 +9,13 @@ const CSS_VAR_NAMES = [
   '--font-heading',
   '--font-body',
   '--radius',
+  '--nav-bg',
+  '--success',
+  '--error',
+  '--badge-bg',
+  '--badge-text',
+  '--veg',
+  '--nonveg',
 ];
 
 export async function fetchTokensFromStitch(projectId: string): Promise<Record<string, string>> {

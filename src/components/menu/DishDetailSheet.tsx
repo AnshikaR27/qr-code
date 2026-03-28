@@ -5,8 +5,8 @@ import { useCart } from '@/hooks/useCart';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
-function VegBadge({ isVeg }: { isVeg: boolean }) {
-  const color = isVeg ? '#0F8A00' : '#E23744';
+function VegBadge({ isVeg, veg, nonveg }: { isVeg: boolean; veg: string; nonveg: string }) {
+  const color = isVeg ? veg : nonveg;
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
       <rect x="1" y="1" width="16" height="16" rx="2" stroke={color} strokeWidth="2" fill="white" />
@@ -109,6 +109,7 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
                   borderRadius: 16,
                   overflow: 'hidden',
                   marginBottom: 16,
+                  boxShadow: `0 8px 32px ${tokens.text}14`,
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -130,12 +131,12 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
                 flexWrap: 'wrap',
               }}
             >
-              <VegBadge isVeg={product.is_veg} />
+              <VegBadge isVeg={product.is_veg} veg={tokens.veg} nonveg={tokens.nonveg} />
               {isBestseller && (
                 <span
                   style={{
-                    backgroundColor: tokens.accent,
-                    color: '#fff',
+                    backgroundColor: tokens.badgeBg,
+                    color: tokens.badgeText,
                     fontSize: 9,
                     fontWeight: 800,
                     borderRadius: 4,
@@ -258,14 +259,8 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
               </div>
             )}
 
-            {/* 8. Divider */}
-            <div
-              style={{
-                height: 1,
-                backgroundColor: tokens.border,
-                margin: '20px 0',
-              }}
-            />
+            {/* 8. Spacing instead of divider — per "No-Line" rule */}
+            <div style={{ marginTop: 28 }} />
 
             {/* 9. Action row */}
             {product.is_available ? (
@@ -330,13 +325,13 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
                   </button>
                 </div>
 
-                {/* Add to order button */}
+                {/* Add to order button — radius xl (24px) per DESIGN.md */}
                 <button
                   onClick={handleAddToOrder}
                   style={{
                     flex: 1,
                     padding: 16,
-                    borderRadius: 14,
+                    borderRadius: 24,
                     background: tokens.ctaGradient,
                     color: '#fff',
                     fontFamily: tokens.fontBody,
@@ -354,7 +349,7 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
               <div
                 style={{
                   textAlign: 'center',
-                  color: '#E23744',
+                  color: tokens.error,
                   fontFamily: tokens.fontBody,
                   fontSize: 14,
                   fontWeight: 700,

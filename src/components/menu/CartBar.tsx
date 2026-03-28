@@ -11,23 +11,21 @@ interface Props {
 }
 
 export default function CartBar({ tokens, itemCount, total, onOpen }: Props) {
-  const [bounced, setBounced] = useState(false);
+  const [entered, setEntered] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setBounced(true), 450);
+    const t = setTimeout(() => setEntered(true), 450);
     return () => clearTimeout(t);
   }, []);
 
   if (itemCount === 0) return null;
 
-  const neonShadow = `${tokens.accent}59`;
-
   return (
     <>
       <style>{`
-        @keyframes cartBounce {
-          0%   { transform: translateX(-50%) translateY(100%); }
-          60%  { transform: translateX(-50%) translateY(-5px); }
-          100% { transform: translateX(-50%) translateY(0); }
+        @keyframes slideUpCart {
+          from { transform: translateX(-50%) translateY(110%); opacity: 0; }
+          60%  { transform: translateX(-50%) translateY(-6px); opacity: 1; }
+          to   { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
       `}</style>
 
@@ -41,12 +39,12 @@ export default function CartBar({ tokens, itemCount, total, onOpen }: Props) {
           maxWidth: 420,
           zIndex: 50,
           padding: '8px 16px env(safe-area-inset-bottom, 16px)',
-          animation: bounced
+          animation: entered
             ? 'none'
-            : 'cartBounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both',
+            : 'slideUpCart 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both',
         }}
       >
-        {/* Frost backdrop */}
+        {/* Frost backdrop — gradient fade into bg */}
         <div
           style={{
             position: 'absolute',
@@ -54,7 +52,7 @@ export default function CartBar({ tokens, itemCount, total, onOpen }: Props) {
             left: 0,
             right: 0,
             height: '100%',
-            background: `linear-gradient(to top, ${tokens.bg} 60%, transparent)`,
+            background: `linear-gradient(to top, ${tokens.bg} 55%, transparent)`,
             pointerEvents: 'none',
           }}
         />
@@ -70,15 +68,16 @@ export default function CartBar({ tokens, itemCount, total, onOpen }: Props) {
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: '16px 20px',
-            borderRadius: 16,
+            borderRadius: 24,
             background: tokens.ctaGradient,
             color: '#fff',
-            boxShadow: `0 4px 24px ${neonShadow}`,
+            // Ambient shadow: tinted from on_surface, diffused — per DESIGN.md
+            boxShadow: `0 -4px 40px -10px ${tokens.text}1a, 0 6px 28px ${tokens.primary}45`,
             border: 'none',
             cursor: 'pointer',
           }}
         >
-          {/* Left: count badge + "View Cart" */}
+          {/* Left: count badge + label */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{

@@ -45,7 +45,7 @@ export default function Sidebar({ restaurant }: SidebarProps) {
         <div className="flex items-center gap-2">
           <div
             className="w-8 h-8 rounded-full flex-shrink-0"
-            style={{ backgroundColor: restaurant.primary_color }}
+            style={{ backgroundColor: restaurant.design_tokens?.['--primary'] ?? '#8B6914' }}
           />
           <div className="overflow-hidden">
             <p className="font-semibold text-sm truncate">{restaurant.name}</p>
