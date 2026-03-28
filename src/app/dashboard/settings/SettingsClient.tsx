@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Upload, ExternalLink, Palette } from 'lucide-react';
+import { Loader2, Upload, ExternalLink, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,9 +21,8 @@ interface FormState {
   city: string;
   opening_time: string;
   closing_time: string;
-  primary_color: string;
-  secondary_color: string;
   logo_url: string;
+  stitch_project_id: string;
 }
 
 function toForm(r: Restaurant): FormState {
@@ -34,9 +33,8 @@ function toForm(r: Restaurant): FormState {
     city: r.city ?? '',
     opening_time: r.opening_time ?? '09:00',
     closing_time: r.closing_time ?? '23:00',
-    primary_color: r.primary_color,
-    secondary_color: r.secondary_color,
     logo_url: r.logo_url ?? '',
+    stitch_project_id: r.stitch_project_id ?? '',
   };
 }
 
@@ -44,6 +42,12 @@ export default function SettingsClient({ restaurant }: Props) {
   const [form, setForm] = useState<FormState>(toForm(restaurant));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [applyingMd, setApplyingMd] = useState(false);
+  const [mdText, setMdText] = useState('');
+  const [syncedTokens, setSyncedTokens] = useState<Record<string, string> | null>(
+    restaurant.design_tokens
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -57,10 +61,6 @@ export default function SettingsClient({ restaurant }: Props) {
     if (!form.name.trim()) errs.name = 'Restaurant name is required';
     if (form.phone && (form.phone.length < 10 || form.phone.length > 15))
       errs.phone = 'Enter a valid phone number';
-    if (!/^#[0-9a-fA-F]{6}$/.test(form.primary_color))
-      errs.primary_color = 'Enter a valid hex color';
-    if (!/^#[0-9a-fA-F]{6}$/.test(form.secondary_color))
-      errs.secondary_color = 'Enter a valid hex color';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -73,18 +73,12 @@ export default function SettingsClient({ restaurant }: Props) {
 
     setUploading(true);
     try {
-      // Upload to Cloudinary
       const fd = new FormData();
       fd.append('file', file);
       const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Upload failed');
-
       set('logo_url', data.url);
-
-      // Extract dominant colors from the uploaded image using colorthief
-      await extractColors(file);
-
       toast.success('Logo uploaded');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Upload failed');
@@ -94,36 +88,50 @@ export default function SettingsClient({ restaurant }: Props) {
     }
   }
 
-  async function extractColors(file: File) {
-    return new Promise<void>((resolve) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.crossOrigin = 'anonymous';
-      img.onload = async () => {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const ColorThief = (await import('colorthief') as any).default ?? (await import('colorthief'));
-          const ct = new ColorThief();
-          const palette = ct.getPalette(img, 2);
-          if (palette?.[0]) {
-            const [r1, g1, b1] = palette[0];
-            set('primary_color', rgbToHex(r1, g1, b1));
-          }
-          if (palette?.[1]) {
-            const [r2, g2, b2] = palette[1];
-            set('secondary_color', rgbToHex(r2, g2, b2));
-          }
-          toast.success('Colors extracted from logo');
-        } catch {
-          // Color extraction failed — not critical
-        } finally {
-          URL.revokeObjectURL(url);
-          resolve();
-        }
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
-      img.src = url;
-    });
+  async function handleSyncTheme() {
+    if (!form.stitch_project_id.trim()) {
+      toast.error('Enter a Stitch Project ID first');
+      return;
+    }
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/sync-theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: form.stitch_project_id.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Sync failed');
+      setSyncedTokens(data.tokens);
+      toast.success('Theme synced from Stitch');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleApplyMarkdown() {
+    const tokens = parseStitchMarkdown(mdText);
+    if (Object.keys(tokens).length === 0) {
+      toast.error('No color tokens found in the markdown');
+      return;
+    }
+    setApplyingMd(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('restaurants')
+        .update({ design_tokens: tokens })
+        .eq('id', restaurant.id);
+      if (error) throw error;
+      setSyncedTokens(tokens);
+      toast.success('Theme applied from markdown');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to apply theme');
+    } finally {
+      setApplyingMd(false);
+    }
   }
 
   async function handleSave() {
@@ -140,9 +148,8 @@ export default function SettingsClient({ restaurant }: Props) {
           city: form.city.trim() || null,
           opening_time: form.opening_time,
           closing_time: form.closing_time,
-          primary_color: form.primary_color,
-          secondary_color: form.secondary_color,
           logo_url: form.logo_url || null,
+          stitch_project_id: form.stitch_project_id.trim() || null,
         })
         .eq('id', restaurant.id);
 
@@ -154,6 +161,8 @@ export default function SettingsClient({ restaurant }: Props) {
       setSaving(false);
     }
   }
+
+  const COLOR_TOKEN_KEYS = ['--primary', '--secondary', '--accent', '--bg', '--card-bg', '--text', '--text-muted'];
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -196,10 +205,9 @@ export default function SettingsClient({ restaurant }: Props) {
           </div>
         </Section>
 
-        {/* ── Logo & Colors ── */}
-        <Section title="Logo & Brand Colors">
-          <div className="flex gap-6 items-start">
-            {/* Logo */}
+        {/* ── Logo ── */}
+        <Section title="Logo">
+          <div className="flex items-center gap-6">
             <div className="flex flex-col items-center gap-2">
               <div
                 className="w-24 h-24 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden cursor-pointer hover:bg-gray-50 transition-colors bg-gray-50"
@@ -226,107 +234,129 @@ export default function SettingsClient({ restaurant }: Props) {
               </Button>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
             </div>
-
-            {/* Colors */}
-            <div className="flex-1 space-y-4">
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Palette className="w-3.5 h-3.5" />
-                Colors are auto-extracted when you upload a logo, or set them manually below.
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Primary Color" error={errors.primary_color}>
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="color"
-                      value={form.primary_color}
-                      onChange={(e) => set('primary_color', e.target.value)}
-                      className="w-10 h-9 rounded border cursor-pointer p-0.5"
-                    />
-                    <Input
-                      value={form.primary_color}
-                      onChange={(e) => set('primary_color', e.target.value)}
-                      placeholder="#e94560"
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                </Field>
-                <Field label="Secondary Color" error={errors.secondary_color}>
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="color"
-                      value={form.secondary_color}
-                      onChange={(e) => set('secondary_color', e.target.value)}
-                      className="w-10 h-9 rounded border cursor-pointer p-0.5"
-                    />
-                    <Input
-                      value={form.secondary_color}
-                      onChange={(e) => set('secondary_color', e.target.value)}
-                      placeholder="#1a1a2e"
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                </Field>
-              </div>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Upload your restaurant logo. After uploading, paste your Stitch Project ID below to sync a matching color theme.
+            </p>
           </div>
         </Section>
 
-        {/* ── Theme Preview ── */}
-        <Section title="Theme Preview">
-          <div className="rounded-xl overflow-hidden border">
-            {/* Mock menu header */}
-            <div
-              className="py-5 px-4 flex flex-col items-center gap-2"
-              style={{ backgroundColor: form.secondary_color }}
+        {/* ── Stitch Theme ── */}
+        <Section title="Theme — Powered by Stitch">
+          <p className="text-xs text-muted-foreground">
+            Paste your Stitch Project ID to sync the color palette and typography directly from your Stitch design.
+          </p>
+          <div className="flex gap-2 items-end">
+            <Field label="Stitch Project ID" error={errors.stitch_project_id} className="flex-1">
+              <Input
+                value={form.stitch_project_id}
+                onChange={(e) => set('stitch_project_id', e.target.value)}
+                placeholder="e.g. 10574594618962961646"
+                className="font-mono text-sm"
+              />
+            </Field>
+            <Button
+              onClick={handleSyncTheme}
+              disabled={syncing}
+              className="mb-[1px]"
             >
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg border-2 border-white/30"
-                style={{ backgroundColor: form.primary_color }}
-              >
-                {form.name.charAt(0).toUpperCase()}
-              </div>
-              <p className="text-white font-bold">{form.name || 'Your Restaurant'}</p>
-              {form.city && <p className="text-white/70 text-sm">{form.city}</p>}
-            </div>
-            {/* Mock category tab */}
-            <div className="bg-white border-b px-4 py-2 flex gap-2">
-              <span
-                className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                style={{ backgroundColor: form.primary_color }}
-              >
-                Starters
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-medium text-gray-500 border">
-                Main Course
-              </span>
-            </div>
-            {/* Mock dish card */}
-            <div className="bg-gray-50 p-3">
-              <div className="bg-white rounded-lg border p-3 flex justify-between items-center gap-3">
-                <div>
-                  <p className="text-sm font-semibold">Paneer Butter Masala</p>
-                  <p className="text-xs text-gray-500">पनीर बटर मसाला</p>
-                  <p className="text-sm font-bold mt-1">₹280</p>
-                </div>
-                <button
-                  className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white"
-                  style={{ backgroundColor: form.primary_color }}
-                >
-                  ADD
-                </button>
-              </div>
+              {syncing
+                ? <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                : <RefreshCw className="w-4 h-4 mr-1" />}
+              {syncing ? 'Syncing…' : 'Sync Theme'}
+            </Button>
+          </div>
+
+          {/* Markdown paste alternative */}
+          <div className="relative my-1">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-muted-foreground">or paste design system markdown</span>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-            This is how your menu looks to customers.
-            <a
-              href={`/${restaurant.slug}`}
-              target="_blank"
-              className="underline inline-flex items-center gap-0.5 hover:no-underline"
-            >
-              Open live menu <ExternalLink className="w-3 h-3" />
-            </a>
-          </p>
+          <Field label="Stitch Design System Markdown">
+            <textarea
+              value={mdText}
+              onChange={(e) => setMdText(e.target.value)}
+              placeholder="Paste the markdown generated by Stitch…"
+              className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-y focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </Field>
+          <Button
+            variant="outline"
+            onClick={handleApplyMarkdown}
+            disabled={applyingMd || !mdText.trim()}
+          >
+            {applyingMd
+              ? <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              : <RefreshCw className="w-4 h-4 mr-1" />}
+            {applyingMd ? 'Applying…' : 'Apply from Markdown'}
+          </Button>
+
+          {/* Color swatch preview */}
+          {syncedTokens && Object.keys(syncedTokens).length > 0 && (
+            <div className="mt-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Synced Colors</p>
+              <div className="flex flex-wrap gap-3">
+                {COLOR_TOKEN_KEYS.map((key) => {
+                  const value = syncedTokens[key];
+                  if (!value) return null;
+                  return (
+                    <div key={key} className="flex flex-col items-center gap-1">
+                      <div
+                        className="w-10 h-10 rounded-lg border shadow-sm"
+                        style={{ backgroundColor: value }}
+                        title={value}
+                      />
+                      <span className="text-[10px] text-muted-foreground font-mono">{key.replace('--', '')}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="rounded-xl overflow-hidden border mt-2">
+                <div
+                  className="py-4 px-4 flex flex-col items-center gap-1"
+                  style={{
+                    background: `linear-gradient(135deg, ${syncedTokens['--secondary'] ?? '#3E2B1A'}, ${syncedTokens['--primary'] ?? '#8B6914'})`,
+                  }}
+                >
+                  {form.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={form.logo_url} alt="Logo" className="h-10 w-auto object-contain" />
+                  ) : (
+                    <p className="text-white font-bold">{form.name || 'Your Restaurant'}</p>
+                  )}
+                  {form.city && <p className="text-white/70 text-xs">{form.city}</p>}
+                </div>
+                <div
+                  className="p-3"
+                  style={{ backgroundColor: syncedTokens['--bg'] ?? '#FFF8F0' }}
+                >
+                  <div
+                    className="rounded-lg p-3 flex justify-between items-center gap-3 border"
+                    style={{
+                      backgroundColor: syncedTokens['--card-bg'] ?? '#fff',
+                      borderColor: `${syncedTokens['--text'] ?? '#1D1208'}15`,
+                    }}
+                  >
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: syncedTokens['--text'] ?? '#1D1208' }}>
+                        Paneer Butter Masala
+                      </p>
+                      <p className="text-sm font-bold mt-0.5" style={{ color: syncedTokens['--text'] ?? '#1D1208' }}>
+                        ₹280
+                      </p>
+                    </div>
+                    <button
+                      className="px-4 py-1.5 rounded-full text-sm font-semibold text-white"
+                      style={{ backgroundColor: syncedTokens['--primary'] ?? '#8B6914' }}
+                    >
+                      ADD
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </Section>
 
         {/* Save button */}
@@ -335,6 +365,13 @@ export default function SettingsClient({ restaurant }: Props) {
             {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Save Settings
           </Button>
+          <a
+            href={`/${restaurant.slug}`}
+            target="_blank"
+            className="ml-3 inline-flex items-center gap-1 text-sm text-muted-foreground underline hover:no-underline"
+          >
+            View menu <ExternalLink className="w-3.5 h-3.5" />
+          </a>
         </div>
       </div>
     </div>
@@ -342,6 +379,54 @@ export default function SettingsClient({ restaurant }: Props) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function parseStitchMarkdown(md: string): Record<string, string> {
+  const tokens: Record<string, string> = {};
+
+  function extractHex(pattern: RegExp): string | undefined {
+    const m = md.match(pattern);
+    return m ? `#${m[1]}` : undefined;
+  }
+
+  const primary = extractHex(/\bprimary\b[^#\n]{0,40}#([0-9a-fA-F]{6})/i);
+  if (primary) tokens['--primary'] = primary;
+
+  const secondary = extractHex(/\bsecondary\b[^#\n]{0,40}#([0-9a-fA-F]{6})/i);
+  if (secondary) tokens['--secondary'] = secondary;
+
+  // Surface but not surface-container variants
+  const bg = extractHex(/\bSurface\b(?!-)[^#\n]{0,40}#([0-9a-fA-F]{6})/i);
+  if (bg) tokens['--bg'] = bg;
+
+  const cardBg =
+    extractHex(/surface-container-lowest[^#\n]{0,40}#([0-9a-fA-F]{6})/i) ??
+    extractHex(/#([0-9a-fA-F]{6})[^#\n]{0,40}surface-container-lowest/i);
+  if (cardBg) tokens['--card-bg'] = cardBg;
+
+  const text =
+    extractHex(/\bon-surface\b(?!-variant)[^#\n]{0,40}#([0-9a-fA-F]{6})/i) ??
+    extractHex(/#([0-9a-fA-F]{6})[^#\n]{0,40}\bon-surface\b(?!-variant)/i);
+  if (text) tokens['--text'] = text;
+
+  const textMuted = extractHex(/on-surface-variant[^#\n]{0,40}#([0-9a-fA-F]{6})/i);
+  if (textMuted) tokens['--text-muted'] = textMuted;
+
+  const accent =
+    extractHex(/secondary-container[^#\n]{0,40}#([0-9a-fA-F]{6})/i) ??
+    extractHex(/\baccent\b[^#\n]{0,40}#([0-9a-fA-F]{6})/i);
+  if (accent) tokens['--accent'] = accent;
+
+  const headingFont = md.match(/\*\*\s*(?:Display|Headline)[^*\n]*\(([^)]+)\)/i);
+  if (headingFont) tokens['--font-heading'] = `'${headingFont[1].trim()}', sans-serif`;
+
+  const bodyFont = md.match(/\*\*\s*(?:Body|Label)[^*\n]*\(([^)]+)\)/i);
+  if (bodyFont) tokens['--font-body'] = `'${bodyFont[1].trim()}', sans-serif`;
+
+  const radius = md.match(/\bmd\b[^(\n]{0,30}\(([0-9.]+rem)\)/i);
+  if (radius) tokens['--radius'] = radius[1];
+
+  return tokens;
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -358,20 +443,18 @@ function Field({
   label,
   error,
   children,
+  className,
 }: {
   label: string;
   error?: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="space-y-1">
+    <div className={cn('space-y-1', className)}>
       <Label className={cn(error && 'text-destructive')}>{label}</Label>
       {children}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 }

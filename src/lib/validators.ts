@@ -67,6 +67,5 @@ export const restaurantSettingsSchema = z.object({
   city: z.string().max(50).optional().nullable(),
   opening_time: z.string().optional(),
   closing_time: z.string().optional(),
-  primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-  secondary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  stitch_project_id: z.string().optional().nullable(),
 });

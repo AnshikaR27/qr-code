@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import type { BrandPalette } from '@/lib/palette';
+import type { MenuTokens } from '@/lib/tokens';
 import type { DietFilter } from '@/lib/constants';
 
 export type SortBy = 'default' | 'popular' | 'price_asc' | 'price_desc';
 
 interface Props {
-  palette: BrandPalette;
+  tokens: MenuTokens;
   dietFilter: DietFilter;
   onDietFilterChange: (f: DietFilter) => void;
   sortBy: SortBy;
@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function FloatingFilters({
-  palette,
+  tokens,
   dietFilter,
   onDietFilterChange,
   sortBy,
@@ -72,9 +72,9 @@ export default function FloatingFilters({
           zIndex: 40,
           padding: '10px 18px',
           borderRadius: 50,
-          backgroundColor: palette.darkest,
+          backgroundColor: tokens.secondary,
           color: '#fff',
-          fontFamily: 'var(--font-sans)',
+          fontFamily: tokens.fontBody,
           fontSize: 13,
           fontWeight: 700,
           boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
@@ -107,7 +107,7 @@ export default function FloatingFilters({
             style={{
               width: '100%',
               maxWidth: 420,
-              backgroundColor: palette.cardBg,
+              backgroundColor: tokens.cardBg,
               borderRadius: '24px 24px 0 0',
               paddingBottom: 40,
               animation: 'sheetUp 0.3s cubic-bezier(0.32, 0.72, 0, 1) both',
@@ -117,17 +117,17 @@ export default function FloatingFilters({
             {/* Handle */}
             <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 8px' }}>
               <div
-                style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: palette.light }}
+                style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: tokens.border }}
               />
             </div>
 
             <div style={{ padding: '8px 20px 0' }}>
               <div
                 style={{
-                  fontFamily: 'var(--font-sans)',
+                  fontFamily: tokens.fontBody,
                   fontSize: 16,
                   fontWeight: 800,
-                  color: palette.dark,
+                  color: tokens.text,
                   marginBottom: 20,
                 }}
               >
@@ -138,10 +138,10 @@ export default function FloatingFilters({
               <div style={{ marginBottom: 20 }}>
                 <div
                   style={{
-                    fontFamily: 'var(--font-sans)',
+                    fontFamily: tokens.fontBody,
                     fontSize: 11,
                     fontWeight: 700,
-                    color: palette.midDark,
+                    color: tokens.textMuted,
                     textTransform: 'uppercase',
                     letterSpacing: '0.1em',
                     marginBottom: 10,
@@ -159,11 +159,11 @@ export default function FloatingFilters({
                         borderRadius: 50,
                         border: 'none',
                         cursor: 'pointer',
-                        fontFamily: 'var(--font-sans)',
+                        fontFamily: tokens.fontBody,
                         fontSize: 13,
                         fontWeight: 600,
-                        backgroundColor: dietFilter === v ? palette.pop : palette.lightest,
-                        color: dietFilter === v ? palette.popText : palette.midDark,
+                        backgroundColor: dietFilter === v ? tokens.primary : tokens.bg,
+                        color: dietFilter === v ? '#fff' : tokens.textMuted,
                         transition: 'all 0.15s ease',
                       }}
                     >
@@ -177,10 +177,10 @@ export default function FloatingFilters({
               <div style={{ marginBottom: 24 }}>
                 <div
                   style={{
-                    fontFamily: 'var(--font-sans)',
+                    fontFamily: tokens.fontBody,
                     fontSize: 11,
                     fontWeight: 700,
-                    color: palette.midDark,
+                    color: tokens.textMuted,
                     textTransform: 'uppercase',
                     letterSpacing: '0.1em',
                     marginBottom: 10,
@@ -198,11 +198,11 @@ export default function FloatingFilters({
                         borderRadius: 50,
                         border: 'none',
                         cursor: 'pointer',
-                        fontFamily: 'var(--font-sans)',
+                        fontFamily: tokens.fontBody,
                         fontSize: 13,
                         fontWeight: 600,
-                        backgroundColor: sortBy === v ? palette.pop : palette.lightest,
-                        color: sortBy === v ? palette.popText : palette.midDark,
+                        backgroundColor: sortBy === v ? tokens.primary : tokens.bg,
+                        color: sortBy === v ? '#fff' : tokens.textMuted,
                         transition: 'all 0.15s ease',
                       }}
                     >
@@ -219,9 +219,9 @@ export default function FloatingFilters({
                   width: '100%',
                   padding: 14,
                   borderRadius: 14,
-                  background: palette.ctaGradient,
-                  color: palette.neonText,
-                  fontFamily: 'var(--font-sans)',
+                  background: tokens.ctaGradient,
+                  color: '#fff',
+                  fontFamily: tokens.fontBody,
                   fontSize: 15,
                   fontWeight: 700,
                   border: 'none',

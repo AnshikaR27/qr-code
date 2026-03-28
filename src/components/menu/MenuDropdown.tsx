@@ -2,17 +2,17 @@
 
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
-import type { BrandPalette } from '@/lib/palette';
+import type { MenuTokens } from '@/lib/tokens';
 import type { Category } from '@/types';
 
 interface Props {
   categories: Category[];
   activeCategoryId: string;
-  palette: BrandPalette;
+  tokens: MenuTokens;
   onSelect: (id: string) => void;
 }
 
-export default function MenuDropdown({ categories, activeCategoryId, palette, onSelect }: Props) {
+export default function MenuDropdown({ categories, activeCategoryId, tokens, onSelect }: Props) {
   const [open, setOpen] = useState(false);
   const activeCategory = categories.find((c) => c.id === activeCategoryId) ?? categories[0];
 
@@ -35,8 +35,8 @@ export default function MenuDropdown({ categories, activeCategoryId, palette, on
         onClick={() => setOpen(true)}
         style={{
           padding: '12px 16px',
-          backgroundColor: palette.pageBg,
-          borderBottom: `1.5px solid ${palette.light}`,
+          backgroundColor: tokens.bg,
+          borderBottom: `1.5px solid ${tokens.border}`,
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -46,23 +46,23 @@ export default function MenuDropdown({ categories, activeCategoryId, palette, on
       >
         <span
           style={{
-            fontFamily: 'var(--font-sans)',
+            fontFamily: tokens.fontBody,
             fontSize: 14,
             fontWeight: 900,
-            color: palette.dark,
+            color: tokens.text,
             textTransform: 'uppercase',
             letterSpacing: '0.15em',
           }}
         >
           MENU
         </span>
-        <ChevronRight size={14} color={palette.midLight} />
+        <ChevronRight size={14} color={tokens.textMuted} />
         <span
           style={{
-            fontFamily: 'var(--font-sans)',
+            fontFamily: tokens.fontBody,
             fontSize: 14,
             fontWeight: 900,
-            color: palette.dark,
+            color: tokens.text,
             textTransform: 'uppercase',
           }}
         >
@@ -88,7 +88,7 @@ export default function MenuDropdown({ categories, activeCategoryId, palette, on
             style={{
               width: '100%',
               maxWidth: 420,
-              backgroundColor: palette.cardBg,
+              backgroundColor: tokens.cardBg,
               borderRadius: '24px 24px 0 0',
               paddingBottom: 32,
               animation: 'sheetUp 0.3s cubic-bezier(0.32, 0.72, 0, 1) both',
@@ -102,7 +102,7 @@ export default function MenuDropdown({ categories, activeCategoryId, palette, on
                   width: 40,
                   height: 5,
                   borderRadius: 3,
-                  backgroundColor: palette.light,
+                  backgroundColor: tokens.border,
                 }}
               />
             </div>
@@ -117,12 +117,12 @@ export default function MenuDropdown({ categories, activeCategoryId, palette, on
                     onClick={() => handleSelect(cat.id)}
                     style={{
                       padding: '14px 20px',
-                      fontFamily: 'var(--font-sans)',
+                      fontFamily: tokens.fontBody,
                       fontSize: 15,
                       fontWeight: isActive ? 700 : 500,
-                      color: isActive ? palette.primary : palette.midDark,
+                      color: isActive ? tokens.primary : tokens.textMuted,
                       borderLeft: isActive
-                        ? `3px solid ${palette.base}`
+                        ? `3px solid ${tokens.primary}`
                         : '3px solid transparent',
                       cursor: 'pointer',
                       display: 'flex',
@@ -135,7 +135,7 @@ export default function MenuDropdown({ categories, activeCategoryId, palette, on
                       <span
                         style={{
                           fontSize: 12,
-                          color: palette.midLight,
+                          color: tokens.textMuted,
                           fontWeight: 400,
                         }}
                       >

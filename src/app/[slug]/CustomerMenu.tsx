@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { generatePalette } from '@/lib/palette';
+import { buildMenuTokens } from '@/lib/tokens';
 import MenuNavbar from '@/components/menu/MenuNavbar';
 import MenuDropdown from '@/components/menu/MenuDropdown';
 import CategoryTabs from '@/components/menu/CategoryTabs';
@@ -23,13 +23,9 @@ interface Props {
 }
 
 export default function CustomerMenu({ restaurant, categories, products, tableId }: Props) {
-  const palette = useMemo(
-    () =>
-      generatePalette(
-        restaurant.primary_color || '#8B6914',
-        restaurant.secondary_color || '#3E2B1A'
-      ),
-    [restaurant.primary_color, restaurant.secondary_color]
+  const tokens = useMemo(
+    () => buildMenuTokens(restaurant.design_tokens),
+    [restaurant.design_tokens]
   );
 
   const [activeTab, setActiveTab] = useState(categories[0]?.id ?? '');
@@ -82,7 +78,6 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   function scrollToCategory(id: string) {
     const el = sectionRefs.current.get(id);
     if (el) {
-      // Offset for sticky header: navbar (~76px) + dropdown (~52px) + tabs (~49px)
       const offset = 177;
       const y = el.getBoundingClientRect().top + window.scrollY - offset;
       window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
@@ -107,8 +102,8 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         maxWidth: 420,
         margin: '0 auto',
         minHeight: '100vh',
-        backgroundColor: palette.pageBg,
-        backgroundImage: `radial-gradient(circle, ${palette.textureColor} 1px, transparent 1px)`,
+        backgroundColor: tokens.bg,
+        backgroundImage: `radial-gradient(circle, ${tokens.primary}0f 1px, transparent 1px)`,
         backgroundSize: '20px 20px',
         position: 'relative',
       }}
@@ -134,20 +129,20 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
       <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
         <MenuNavbar
           restaurant={restaurant}
-          palette={palette}
+          tokens={tokens}
           itemCount={itemCount}
           onCartOpen={() => setCartOpen(true)}
         />
         <MenuDropdown
           categories={categories}
           activeCategoryId={activeTab}
-          palette={palette}
+          tokens={tokens}
           onSelect={scrollToCategory}
         />
         <CategoryTabs
           categories={categories}
           activeTab={activeTab}
-          palette={palette}
+          tokens={tokens}
           onSelect={scrollToCategory}
         />
       </div>
@@ -156,7 +151,6 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
       <div style={{ paddingBottom: itemCount > 0 ? 100 : 40 }}>
         {categories.map((cat) => {
           const filtered = getFilteredProducts(cat.id);
-          // Hide section entirely if filter is active and no dishes match
           if (filtered.length === 0 && dietFilter !== 'all') return null;
 
           return (
@@ -168,15 +162,15 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
               }}
               data-category-id={cat.id}
             >
-              <SectionHeading category={cat} palette={palette} />
+              <SectionHeading category={cat} tokens={tokens} />
 
               {filtered.length === 0 ? (
                 <div
                   style={{
                     padding: '8px 16px 16px',
-                    fontFamily: 'var(--font-sans)',
+                    fontFamily: tokens.fontBody,
                     fontSize: 13,
-                    color: palette.midLight,
+                    color: tokens.textMuted,
                     textAlign: 'center',
                   }}
                 >
@@ -187,7 +181,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
                   <DishCard
                     key={dish.id}
                     dish={dish}
-                    palette={palette}
+                    tokens={tokens}
                     index={i}
                     isBestseller={topDishIds.has(dish.id)}
                     onTap={() => setSelectedDish(dish)}
@@ -201,7 +195,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
 
       {/* ── Floating Filters pill ── */}
       <FloatingFilters
-        palette={palette}
+        tokens={tokens}
         dietFilter={dietFilter}
         onDietFilterChange={setDietFilter}
         sortBy={sortBy}
@@ -210,7 +204,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
 
       {/* ── Cart bar (fixed bottom) ── */}
       <CartBar
-        palette={palette}
+        tokens={tokens}
         itemCount={itemCount}
         total={total}
         onOpen={() => setCartOpen(true)}
@@ -219,7 +213,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
       {/* ── Dish detail bottom sheet ── */}
       <DishDetailSheet
         product={selectedDish}
-        palette={palette}
+        tokens={tokens}
         isBestseller={selectedDish ? topDishIds.has(selectedDish.id) : false}
         onClose={() => setSelectedDish(null)}
       />
@@ -230,7 +224,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         onClose={() => setCartOpen(false)}
         restaurant={restaurant}
         tableId={tableId}
-        palette={palette}
+        tokens={tokens}
       />
     </div>
   );

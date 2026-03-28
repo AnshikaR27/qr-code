@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import chroma from 'chroma-js';
 import { useCart } from '@/hooks/useCart';
-import type { BrandPalette } from '@/lib/palette';
+import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
 function VegBadge({ isVeg }: { isVeg: boolean }) {
@@ -18,21 +17,19 @@ function VegBadge({ isVeg }: { isVeg: boolean }) {
 
 interface Props {
   product: Product | null;
-  palette: BrandPalette;
+  tokens: MenuTokens;
   isBestseller?: boolean;
   onClose: () => void;
 }
 
-export default function DishDetailSheet({ product, palette, isBestseller, onClose }: Props) {
+export default function DishDetailSheet({ product, tokens, isBestseller, onClose }: Props) {
   const { items, addItem, updateQuantity } = useCart();
   const [localQty, setLocalQty] = useState(1);
 
-  // Reset qty when dish changes
   useEffect(() => {
     setLocalQty(1);
   }, [product?.id]);
 
-  // Lock body scroll when open
   useEffect(() => {
     document.body.style.overflow = product ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -43,7 +40,7 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
   const dish = product;
   const cartItem = items.find((i) => i.product_id === dish.id);
   const cartQty = cartItem?.quantity ?? 0;
-  const neonShadow = chroma(palette.neon).alpha(0.3).css();
+  const neonShadow = `${tokens.accent}4d`;
 
   function handleAddToOrder() {
     if (cartQty === 0) {
@@ -76,13 +73,12 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
           justifyContent: 'center',
         }}
       >
-        {/* Sheet — ONLY translateY animation, flex handles centering */}
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
             width: '100%',
             maxWidth: 420,
-            backgroundColor: palette.cardBg,
+            backgroundColor: tokens.cardBg,
             borderRadius: '24px 24px 0 0',
             maxHeight: '85vh',
             overflowY: 'auto',
@@ -97,7 +93,7 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
                 width: 40,
                 height: 5,
                 borderRadius: 3,
-                backgroundColor: palette.light,
+                backgroundColor: tokens.border,
               }}
             />
           </div>
@@ -138,7 +134,7 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
               {isBestseller && (
                 <span
                   style={{
-                    backgroundColor: palette.complement,
+                    backgroundColor: tokens.accent,
                     color: '#fff',
                     fontSize: 9,
                     fontWeight: 800,
@@ -152,8 +148,8 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
               {product.is_jain && (
                 <span
                   style={{
-                    backgroundColor: palette.lightest,
-                    color: palette.base,
+                    backgroundColor: tokens.bg,
+                    color: tokens.primary,
                     fontSize: 9,
                     fontWeight: 800,
                     borderRadius: 4,
@@ -168,10 +164,10 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
             {/* 3. Dish name */}
             <div
               style={{
-                fontFamily: 'var(--font-display)',
+                fontFamily: tokens.fontHeading,
                 fontSize: 24,
                 fontWeight: 700,
-                color: palette.dark,
+                color: tokens.text,
                 lineHeight: 1.2,
               }}
             >
@@ -182,10 +178,10 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
             {product.name_hindi && (
               <div
                 style={{
-                  fontFamily: 'var(--font-sans)',
+                  fontFamily: tokens.fontBody,
                   fontSize: 14,
                   fontWeight: 500,
-                  color: palette.midLight,
+                  color: tokens.textMuted,
                   marginTop: 4,
                 }}
               >
@@ -204,10 +200,10 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
             >
               <span
                 style={{
-                  fontFamily: 'var(--font-sans)',
+                  fontFamily: tokens.fontBody,
                   fontSize: 22,
                   fontWeight: 800,
-                  color: palette.dark,
+                  color: tokens.text,
                 }}
               >
                 ₹{product.price}
@@ -221,10 +217,10 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
             {product.description && (
               <div
                 style={{
-                  fontFamily: 'var(--font-sans)',
+                  fontFamily: tokens.fontBody,
                   fontSize: 14,
                   fontWeight: 400,
-                  color: palette.midDark,
+                  color: tokens.textMuted,
                   marginTop: 14,
                   lineHeight: 1.65,
                 }}
@@ -245,11 +241,11 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
               >
                 <span
                   style={{
-                    fontFamily: 'var(--font-sans)',
+                    fontFamily: tokens.fontBody,
                     fontSize: 11,
                     fontWeight: 600,
-                    color: palette.midDark,
-                    backgroundColor: palette.lightest,
+                    color: tokens.textMuted,
+                    backgroundColor: tokens.bg,
                     borderRadius: 50,
                     padding: '3px 10px',
                   }}
@@ -266,7 +262,7 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
             <div
               style={{
                 height: 1,
-                backgroundColor: palette.light,
+                backgroundColor: tokens.border,
                 margin: '20px 0',
               }}
             />
@@ -279,10 +275,9 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    border: `1.5px solid ${palette.light}`,
                     borderRadius: 14,
                     overflow: 'hidden',
-                    backgroundColor: palette.pageBg,
+                    backgroundColor: tokens.bg,
                   }}
                 >
                   <button
@@ -292,7 +287,7 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
                       height: 48,
                       background: 'transparent',
                       border: 'none',
-                      color: palette.midDark,
+                      color: tokens.textMuted,
                       fontSize: 20,
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -307,10 +302,10 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
                     style={{
                       width: 40,
                       textAlign: 'center',
-                      fontFamily: 'var(--font-sans)',
+                      fontFamily: tokens.fontBody,
                       fontSize: 18,
                       fontWeight: 800,
-                      color: palette.dark,
+                      color: tokens.text,
                     }}
                   >
                     {localQty}
@@ -322,7 +317,7 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
                       height: 48,
                       background: 'transparent',
                       border: 'none',
-                      color: palette.midDark,
+                      color: tokens.textMuted,
                       fontSize: 20,
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -342,9 +337,9 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
                     flex: 1,
                     padding: 16,
                     borderRadius: 14,
-                    background: palette.ctaGradient,
-                    color: palette.neonText,
-                    fontFamily: 'var(--font-sans)',
+                    background: tokens.ctaGradient,
+                    color: '#fff',
+                    fontFamily: tokens.fontBody,
                     fontSize: 16,
                     fontWeight: 700,
                     border: 'none',
@@ -360,7 +355,7 @@ export default function DishDetailSheet({ product, palette, isBestseller, onClos
                 style={{
                   textAlign: 'center',
                   color: '#E23744',
-                  fontFamily: 'var(--font-sans)',
+                  fontFamily: tokens.fontBody,
                   fontSize: 14,
                   fontWeight: 700,
                   padding: '12px 0',

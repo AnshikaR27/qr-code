@@ -1,18 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import chroma from 'chroma-js';
-import type { BrandPalette } from '@/lib/palette';
+import type { MenuTokens } from '@/lib/tokens';
 
 interface Props {
-  palette: BrandPalette;
+  tokens: MenuTokens;
   itemCount: number;
   total: number;
   onOpen: () => void;
 }
 
-export default function CartBar({ palette, itemCount, total, onOpen }: Props) {
-  // On every mount (component appears when cart goes from 0→1), play bounce
+export default function CartBar({ tokens, itemCount, total, onOpen }: Props) {
   const [bounced, setBounced] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setBounced(true), 450);
@@ -21,7 +19,7 @@ export default function CartBar({ palette, itemCount, total, onOpen }: Props) {
 
   if (itemCount === 0) return null;
 
-  const neonShadow = chroma(palette.neon).alpha(0.35).css();
+  const neonShadow = `${tokens.accent}59`;
 
   return (
     <>
@@ -56,7 +54,7 @@ export default function CartBar({ palette, itemCount, total, onOpen }: Props) {
             left: 0,
             right: 0,
             height: '100%',
-            background: `linear-gradient(to top, ${palette.pageBg} 60%, transparent)`,
+            background: `linear-gradient(to top, ${tokens.bg} 60%, transparent)`,
             pointerEvents: 'none',
           }}
         />
@@ -73,8 +71,8 @@ export default function CartBar({ palette, itemCount, total, onOpen }: Props) {
             alignItems: 'center',
             padding: '16px 20px',
             borderRadius: 16,
-            background: palette.ctaGradient,
-            color: palette.neonText,
+            background: tokens.ctaGradient,
+            color: '#fff',
             boxShadow: `0 4px 24px ${neonShadow}`,
             border: 'none',
             cursor: 'pointer',
@@ -91,20 +89,20 @@ export default function CartBar({ palette, itemCount, total, onOpen }: Props) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontFamily: 'var(--font-sans)',
+                fontFamily: tokens.fontBody,
                 fontSize: 12,
                 fontWeight: 900,
-                color: palette.neonText,
+                color: '#fff',
               }}
             >
               {itemCount}
             </div>
             <span
               style={{
-                fontFamily: 'var(--font-sans)',
+                fontFamily: tokens.fontBody,
                 fontSize: 15,
                 fontWeight: 700,
-                color: palette.neonText,
+                color: '#fff',
               }}
             >
               View Cart
@@ -114,10 +112,10 @@ export default function CartBar({ palette, itemCount, total, onOpen }: Props) {
           {/* Right: total */}
           <span
             style={{
-              fontFamily: 'var(--font-sans)',
+              fontFamily: tokens.fontBody,
               fontSize: 18,
               fontWeight: 800,
-              color: palette.neonText,
+              color: '#fff',
             }}
           >
             ₹{total}

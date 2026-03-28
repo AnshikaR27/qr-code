@@ -1,21 +1,20 @@
 'use client';
 
-import type { BrandPalette } from '@/lib/palette';
+import type { MenuTokens } from '@/lib/tokens';
 import type { Category } from '@/types';
 
 interface Props {
   categories: Category[];
   activeTab: string;
-  palette: BrandPalette;
+  tokens: MenuTokens;
   onSelect: (id: string) => void;
 }
 
-export default function CategoryTabs({ categories, activeTab, palette, onSelect }: Props) {
+export default function CategoryTabs({ categories, activeTab, tokens, onSelect }: Props) {
   return (
     <div
       style={{
-        backgroundColor: palette.pageBg,
-        borderBottom: `1.5px solid ${palette.light}`,
+        backgroundColor: tokens.bg,
         display: 'flex',
         overflowX: 'auto',
         padding: '0 16px',
@@ -39,11 +38,11 @@ export default function CategoryTabs({ categories, activeTab, palette, onSelect 
               border: 'none',
               background: 'transparent',
               cursor: 'pointer',
-              fontFamily: 'var(--font-sans)',
+              fontFamily: tokens.fontBody,
               fontSize: 14,
               fontWeight: active ? 700 : 500,
-              color: active ? palette.dark : palette.midLight,
-              borderBottom: active ? `3px solid ${palette.base}` : '3px solid transparent',
+              color: active ? tokens.text : tokens.textMuted,
+              borderBottom: active ? `3px solid ${tokens.accent}` : '3px solid transparent',
               transition: 'all 0.2s ease',
               whiteSpace: 'nowrap',
             }}

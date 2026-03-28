@@ -14,8 +14,8 @@ export interface Restaurant {
   closing_time: string;
   is_active: boolean;
   logo_url: string | null;
-  primary_color: string;
-  secondary_color: string;
+  stitch_project_id: string | null;
+  design_tokens: Record<string, string> | null;
   created_at: string;
   updated_at: string;
 }

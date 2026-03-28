@@ -1,26 +1,20 @@
-import chroma from 'chroma-js';
-import { getCategoryAccent } from '@/lib/palette';
-import type { BrandPalette } from '@/lib/palette';
+import type { MenuTokens } from '@/lib/tokens';
 import type { Category } from '@/types';
 
 interface Props {
   category: Category;
-  palette: BrandPalette;
+  tokens: MenuTokens;
 }
 
-export default function SectionHeading({ category, palette }: Props) {
-  const [h] = chroma(palette.primary).hsl();
-  const hue = isNaN(h) ? 30 : h;
-  const accentColor = getCategoryAccent(hue, category.name);
-
+export default function SectionHeading({ category, tokens }: Props) {
   return (
     <div style={{ padding: '24px 16px 8px' }}>
       <div
         style={{
-          fontFamily: 'var(--font-sans)',
+          fontFamily: tokens.fontHeading,
           fontSize: 18,
           fontWeight: 800,
-          color: palette.dark,
+          color: tokens.text,
           lineHeight: 1.2,
         }}
       >
@@ -29,10 +23,10 @@ export default function SectionHeading({ category, palette }: Props) {
       {category.name_hindi && (
         <div
           style={{
-            fontFamily: 'var(--font-sans)',
+            fontFamily: tokens.fontBody,
             fontSize: 13,
             fontWeight: 400,
-            color: palette.midDark,
+            color: tokens.textMuted,
             marginTop: 4,
           }}
         >
@@ -45,7 +39,7 @@ export default function SectionHeading({ category, palette }: Props) {
           width: 40,
           height: 3,
           borderRadius: 2,
-          backgroundColor: accentColor,
+          backgroundColor: tokens.primary,
           marginTop: 8,
         }}
       />

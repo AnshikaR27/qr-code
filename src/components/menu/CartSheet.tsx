@@ -6,7 +6,7 @@ import { Minus, Plus, Trash2, ShoppingBag, X } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { cn, formatPrice } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
-import type { BrandPalette } from '@/lib/palette';
+import type { MenuTokens } from '@/lib/tokens';
 import type { Restaurant } from '@/types';
 
 interface Props {
@@ -14,12 +14,12 @@ interface Props {
   onClose: () => void;
   restaurant: Restaurant;
   tableId: string | null;
-  palette: BrandPalette;
+  tokens: MenuTokens;
 }
 
 type OrderType = 'dine_in' | 'parcel';
 
-export default function CartSheet({ open, onClose, restaurant, tableId, palette }: Props) {
+export default function CartSheet({ open, onClose, restaurant, tableId, tokens }: Props) {
   const router = useRouter();
   const { items, updateQuantity, removeItem, updateNotes, getTotal } = useCart();
   const [orderType, setOrderType] = useState<OrderType>(tableId ? 'dine_in' : 'parcel');
@@ -58,37 +58,32 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
       <SheetContent
         side="bottom"
         className="h-[90vh] flex flex-col p-0 border-0 rounded-t-3xl overflow-hidden"
-        style={{ backgroundColor: palette.cardBg }}
+        style={{ backgroundColor: tokens.cardBg }}
       >
         {/* Gradient header strip */}
         <div
           className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-          style={{ background: palette.headerGradient }}
+          style={{ background: tokens.headerGradient }}
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
-              <ShoppingBag className="w-4.5 h-4.5" style={{ color: palette.secondaryText }} />
+            <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: `${tokens.primary}20` }}>
+              <ShoppingBag className="w-4.5 h-4.5" style={{ color: tokens.text }} />
             </div>
             <div>
-              <p
-                className="font-black text-base leading-tight"
-                style={{ color: palette.secondaryText }}
-              >
+              <p className="font-black text-base leading-tight" style={{ color: tokens.text }}>
                 Your Order
               </p>
-              <p
-                className="text-xs"
-                style={{ color: `${palette.secondaryText}99` }}
-              >
+              <p className="text-xs" style={{ color: tokens.textMuted }}>
                 {restaurant.name}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            style={{ backgroundColor: `${tokens.primary}20` }}
           >
-            <X className="w-4 h-4" style={{ color: palette.secondaryText }} />
+            <X className="w-4 h-4" style={{ color: tokens.text }} />
           </button>
         </div>
 
@@ -96,15 +91,15 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
           <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
-              style={{ backgroundColor: `${palette.pop}15` }}
+              style={{ backgroundColor: `${tokens.primary}15` }}
             >
               🛒
             </div>
             <div className="text-center">
-              <p className="font-black text-lg" style={{ color: palette.dark }}>
+              <p className="font-black text-lg" style={{ color: tokens.text }}>
                 Your cart is empty
               </p>
-              <p className="text-sm mt-1" style={{ color: palette.midDark }}>
+              <p className="text-sm mt-1" style={{ color: tokens.textMuted }}>
                 Add some delicious dishes to get started!
               </p>
             </div>
@@ -139,12 +134,12 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
                     <div className="flex-1 min-w-0">
                       <p
                         className="text-sm font-bold leading-tight"
-                        style={{ color: palette.dark }}
+                        style={{ color: tokens.text }}
                       >
                         {item.name}
                       </p>
                       {item.name_hindi && (
-                        <p className="text-xs mt-0.5" style={{ color: palette.midLight }}>
+                        <p className="text-xs mt-0.5" style={{ color: tokens.textMuted }}>
                           {item.name_hindi}
                         </p>
                       )}
@@ -155,20 +150,20 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
                       <button
                         onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
                         className="w-7 h-7 rounded-full flex items-center justify-center border-2 active:scale-90 transition-transform"
-                        style={{ borderColor: palette.pop, color: palette.pop }}
+                        style={{ borderColor: tokens.primary, color: tokens.primary }}
                       >
                         <Minus className="w-3 h-3" strokeWidth={3} />
                       </button>
                       <span
                         className="w-5 text-center text-sm font-black"
-                        style={{ color: palette.pop }}
+                        style={{ color: tokens.primary }}
                       >
                         {item.quantity}
                       </span>
                       <button
                         onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
                         className="w-7 h-7 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
-                        style={{ backgroundColor: palette.pop }}
+                        style={{ backgroundColor: tokens.primary }}
                       >
                         <Plus className="w-3 h-3" strokeWidth={3} />
                       </button>
@@ -177,7 +172,7 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <span
                         className="text-sm font-black w-14 text-right"
-                        style={{ color: palette.dark }}
+                        style={{ color: tokens.text }}
                       >
                         {formatPrice(item.price * item.quantity)}
                       </span>
@@ -197,12 +192,12 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
                     placeholder="Special instructions (less spicy, no onion…)"
                     className="w-full ml-[28px] text-xs px-3 py-2 rounded-xl border-2 outline-none transition-all"
                     style={{
-                      backgroundColor: `${palette.pop}06`,
-                      borderColor: `${palette.pop}20`,
-                      color: palette.midDark,
+                      backgroundColor: `${tokens.primary}06`,
+                      borderColor: `${tokens.primary}20`,
+                      color: tokens.textMuted,
                     }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = `${palette.pop}50`; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = `${palette.pop}20`; }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = `${tokens.primary}50`; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = `${tokens.primary}20`; }}
                   />
                 </div>
               ))}
@@ -212,14 +207,14 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
             <div
               className="flex-shrink-0 px-5 pt-3 pb-6 space-y-3 border-t"
               style={{
-                backgroundColor: palette.cardBg,
-                borderColor: palette.light,
+                backgroundColor: tokens.cardBg,
+                borderColor: tokens.border,
               }}
             >
               {/* Order type toggle */}
               <div
                 className="flex p-1 rounded-2xl gap-1"
-                style={{ backgroundColor: `${palette.pop}12` }}
+                style={{ backgroundColor: `${tokens.primary}12` }}
               >
                 {(['dine_in', 'parcel'] as OrderType[]).map((type) => (
                   <button
@@ -231,11 +226,11 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
                     style={
                       orderType === type
                         ? {
-                            backgroundColor: palette.pop,
-                            color: palette.popText,
-                            boxShadow: `0 4px 12px ${palette.pop}45`,
+                            backgroundColor: tokens.primary,
+                            color: '#fff',
+                            boxShadow: `0 4px 12px ${tokens.primary}45`,
                           }
-                        : { color: palette.midDark }
+                        : { color: tokens.textMuted }
                     }
                   >
                     {type === 'dine_in' ? '🪑 Dine In' : '🛍️ Parcel'}
@@ -258,17 +253,17 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
                     style={
                       !nameError
                         ? {
-                            borderColor: `${palette.pop}30`,
-                            backgroundColor: `${palette.pop}06`,
-                            color: palette.dark,
+                            borderColor: `${tokens.primary}30`,
+                            backgroundColor: `${tokens.primary}06`,
+                            color: tokens.text,
                           }
                         : {}
                     }
                     onFocus={(e) => {
-                      if (!nameError) e.currentTarget.style.borderColor = `${palette.pop}70`;
+                      if (!nameError) e.currentTarget.style.borderColor = `${tokens.primary}70`;
                     }}
                     onBlur={(e) => {
-                      if (!nameError) e.currentTarget.style.borderColor = `${palette.pop}30`;
+                      if (!nameError) e.currentTarget.style.borderColor = `${tokens.primary}30`;
                     }}
                   />
                   {nameError && (
@@ -281,12 +276,12 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
                     placeholder="Phone number (optional)"
                     className="w-full text-sm px-4 py-3 rounded-xl border-2 outline-none transition-all"
                     style={{
-                      borderColor: `${palette.pop}30`,
-                      backgroundColor: `${palette.pop}06`,
-                      color: palette.dark,
+                      borderColor: `${tokens.primary}30`,
+                      backgroundColor: `${tokens.primary}06`,
+                      color: tokens.text,
                     }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = `${palette.pop}70`; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = `${palette.pop}30`; }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = `${tokens.primary}70`; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = `${tokens.primary}30`; }}
                   />
                 </div>
               )}
@@ -296,11 +291,11 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
                 <div>
                   <p
                     className="text-[10px] font-bold uppercase tracking-widest"
-                    style={{ color: palette.midLight }}
+                    style={{ color: tokens.textMuted }}
                   >
                     Total
                   </p>
-                  <p className="text-2xl font-black" style={{ color: palette.dark }}>
+                  <p className="text-2xl font-black" style={{ color: tokens.text }}>
                     {formatPrice(total)}
                   </p>
                 </div>
@@ -308,9 +303,9 @@ export default function CartSheet({ open, onClose, restaurant, tableId, palette 
                   onClick={handlePlaceOrder}
                   className="flex-1 py-4 rounded-2xl text-[15px] font-black tracking-wide active:scale-[0.97] transition-all"
                   style={{
-                    background: palette.ctaGradient,
-                    color: palette.neonText,
-                    boxShadow: `0 6px 24px ${palette.neon}55`,
+                    background: tokens.ctaGradient,
+                    color: '#fff',
+                    boxShadow: `0 6px 24px ${tokens.accent}55`,
                   }}
                 >
                   Place Order →

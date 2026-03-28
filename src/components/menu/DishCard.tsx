@@ -1,8 +1,7 @@
 'use client';
 
-import chroma from 'chroma-js';
 import { useCart } from '@/hooks/useCart';
-import type { BrandPalette } from '@/lib/palette';
+import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
 function VegBadge({ isVeg }: { isVeg: boolean }) {
@@ -17,18 +16,17 @@ function VegBadge({ isVeg }: { isVeg: boolean }) {
 
 interface Props {
   dish: Product;
-  palette: BrandPalette;
+  tokens: MenuTokens;
   index: number;
   isBestseller: boolean;
   onTap: () => void;
 }
 
-export default function DishCard({ dish, palette, index, isBestseller, onTap }: Props) {
+export default function DishCard({ dish, tokens, index, isBestseller, onTap }: Props) {
   const { items, addItem, updateQuantity } = useCart();
   const cartItem = items.find((i) => i.product_id === dish.id);
   const qty = cartItem?.quantity ?? 0;
-
-  const popShadow = chroma(palette.pop).alpha(0.3).css();
+  const popShadow = `${tokens.primary}4d`;
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
@@ -51,8 +49,7 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
       style={{
         margin: '0 16px 12px',
         borderRadius: 16,
-        border: `1px solid ${palette.light}`,
-        backgroundColor: palette.cardBg,
+        backgroundColor: tokens.cardBg,
         overflow: 'hidden',
         cursor: dish.is_available ? 'pointer' : 'default',
         opacity: dish.is_available ? 1 : 0.4,
@@ -112,10 +109,10 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
             </div>
             <span
               style={{
-                fontFamily: 'var(--font-sans)',
+                fontFamily: tokens.fontBody,
                 fontSize: 16,
                 fontWeight: 700,
-                color: palette.dark,
+                color: tokens.text,
                 flex: 1,
                 minWidth: 0,
                 overflow: 'hidden',
@@ -134,7 +131,7 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
               {isBestseller && (
                 <span
                   style={{
-                    backgroundColor: palette.complement,
+                    backgroundColor: tokens.accent,
                     color: '#fff',
                     fontSize: 9,
                     fontWeight: 800,
@@ -148,8 +145,8 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
               {dish.is_jain && (
                 <span
                   style={{
-                    backgroundColor: palette.lightest,
-                    color: palette.base,
+                    backgroundColor: tokens.bg,
+                    color: tokens.primary,
                     fontSize: 9,
                     fontWeight: 800,
                     borderRadius: 4,
@@ -166,10 +163,10 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
           {dish.name_hindi && (
             <div
               style={{
-                fontFamily: 'var(--font-sans)',
+                fontFamily: tokens.fontBody,
                 fontSize: 12,
                 fontWeight: 500,
-                color: palette.midLight,
+                color: tokens.textMuted,
                 marginBottom: 4,
               }}
             >
@@ -181,10 +178,10 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
           {dish.description && (
             <div
               style={{
-                fontFamily: 'var(--font-sans)',
+                fontFamily: tokens.fontBody,
                 fontSize: 13,
                 fontWeight: 400,
-                color: palette.midDark,
+                color: tokens.textMuted,
                 overflow: 'hidden',
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
@@ -210,10 +207,10 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
           {dish.is_available ? (
             <span
               style={{
-                fontFamily: 'var(--font-sans)',
+                fontFamily: tokens.fontBody,
                 fontSize: 16,
                 fontWeight: 800,
-                color: palette.dark,
+                color: tokens.text,
               }}
             >
               ₹{dish.price}
@@ -226,7 +223,7 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
           ) : (
             <span
               style={{
-                fontFamily: 'var(--font-sans)',
+                fontFamily: tokens.fontBody,
                 fontSize: 12,
                 fontWeight: 700,
                 color: '#E23744',
@@ -241,9 +238,9 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
               <button
                 onClick={handleAdd}
                 style={{
-                  backgroundColor: palette.pop,
-                  color: palette.popText,
-                  fontFamily: 'var(--font-sans)',
+                  backgroundColor: tokens.primary,
+                  color: '#fff',
+                  fontFamily: tokens.fontBody,
                   fontSize: 14,
                   fontWeight: 800,
                   padding: '8px 18px',
@@ -262,7 +259,7 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: palette.pop,
+                  backgroundColor: tokens.primary,
                   borderRadius: 50,
                   boxShadow: `0 2px 10px ${popShadow}`,
                   flexShrink: 0,
@@ -273,7 +270,7 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: palette.popText,
+                    color: '#fff',
                     fontWeight: 700,
                     fontSize: 18,
                     width: 36,
@@ -289,9 +286,9 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
                 </button>
                 <span
                   style={{
-                    color: palette.popText,
+                    color: '#fff',
                     fontWeight: 800,
-                    fontFamily: 'var(--font-sans)',
+                    fontFamily: tokens.fontBody,
                     fontSize: 14,
                     minWidth: 20,
                     textAlign: 'center',
@@ -304,7 +301,7 @@ export default function DishCard({ dish, palette, index, isBestseller, onTap }: 
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: palette.popText,
+                    color: '#fff',
                     fontWeight: 700,
                     fontSize: 18,
                     width: 36,
