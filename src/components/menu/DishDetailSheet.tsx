@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCart } from '@/hooks/useCart';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
@@ -24,10 +25,21 @@ interface Props {
 
 export default function DishDetailSheet({ product, tokens, isBestseller, onClose }: Props) {
   const { items, addItem, updateQuantity } = useCart();
+  const reduced = useReducedMotion();
   const [localQty, setLocalQty] = useState(1);
+
+  // ── Hero parallax ────────────────────────────────────────────────────
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [imgOffset, setImgOffset] = useState(0);
+
+  const handleSheetScroll = useCallback(() => {
+    if (!scrollRef.current || reduced) return;
+    setImgOffset(Math.min(scrollRef.current.scrollTop * 0.3, 18));
+  }, [reduced]);
 
   useEffect(() => {
     setLocalQty(1);
+    setImgOffset(0);
   }, [product?.id]);
 
   useEffect(() => {
@@ -74,7 +86,9 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
         }}
       >
         <div
+          ref={scrollRef}
           onClick={(e) => e.stopPropagation()}
+          onScroll={handleSheetScroll}
           style={{
             width: '100%',
             maxWidth: 420,
@@ -83,7 +97,8 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
             maxHeight: '85vh',
             overflowY: 'auto',
             boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
-            animation: 'sheetUp 0.3s cubic-bezier(0.32, 0.72, 0, 1) both',
+            // Spring easing on open — cubic-bezier(0.34, 1.56, 0.64, 1) overshoots then settles
+            animation: reduced ? 'none' : 'sheetUp 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both',
           }}
         >
           {/* Handle */}
@@ -100,7 +115,7 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
 
           {/* Content */}
           <div style={{ padding: '16px 20px 32px' }}>
-            {/* 1. Photo */}
+            {/* 1. Photo — with hero parallax (scrolls at 0.7× speed) */}
             {product.image_url && (
               <div
                 style={{
@@ -110,13 +125,24 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
                   overflow: 'hidden',
                   marginBottom: 16,
                   boxShadow: `0 8px 32px ${tokens.text}14`,
+                  position: 'relative',
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={product.image_url}
                   alt={product.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  style={{
+                    width: '100%',
+                    // Extra height so parallax movement doesn't reveal edges
+                    height: '115%',
+                    marginTop: '-7.5%',
+                    objectFit: 'cover',
+                    // As user scrolls down, image moves up at 0.3× = content scrolls 1×, image 0.7×
+                    transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
+                    willChange: 'transform',
+                    transition: 'none',
+                  }}
                 />
               </div>
             )}

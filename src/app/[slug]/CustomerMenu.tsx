@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import MenuNavbar from '@/components/menu/MenuNavbar';
 import MenuDropdown from '@/components/menu/MenuDropdown';
@@ -38,11 +39,14 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     };
   }, [tokens.success, tokens.error]);
 
+  const reduced = useReducedMotion();
   const [activeTab, setActiveTab] = useState(categories[0]?.id ?? '');
   const [dietFilter, setDietFilter] = useState<DietFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('default');
   const [selectedDish, setSelectedDish] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
+  // Category blur transition — tracks which section was just jumped to via tab tap
+  const [jumpTarget, setJumpTarget] = useState<string | null>(null);
 
   const { getTotal, getItemCount } = useCart();
   const itemCount = getItemCount();
@@ -85,7 +89,12 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     return () => observer.disconnect();
   }, [categories]);
 
-  function scrollToCategory(id: string) {
+  const scrollToCategory = useCallback((id: string) => {
+    // Category blur transition: blur-in on the target section
+    if (!reduced) {
+      setJumpTarget(id);
+      setTimeout(() => setJumpTarget(null), 300);
+    }
     const el = sectionRefs.current.get(id);
     if (el) {
       const offset = 177;
@@ -93,7 +102,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
       window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     }
     setActiveTab(id);
-  }
+  }, [reduced]);
 
   function getFilteredProducts(categoryId: string): Product[] {
     let ps = products.filter((p) => p.category_id === categoryId);
@@ -170,6 +179,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
                 else sectionRefs.current.delete(cat.id);
               }}
               data-category-id={cat.id}
+              className={jumpTarget === cat.id ? 'section-blur-enter' : undefined}
             >
               <SectionHeading category={cat} tokens={tokens} />
 
