@@ -47,6 +47,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const [selectedDish, setSelectedDish] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showBestseller, setShowBestseller] = useState(false);
   // Category blur transition — tracks which section was just jumped to via tab tap
   const [jumpTarget, setJumpTarget] = useState<string | null>(null);
 
@@ -111,6 +112,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     if (dietFilter === 'veg') ps = ps.filter((p) => p.is_veg);
     else if (dietFilter === 'non_veg') ps = ps.filter((p) => !p.is_veg);
     else if (dietFilter === 'jain') ps = ps.filter((p) => p.is_jain);
+    if (showBestseller) ps = ps.filter((p) => topDishIds.has(p.id));
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       ps = ps.filter(
@@ -125,7 +127,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     return ps;
   }
 
-  const isSearching = searchQuery.trim().length > 0;
+  const isSearching = searchQuery.trim().length > 0 || showBestseller;
   const hasAnyResults = isSearching
     ? categories.some((cat) => getFilteredProducts(cat.id).length > 0)
     : true;
@@ -157,6 +159,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
           transition: color 0.2s ease, border-color 0.25s cubic-bezier(0.4,0,0.2,1);
         }
         .menu-search-input::placeholder { color: var(--text-muted-placeholder); }
+        .filter-pills-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
       {/* ── Sticky header group: Navbar + Tabs + Search ── */}
@@ -173,31 +176,28 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
           tokens={tokens}
           onSelect={scrollToCategory}
         />
-        {/* Search bar */}
+        {/* Search + filter pills row */}
         <div
           style={{
             backgroundColor: tokens.navBg,
             padding: '8px 16px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
           }}
         >
-          <div
-            style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            {/* Search icon */}
+          {/* Search input — fixed ~52% width */}
+          <div style={{ position: 'relative', flexShrink: 0, width: '52%' }}>
             <svg
-              width="16"
-              height="16"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke={tokens.textMuted}
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{ position: 'absolute', left: 12, flexShrink: 0, pointerEvents: 'none' }}
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
             >
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -210,39 +210,126 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
               className="menu-search-input"
               style={{
                 width: '100%',
-                padding: '9px 36px 9px 36px',
-                borderRadius: 12,
+                padding: '8px 28px 8px 30px',
+                borderRadius: 20,
                 border: `1px solid ${tokens.border}`,
                 backgroundColor: tokens.cardBg,
                 color: tokens.text,
                 fontFamily: tokens.fontBody,
-                fontSize: 14,
+                fontSize: 13,
                 outline: 'none',
-              }}
+                boxSizing: 'border-box',
+              } as React.CSSProperties}
             />
-            {/* Clear button */}
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
                 style={{
                   position: 'absolute',
-                  right: 10,
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
                   background: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
                   padding: 2,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
                   color: tokens.textMuted,
                 }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             )}
+          </div>
+
+          {/* Filter pills — scrollable */}
+          <div
+            className="filter-pills-scroll"
+            style={{
+              flex: 1,
+              display: 'flex',
+              gap: 6,
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            } as React.CSSProperties}
+          >
+            {/* Veg */}
+            <button
+              onClick={() => setDietFilter(dietFilter === 'veg' ? 'all' : 'veg')}
+              style={{
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 10px',
+                borderRadius: 20,
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: tokens.fontBody,
+                fontSize: 12,
+                fontWeight: 600,
+                backgroundColor: dietFilter === 'veg' ? tokens.accent : tokens.cardBg,
+                color: dietFilter === 'veg' ? tokens.bg : tokens.textMuted,
+                transition: 'background 0.15s ease, color 0.15s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: tokens.veg, flexShrink: 0, display: 'inline-block' }} />
+              Veg
+            </button>
+
+            {/* Non-Veg */}
+            <button
+              onClick={() => setDietFilter(dietFilter === 'non_veg' ? 'all' : 'non_veg')}
+              style={{
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 10px',
+                borderRadius: 20,
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: tokens.fontBody,
+                fontSize: 12,
+                fontWeight: 600,
+                backgroundColor: dietFilter === 'non_veg' ? tokens.accent : tokens.cardBg,
+                color: dietFilter === 'non_veg' ? tokens.bg : tokens.textMuted,
+                transition: 'background 0.15s ease, color 0.15s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: tokens.nonveg, flexShrink: 0, display: 'inline-block' }} />
+              Non-Veg
+            </button>
+
+            {/* Bestseller */}
+            <button
+              onClick={() => setShowBestseller((p) => !p)}
+              style={{
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 10px',
+                borderRadius: 20,
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: tokens.fontBody,
+                fontSize: 12,
+                fontWeight: 600,
+                backgroundColor: showBestseller ? tokens.accent : tokens.cardBg,
+                color: showBestseller ? tokens.bg : tokens.textMuted,
+                transition: 'background 0.15s ease, color 0.15s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              🔥 Popular
+            </button>
           </div>
         </div>
       </div>
