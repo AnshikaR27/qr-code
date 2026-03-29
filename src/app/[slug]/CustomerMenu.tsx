@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import MenuNavbar from '@/components/menu/MenuNavbar';
@@ -13,7 +14,8 @@ import CartBar from '@/components/menu/CartBar';
 import CartSheet from '@/components/menu/CartSheet';
 import { useCart } from '@/hooks/useCart';
 import type { Category, Product, Restaurant } from '@/types';
-import type { DietFilter } from '@/lib/constants';
+
+type ActiveFilter = 'all' | 'veg' | 'non_veg' | 'bestseller';
 
 interface Props {
   restaurant: Restaurant;
@@ -28,7 +30,6 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     [restaurant.design_tokens]
   );
 
-  // Expose per-restaurant token colors for the global Toaster to pick up
   useEffect(() => {
     document.documentElement.style.setProperty('--toast-success', tokens.success);
     document.documentElement.style.setProperty('--toast-error', tokens.error);
@@ -42,18 +43,22 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
 
   const reduced = useReducedMotion();
   const [activeTab, setActiveTab] = useState(categories[0]?.id ?? '');
-  const [dietFilter, setDietFilter] = useState<DietFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('default');
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>('all');
   const [selectedDish, setSelectedDish] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showBestseller, setShowBestseller] = useState(false);
-  // Category blur transition — tracks which section was just jumped to via tab tap
   const [jumpTarget, setJumpTarget] = useState<string | null>(null);
 
-  const { getTotal, getItemCount } = useCart();
-  const itemCount = getItemCount();
-  const total = getTotal();
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  const [placeholderVisible, setPlaceholderVisible] = useState(true);
+
+  // Filter dropdown state
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterBtnRef = useRef<HTMLButtonElement>(null);
+  const filterDropRef = useRef<HTMLDivElement>(null);
 
   // Top 3 bestsellers by order_count
   const topDishIds = useMemo(
@@ -68,13 +73,46 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     [products]
   );
 
+  // 5-6 random dish names for animated placeholder
+  const sampledNames = useMemo(() => {
+    const names = products.map((p) => p.name).filter(Boolean);
+    const shuffled = [...names].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 6);
+  }, [products]);
+
+  // Cycle placeholder every 3s when idle
+  useEffect(() => {
+    if (searchFocused || searchQuery || sampledNames.length <= 1) return;
+    const id = setInterval(() => {
+      setPlaceholderVisible(false);
+      setTimeout(() => {
+        setPlaceholderIdx((i) => (i + 1) % sampledNames.length);
+        setPlaceholderVisible(true);
+      }, 280);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [searchFocused, searchQuery, sampledNames.length]);
+
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    if (!filterOpen) return;
+    function onDown(e: MouseEvent) {
+      if (
+        !filterBtnRef.current?.contains(e.target as Node) &&
+        !filterDropRef.current?.contains(e.target as Node)
+      ) {
+        setFilterOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [filterOpen]);
+
   // Section refs for scroll tracking + scroll-to
   const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // IntersectionObserver — update active tab as sections scroll into view
   useEffect(() => {
     if (categories.length === 0) return;
-
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -86,14 +124,12 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
       },
       { rootMargin: '-25% 0px -65% 0px', threshold: 0 }
     );
-
     const refs = sectionRefs.current;
     refs.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, [categories]);
 
   const scrollToCategory = useCallback((id: string) => {
-    // Category blur transition: blur-in on the target section
     if (!reduced) {
       setJumpTarget(id);
       setTimeout(() => setJumpTarget(null), 300);
@@ -109,10 +145,9 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
 
   function getFilteredProducts(categoryId: string): Product[] {
     let ps = products.filter((p) => p.category_id === categoryId);
-    if (dietFilter === 'veg') ps = ps.filter((p) => p.is_veg);
-    else if (dietFilter === 'non_veg') ps = ps.filter((p) => !p.is_veg);
-    else if (dietFilter === 'jain') ps = ps.filter((p) => p.is_jain);
-    if (showBestseller) ps = ps.filter((p) => topDishIds.has(p.id));
+    if (activeFilter === 'veg') ps = ps.filter((p) => p.is_veg);
+    else if (activeFilter === 'non_veg') ps = ps.filter((p) => !p.is_veg);
+    else if (activeFilter === 'bestseller') ps = ps.filter((p) => topDishIds.has(p.id));
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       ps = ps.filter(
@@ -127,10 +162,30 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     return ps;
   }
 
-  const isSearching = searchQuery.trim().length > 0 || showBestseller;
-  const hasAnyResults = isSearching
+  const { getTotal, getItemCount } = useCart();
+  const itemCount = getItemCount();
+  const total = getTotal();
+
+  const isFiltering = activeFilter !== 'all' || searchQuery.trim().length > 0;
+  const hasAnyResults = isFiltering
     ? categories.some((cat) => getFilteredProducts(cat.id).length > 0)
     : true;
+
+  // Filter button label / appearance
+  const filterActive = activeFilter !== 'all';
+  const filterLabel: Record<ActiveFilter, string> = {
+    all: 'Filters',
+    veg: 'Veg',
+    non_veg: 'Non-Veg',
+    bestseller: 'Popular',
+  };
+
+  const FILTER_OPTIONS: { v: ActiveFilter; label: string; dot?: string; icon?: string }[] = [
+    { v: 'all', label: 'All' },
+    { v: 'veg', label: 'Veg', dot: tokens.veg },
+    { v: 'non_veg', label: 'Non-Veg', dot: tokens.nonveg },
+    { v: 'bestseller', label: 'Popular', icon: '🔥' },
+  ];
 
   return (
     <div
@@ -154,15 +209,15 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
           from { transform: translateY(100%); }
           to   { transform: translateY(0); }
         }
-        /* Category tab underline slides smoothly */
         .cat-tab-btn {
           transition: color 0.2s ease, border-color 0.25s cubic-bezier(0.4,0,0.2,1);
         }
-        .menu-search-input::placeholder { color: var(--text-muted-placeholder); }
-        .filter-pills-scroll::-webkit-scrollbar { display: none; }
+        .menu-search-input { caret-color: var(--text-muted-placeholder); }
+        .menu-search-input:focus { outline: none; }
+        .filter-drop-item:hover { opacity: 0.75; }
       `}</style>
 
-      {/* ── Sticky header group: Navbar + Tabs + Search ── */}
+      {/* ── Sticky header: Navbar + Tabs + Search/Filter row ── */}
       <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
         <MenuNavbar
           restaurant={restaurant}
@@ -176,7 +231,8 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
           tokens={tokens}
           onSelect={scrollToCategory}
         />
-        {/* Search + filter pills row */}
+
+        {/* Search + Filter button row */}
         <div
           style={{
             backgroundColor: tokens.navBg,
@@ -186,27 +242,49 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
             gap: 8,
           }}
         >
-          {/* Search input — fixed ~52% width */}
-          <div style={{ position: 'relative', flexShrink: 0, width: '52%' }}>
+          {/* Search input with animated placeholder */}
+          <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+            {/* Search icon */}
             <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={tokens.textMuted}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+              width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke={tokens.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 1 }}
             >
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
+
+            {/* Animated placeholder overlay — hidden when input has text or is focused */}
+            {!searchQuery && !searchFocused && sampledNames.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 30,
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  fontFamily: tokens.fontBody,
+                  fontSize: 13,
+                  color: tokens.textMuted,
+                  opacity: placeholderVisible ? 1 : 0,
+                  transition: 'opacity 0.28s ease',
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                  zIndex: 1,
+                }}
+              >
+                Search &ldquo;{sampledNames[placeholderIdx]}&rdquo;
+              </div>
+            )}
+
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search menu..."
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               className="menu-search-input"
               style={{
                 width: '100%',
@@ -217,25 +295,17 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
                 color: tokens.text,
                 fontFamily: tokens.fontBody,
                 fontSize: 13,
-                outline: 'none',
                 boxSizing: 'border-box',
               } as React.CSSProperties}
             />
+
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
                 style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  color: tokens.textMuted,
+                  position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  padding: 2, display: 'flex', alignItems: 'center', color: tokens.textMuted,
                 }}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -245,98 +315,114 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
             )}
           </div>
 
-          {/* Filter pills — scrollable */}
-          <div
-            className="filter-pills-scroll"
-            style={{
-              flex: 1,
-              display: 'flex',
-              gap: 6,
-              overflowX: 'auto',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-            } as React.CSSProperties}
-          >
-            {/* Veg */}
+          {/* Filter button */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
-              onClick={() => setDietFilter(dietFilter === 'veg' ? 'all' : 'veg')}
+              ref={filterBtnRef}
+              onClick={() => setFilterOpen((o) => !o)}
               style={{
-                flexShrink: 0,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                padding: '6px 10px',
+                padding: '7px 10px',
                 borderRadius: 20,
-                border: 'none',
-                cursor: 'pointer',
+                border: `1px solid ${filterActive ? 'transparent' : tokens.border}`,
+                backgroundColor: filterActive ? tokens.accent : tokens.cardBg,
+                color: filterActive ? tokens.bg : tokens.textMuted,
                 fontFamily: tokens.fontBody,
                 fontSize: 12,
                 fontWeight: 600,
-                backgroundColor: dietFilter === 'veg' ? tokens.accent : tokens.cardBg,
-                color: dietFilter === 'veg' ? tokens.bg : tokens.textMuted,
-                transition: 'background 0.15s ease, color 0.15s ease',
+                cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, color 0.15s ease',
               }}
             >
-              <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: tokens.veg, flexShrink: 0, display: 'inline-block' }} />
-              Veg
+              {filterActive ? (
+                <>
+                  {activeFilter === 'veg' && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: tokens.veg, display: 'inline-block', flexShrink: 0 }} />}
+                  {activeFilter === 'non_veg' && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: tokens.nonveg, display: 'inline-block', flexShrink: 0 }} />}
+                  {activeFilter === 'bestseller' && <span style={{ fontSize: 11, lineHeight: 1 }}>🔥</span>}
+                  {filterLabel[activeFilter]}
+                  <span
+                    onClick={(e) => { e.stopPropagation(); setActiveFilter('all'); setFilterOpen(false); }}
+                    style={{ display: 'flex', alignItems: 'center', marginLeft: 1 }}
+                  >
+                    <X size={11} strokeWidth={2.5} />
+                  </span>
+                </>
+              ) : (
+                <>
+                  <SlidersHorizontal size={13} strokeWidth={2} />
+                  Filters
+                  <ChevronDown size={11} strokeWidth={2.5} />
+                </>
+              )}
             </button>
 
-            {/* Non-Veg */}
-            <button
-              onClick={() => setDietFilter(dietFilter === 'non_veg' ? 'all' : 'non_veg')}
-              style={{
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '6px 10px',
-                borderRadius: 20,
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: tokens.fontBody,
-                fontSize: 12,
-                fontWeight: 600,
-                backgroundColor: dietFilter === 'non_veg' ? tokens.accent : tokens.cardBg,
-                color: dietFilter === 'non_veg' ? tokens.bg : tokens.textMuted,
-                transition: 'background 0.15s ease, color 0.15s ease',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: tokens.nonveg, flexShrink: 0, display: 'inline-block' }} />
-              Non-Veg
-            </button>
-
-            {/* Bestseller */}
-            <button
-              onClick={() => setShowBestseller((p) => !p)}
-              style={{
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '6px 10px',
-                borderRadius: 20,
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: tokens.fontBody,
-                fontSize: 12,
-                fontWeight: 600,
-                backgroundColor: showBestseller ? tokens.accent : tokens.cardBg,
-                color: showBestseller ? tokens.bg : tokens.textMuted,
-                transition: 'background 0.15s ease, color 0.15s ease',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              🔥 Popular
-            </button>
+            {/* Dropdown */}
+            {filterOpen && (
+              <div
+                ref={filterDropRef}
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  minWidth: 140,
+                  backgroundColor: tokens.cardBg,
+                  border: `1px solid ${tokens.border}`,
+                  borderRadius: 12,
+                  boxShadow: `0 8px 24px ${tokens.text}18`,
+                  overflow: 'hidden',
+                  zIndex: 50,
+                }}
+              >
+                {FILTER_OPTIONS.map(({ v, label, dot, icon }) => {
+                  const isActive = activeFilter === v;
+                  return (
+                    <button
+                      key={v}
+                      className="filter-drop-item"
+                      onClick={() => { setActiveFilter(v); setFilterOpen(false); }}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '10px 14px',
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        fontFamily: tokens.fontBody,
+                        fontSize: 13,
+                        fontWeight: isActive ? 700 : 500,
+                        color: isActive ? tokens.text : tokens.textMuted,
+                        textAlign: 'left',
+                        transition: 'opacity 0.1s ease',
+                      }}
+                    >
+                      {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: dot, flexShrink: 0, display: 'inline-block' }} />}
+                      {icon && <span style={{ fontSize: 13, lineHeight: 1 }}>{icon}</span>}
+                      {!dot && !icon && <span style={{ width: 8 }} />}
+                      {label}
+                      {isActive && (
+                        <span style={{ marginLeft: 'auto', color: tokens.accent, display: 'flex', alignItems: 'center' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* ── Scrolling content ── */}
       <div style={{ paddingBottom: itemCount > 0 ? 100 : 40 }}>
-        {isSearching && !hasAnyResults && (
+        {isFiltering && !hasAnyResults && (
           <div
             style={{
               padding: '48px 16px',
@@ -351,7 +437,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         )}
         {categories.map((cat) => {
           const filtered = getFilteredProducts(cat.id);
-          if (filtered.length === 0 && (dietFilter !== 'all' || isSearching)) return null;
+          if (filtered.length === 0 && isFiltering) return null;
 
           return (
             <div
@@ -394,11 +480,9 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         })}
       </div>
 
-      {/* ── Floating Filters pill ── */}
+      {/* ── Floating sort pill ── */}
       <FloatingFilters
         tokens={tokens}
-        dietFilter={dietFilter}
-        onDietFilterChange={setDietFilter}
         sortBy={sortBy}
         onSortByChange={setSortBy}
       />

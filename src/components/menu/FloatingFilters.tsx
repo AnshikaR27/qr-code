@@ -2,22 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { MenuTokens } from '@/lib/tokens';
-import type { DietFilter } from '@/lib/constants';
 
 export type SortBy = 'default' | 'popular' | 'price_asc' | 'price_desc';
 
 interface Props {
   tokens: MenuTokens;
-  dietFilter: DietFilter;
-  onDietFilterChange: (f: DietFilter) => void;
   sortBy: SortBy;
   onSortByChange: (s: SortBy) => void;
 }
 
 export default function FloatingFilters({
   tokens,
-  dietFilter,
-  onDietFilterChange,
   sortBy,
   onSortByChange,
 }: Props) {
@@ -38,13 +33,6 @@ export default function FloatingFilters({
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-
-  const DIET_OPTIONS: { v: DietFilter; l: string }[] = [
-    { v: 'all', l: 'All' },
-    { v: 'veg', l: '🥦 Veg' },
-    { v: 'non_veg', l: '🍗 Non-Veg' },
-    { v: 'jain', l: '🌿 Jain' },
-  ];
 
   const SORT_OPTIONS: { v: SortBy; l: string }[] = [
     { v: 'default', l: 'Default' },
@@ -132,64 +120,11 @@ export default function FloatingFilters({
                   marginBottom: 20,
                 }}
               >
-                Filters
-              </div>
-
-              {/* Diet toggles */}
-              <div style={{ marginBottom: 20 }}>
-                <div
-                  style={{
-                    fontFamily: tokens.fontBody,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: tokens.textMuted,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    marginBottom: 10,
-                  }}
-                >
-                  Diet
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {DIET_OPTIONS.map(({ v, l }) => (
-                    <button
-                      key={v}
-                      onClick={() => onDietFilterChange(v)}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: 50,
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontFamily: tokens.fontBody,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        background: dietFilter === v ? tokens.ctaGradient : tokens.surfaceLow,
-                        color: dietFilter === v ? '#fff' : tokens.textMuted,
-                        boxShadow: dietFilter === v ? `0 4px 14px ${tokens.primary}1a` : 'none',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
+                Sort By
               </div>
 
               {/* Sort by */}
               <div style={{ marginBottom: 24 }}>
-                <div
-                  style={{
-                    fontFamily: tokens.fontBody,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: tokens.textMuted,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    marginBottom: 10,
-                  }}
-                >
-                  Sort By
-                </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {SORT_OPTIONS.map(({ v, l }) => (
                     <button
