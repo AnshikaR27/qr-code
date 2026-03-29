@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { MenuTokens } from '@/lib/tokens';
@@ -24,9 +25,10 @@ interface Props {
 }
 
 export default function DishDetailSheet({ product, tokens, isBestseller, onClose }: Props) {
-  const { items, addItem, updateQuantity } = useCart();
+  const { items, addItem, updateQuantity, updateNotes } = useCart();
   const reduced = useReducedMotion();
   const [localQty, setLocalQty] = useState(1);
+  const [notes, setNotes] = useState('');
 
   // ── Hero parallax ────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -38,8 +40,13 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
   }, [reduced]);
 
   useEffect(() => {
+    if (!product) return;
     setLocalQty(1);
     setImgOffset(0);
+    // Pre-populate notes from cart if item already exists
+    const existing = items.find((i) => i.product_id === product.id);
+    setNotes(existing?.notes ?? '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
 
   useEffect(() => {
@@ -60,6 +67,7 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
     } else {
       updateQuantity(dish.id, cartQty + localQty);
     }
+    updateNotes(dish.id, notes.trim());
     onClose();
   }
 
@@ -70,6 +78,7 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
           from { transform: translateY(100%); }
           to   { transform: translateY(0); }
         }
+        .dish-notes-input::placeholder { opacity: 0.55; }
       `}</style>
 
       {/* Overlay */}
@@ -97,25 +106,40 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
             maxHeight: '85vh',
             overflowY: 'auto',
             boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
-            // Spring easing on open — cubic-bezier(0.34, 1.56, 0.64, 1) overshoots then settles
             animation: reduced ? 'none' : 'sheetUp 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both',
+            position: 'relative',
           }}
         >
           {/* Handle */}
           <div style={{ display: 'flex', justifyContent: 'center', margin: '12px auto 8px' }}>
-            <div
-              style={{
-                width: 40,
-                height: 5,
-                borderRadius: 3,
-                backgroundColor: tokens.border,
-              }}
-            />
+            <div style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: tokens.border }} />
           </div>
 
+          {/* X close button */}
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 14,
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: `${tokens.border}40`,
+              color: tokens.textMuted,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <X size={16} strokeWidth={2.5} />
+          </button>
+
           {/* Content */}
-          <div style={{ padding: '16px 20px 32px' }}>
-            {/* 1. Photo — with hero parallax (scrolls at 0.7× speed) */}
+          <div style={{ padding: '8px 20px 32px' }}>
+            {/* Photo with hero parallax */}
             {product.image_url && (
               <div
                 style={{
@@ -134,11 +158,9 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
                   alt={product.name}
                   style={{
                     width: '100%',
-                    // Extra height so parallax movement doesn't reveal edges
                     height: '115%',
                     marginTop: '-7.5%',
                     objectFit: 'cover',
-                    // As user scrolls down, image moves up at 0.3× = content scrolls 1×, image 0.7×
                     transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
                     willChange: 'transform',
                     transition: 'none',
@@ -147,92 +169,36 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
               </div>
             )}
 
-            {/* 2. Badges row */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                marginBottom: 8,
-                flexWrap: 'wrap',
-              }}
-            >
+            {/* Badges */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
               <VegBadge isVeg={product.is_veg} veg={tokens.veg} nonveg={tokens.nonveg} cardBg={tokens.cardBg} />
               {isBestseller && (
-                <span
-                  style={{
-                    backgroundColor: tokens.badgeBg,
-                    color: tokens.badgeText,
-                    fontSize: 9,
-                    fontWeight: 800,
-                    borderRadius: 4,
-                    padding: '2px 6px',
-                  }}
-                >
+                <span style={{ backgroundColor: tokens.badgeBg, color: tokens.badgeText, fontSize: 9, fontWeight: 800, borderRadius: 4, padding: '2px 6px' }}>
                   🔥 Popular
                 </span>
               )}
               {product.is_jain && (
-                <span
-                  style={{
-                    backgroundColor: tokens.bg,
-                    color: tokens.primary,
-                    fontSize: 9,
-                    fontWeight: 800,
-                    borderRadius: 4,
-                    padding: '2px 6px',
-                  }}
-                >
+                <span style={{ backgroundColor: tokens.bg, color: tokens.primary, fontSize: 9, fontWeight: 800, borderRadius: 4, padding: '2px 6px' }}>
                   JAIN
                 </span>
               )}
             </div>
 
-            {/* 3. Dish name */}
-            <div
-              style={{
-                fontFamily: tokens.fontHeading,
-                fontSize: 24,
-                fontWeight: 700,
-                color: tokens.text,
-                lineHeight: 1.2,
-              }}
-            >
+            {/* Dish name */}
+            <div style={{ fontFamily: tokens.fontHeading, fontSize: 24, fontWeight: 700, color: tokens.text, lineHeight: 1.2 }}>
               {product.name}
             </div>
 
-            {/* 4. Hindi name */}
+            {/* Hindi name */}
             {product.name_hindi && (
-              <div
-                style={{
-                  fontFamily: tokens.fontBody,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: tokens.textMuted,
-                  marginTop: 4,
-                }}
-              >
+              <div style={{ fontFamily: tokens.fontBody, fontSize: 14, fontWeight: 500, color: tokens.textMuted, marginTop: 4 }}>
                 {product.name_hindi}
               </div>
             )}
 
-            {/* 5. Price + spice */}
-            <div
-              style={{
-                marginTop: 12,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: tokens.fontBody,
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: tokens.text,
-                }}
-              >
+            {/* Price + spice */}
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontFamily: tokens.fontBody, fontSize: 22, fontWeight: 800, color: tokens.text }}>
                 ₹{product.price}
               </span>
               {product.spice_level > 0 && (
@@ -240,118 +206,71 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
               )}
             </div>
 
-            {/* 6. Description */}
+            {/* Description */}
             {product.description && (
-              <div
-                style={{
-                  fontFamily: tokens.fontBody,
-                  fontSize: 14,
-                  fontWeight: 400,
-                  color: tokens.textMuted,
-                  marginTop: 14,
-                  lineHeight: 1.65,
-                }}
-              >
+              <div style={{ fontFamily: tokens.fontBody, fontSize: 14, fontWeight: 400, color: tokens.textMuted, marginTop: 14, lineHeight: 1.65 }}>
                 {product.description}
               </div>
             )}
 
-            {/* 7. Allergen tags */}
+            {/* Allergens */}
             {product.allergens && product.allergens.length > 0 && (
-              <div
-                style={{
-                  marginTop: 10,
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: tokens.fontBody,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: tokens.textMuted,
-                    backgroundColor: tokens.bg,
-                    borderRadius: 50,
-                    padding: '3px 10px',
-                  }}
-                >
-                  Contains:{' '}
-                  {product.allergens
-                    .map((a) => a.charAt(0).toUpperCase() + a.slice(1))
-                    .join(', ')}
+              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <span style={{ fontFamily: tokens.fontBody, fontSize: 11, fontWeight: 600, color: tokens.textMuted, backgroundColor: tokens.bg, borderRadius: 50, padding: '3px 10px' }}>
+                  Contains: {product.allergens.map((a) => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}
                 </span>
               </div>
             )}
 
-            {/* 8. Spacing instead of divider — per "No-Line" rule */}
-            <div style={{ marginTop: 28 }} />
+            {/* Special instructions */}
+            {product.is_available && (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ fontFamily: tokens.fontBody, fontSize: 11, fontWeight: 700, color: tokens.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+                  Special Instructions
+                </div>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. less spicy, no onion, extra sauce…"
+                  className="dish-notes-input"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: `1px solid ${tokens.border}`,
+                    backgroundColor: tokens.bg,
+                    color: tokens.text,
+                    fontFamily: tokens.fontBody,
+                    fontSize: 13,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  } as React.CSSProperties}
+                />
+              </div>
+            )}
 
-            {/* 9. Action row */}
+            <div style={{ marginTop: 24 }} />
+
+            {/* Action row */}
             {product.is_available ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {/* Qty control */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    borderRadius: 14,
-                    overflow: 'hidden',
-                    backgroundColor: tokens.bg,
-                  }}
-                >
+                <div style={{ display: 'flex', alignItems: 'center', borderRadius: 14, overflow: 'hidden', backgroundColor: tokens.bg }}>
                   <button
                     onClick={() => setLocalQty((q) => Math.max(1, q - 1))}
-                    style={{
-                      width: 48,
-                      height: 48,
-                      background: 'transparent',
-                      border: 'none',
-                      color: tokens.textMuted,
-                      fontSize: 20,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    −
-                  </button>
-                  <span
-                    style={{
-                      width: 40,
-                      textAlign: 'center',
-                      fontFamily: tokens.fontBody,
-                      fontSize: 18,
-                      fontWeight: 800,
-                      color: tokens.text,
-                    }}
-                  >
+                    style={{ width: 48, height: 48, background: 'transparent', border: 'none', color: tokens.textMuted, fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >−</button>
+                  <span style={{ width: 40, textAlign: 'center', fontFamily: tokens.fontBody, fontSize: 18, fontWeight: 800, color: tokens.text }}>
                     {localQty}
                   </span>
                   <button
                     onClick={() => setLocalQty((q) => q + 1)}
-                    style={{
-                      width: 48,
-                      height: 48,
-                      background: 'transparent',
-                      border: 'none',
-                      color: tokens.textMuted,
-                      fontSize: 20,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    +
-                  </button>
+                    style={{ width: 48, height: 48, background: 'transparent', border: 'none', color: tokens.textMuted, fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >+</button>
                 </div>
 
-                {/* Add to order button — radius xl (24px) per DESIGN.md */}
+                {/* Add to order */}
                 <button
                   onClick={handleAddToOrder}
                   style={{
@@ -372,16 +291,7 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
                 </button>
               </div>
             ) : (
-              <div
-                style={{
-                  textAlign: 'center',
-                  color: tokens.error,
-                  fontFamily: tokens.fontBody,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  padding: '12px 0',
-                }}
-              >
+              <div style={{ textAlign: 'center', color: tokens.error, fontFamily: tokens.fontBody, fontSize: 14, fontWeight: 700, padding: '12px 0' }}>
                 Sold out
               </div>
             )}

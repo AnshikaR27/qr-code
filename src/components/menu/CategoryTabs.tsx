@@ -34,17 +34,18 @@ export default function CategoryTabs({ categories, activeTab, tokens, onSelect }
             className="cat-tab-btn"
             style={{
               flexShrink: 0,
-              padding: '12px 0',
-              marginRight: 24,
+              padding: '6px 14px',
+              margin: '6px 4px 6px 0',
               border: 'none',
-              background: 'transparent',
+              borderRadius: 9999,
+              background: active ? tokens.primary : tokens.cardBg,
               cursor: 'pointer',
               fontFamily: tokens.fontBody,
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: active ? 700 : 500,
-              color: active ? tokens.text : tokens.textMuted,
-              borderBottom: active ? `3px solid ${tokens.accent}` : '3px solid transparent',
+              color: active ? '#fff' : tokens.textMuted,
               whiteSpace: 'nowrap',
+              transition: 'background 0.18s ease, color 0.18s ease',
             }}
           >
             {cat.name}

@@ -9,13 +9,13 @@ import CategoryTabs from '@/components/menu/CategoryTabs';
 import SectionHeading from '@/components/menu/SectionHeading';
 import DishCard from '@/components/menu/DishCard';
 import DishDetailSheet from '@/components/menu/DishDetailSheet';
-import FloatingFilters, { type SortBy } from '@/components/menu/FloatingFilters';
 import CartBar from '@/components/menu/CartBar';
 import CartSheet from '@/components/menu/CartSheet';
 import { useCart } from '@/hooks/useCart';
 import type { Category, Product, Restaurant } from '@/types';
 
 type ActiveFilter = 'all' | 'veg' | 'non_veg' | 'bestseller';
+type SortBy = 'default' | 'popular' | 'price_asc' | 'price_desc';
 
 interface Props {
   restaurant: Restaurant;
@@ -43,7 +43,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
 
   const reduced = useReducedMotion();
   const [activeTab, setActiveTab] = useState(categories[0]?.id ?? '');
-  const [sortBy, setSortBy] = useState<SortBy>('default');
+  const [sortBy] = useState<SortBy>('default');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('all');
   const [selectedDish, setSelectedDish] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
@@ -479,13 +479,6 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
           );
         })}
       </div>
-
-      {/* ── Floating sort pill ── */}
-      <FloatingFilters
-        tokens={tokens}
-        sortBy={sortBy}
-        onSortByChange={setSortBy}
-      />
 
       {/* ── Cart bar (fixed bottom) ── */}
       <CartBar
