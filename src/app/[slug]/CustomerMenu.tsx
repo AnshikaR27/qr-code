@@ -4,7 +4,6 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import MenuNavbar from '@/components/menu/MenuNavbar';
-import MenuDropdown from '@/components/menu/MenuDropdown';
 import CategoryTabs from '@/components/menu/CategoryTabs';
 import SectionHeading from '@/components/menu/SectionHeading';
 import DishCard from '@/components/menu/DishCard';
@@ -33,11 +32,13 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   useEffect(() => {
     document.documentElement.style.setProperty('--toast-success', tokens.success);
     document.documentElement.style.setProperty('--toast-error', tokens.error);
+    document.documentElement.style.setProperty('--text-muted-placeholder', tokens.textMuted);
     return () => {
       document.documentElement.style.removeProperty('--toast-success');
       document.documentElement.style.removeProperty('--toast-error');
+      document.documentElement.style.removeProperty('--text-muted-placeholder');
     };
-  }, [tokens.success, tokens.error]);
+  }, [tokens.success, tokens.error, tokens.textMuted]);
 
   const reduced = useReducedMotion();
   const [activeTab, setActiveTab] = useState(categories[0]?.id ?? '');
@@ -45,6 +46,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const [sortBy, setSortBy] = useState<SortBy>('default');
   const [selectedDish, setSelectedDish] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   // Category blur transition — tracks which section was just jumped to via tab tap
   const [jumpTarget, setJumpTarget] = useState<string | null>(null);
 
@@ -109,11 +111,24 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     if (dietFilter === 'veg') ps = ps.filter((p) => p.is_veg);
     else if (dietFilter === 'non_veg') ps = ps.filter((p) => !p.is_veg);
     else if (dietFilter === 'jain') ps = ps.filter((p) => p.is_jain);
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      ps = ps.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.description ?? '').toLowerCase().includes(q)
+      );
+    }
     if (sortBy === 'popular') ps = [...ps].sort((a, b) => b.order_count - a.order_count);
     else if (sortBy === 'price_asc') ps = [...ps].sort((a, b) => a.price - b.price);
     else if (sortBy === 'price_desc') ps = [...ps].sort((a, b) => b.price - a.price);
     return ps;
   }
+
+  const isSearching = searchQuery.trim().length > 0;
+  const hasAnyResults = isSearching
+    ? categories.some((cat) => getFilteredProducts(cat.id).length > 0)
+    : true;
 
   return (
     <div
@@ -141,9 +156,10 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         .cat-tab-btn {
           transition: color 0.2s ease, border-color 0.25s cubic-bezier(0.4,0,0.2,1);
         }
+        .menu-search-input::placeholder { color: var(--text-muted-placeholder); }
       `}</style>
 
-      {/* ── Sticky header group: Navbar + Dropdown + Tabs ── */}
+      {/* ── Sticky header group: Navbar + Tabs + Search ── */}
       <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
         <MenuNavbar
           restaurant={restaurant}
@@ -151,25 +167,104 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
           itemCount={itemCount}
           onCartOpen={() => setCartOpen(true)}
         />
-        <MenuDropdown
-          categories={categories}
-          activeCategoryId={activeTab}
-          tokens={tokens}
-          onSelect={scrollToCategory}
-        />
         <CategoryTabs
           categories={categories}
           activeTab={activeTab}
           tokens={tokens}
           onSelect={scrollToCategory}
         />
+        {/* Search bar */}
+        <div
+          style={{
+            backgroundColor: tokens.navBg,
+            padding: '8px 16px 10px',
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            {/* Search icon */}
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={tokens.textMuted}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ position: 'absolute', left: 12, flexShrink: 0, pointerEvents: 'none' }}
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search menu..."
+              className="menu-search-input"
+              style={{
+                width: '100%',
+                padding: '9px 36px 9px 36px',
+                borderRadius: 12,
+                border: `1px solid ${tokens.border}`,
+                backgroundColor: tokens.cardBg,
+                color: tokens.text,
+                fontFamily: tokens.fontBody,
+                fontSize: 14,
+                outline: 'none',
+              }}
+            />
+            {/* Clear button */}
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: tokens.textMuted,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Scrolling content ── */}
       <div style={{ paddingBottom: itemCount > 0 ? 100 : 40 }}>
+        {isSearching && !hasAnyResults && (
+          <div
+            style={{
+              padding: '48px 16px',
+              textAlign: 'center',
+              fontFamily: tokens.fontBody,
+              fontSize: 14,
+              color: tokens.textMuted,
+            }}
+          >
+            No items found
+          </div>
+        )}
         {categories.map((cat) => {
           const filtered = getFilteredProducts(cat.id);
-          if (filtered.length === 0 && dietFilter !== 'all') return null;
+          if (filtered.length === 0 && (dietFilter !== 'all' || isSearching)) return null;
 
           return (
             <div

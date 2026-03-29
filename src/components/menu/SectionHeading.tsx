@@ -9,21 +9,6 @@ interface Props {
 export default function SectionHeading({ category, tokens }: Props) {
   return (
     <div style={{ padding: '44px 20px 12px' }}>
-      {/* Editorial label above — small spaced-out sans-serif per DESIGN.md */}
-      <div
-        style={{
-          fontFamily: tokens.fontBody,
-          fontSize: 10,
-          fontWeight: 700,
-          color: tokens.textMuted,
-          textTransform: 'uppercase',
-          letterSpacing: '0.22em',
-          marginBottom: 8,
-        }}
-      >
-        — Menu
-      </div>
-
       {/* Large serif headline — the "Brand Moment" */}
       <div
         style={{
