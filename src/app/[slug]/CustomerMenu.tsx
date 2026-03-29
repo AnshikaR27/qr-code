@@ -11,6 +11,7 @@ import DishCard from '@/components/menu/DishCard';
 import DishDetailSheet from '@/components/menu/DishDetailSheet';
 import CartBar from '@/components/menu/CartBar';
 import CartSheet from '@/components/menu/CartSheet';
+import CallWaiterButton from '@/components/menu/CallWaiterButton';
 import { useCart } from '@/hooks/useCart';
 import type { Category, Product, Restaurant } from '@/types';
 
@@ -479,6 +480,14 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
           );
         })}
       </div>
+
+      {/* ── Call Waiter (bottom-left) ── */}
+      <CallWaiterButton
+        restaurantId={restaurant.id}
+        tableId={tableId}
+        tokens={tokens}
+        cartVisible={itemCount > 0}
+      />
 
       {/* ── Cart bar (fixed bottom) ── */}
       <CartBar

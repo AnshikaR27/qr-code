@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { BellRing, ChefHat, PackageCheck, CheckCheck, XCircle } from 'lucide-react';
+import { BellRing, ChefHat, PackageCheck, CheckCheck, XCircle, Bell, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
 import { ORDER_STATUSES } from '@/lib/constants';
-import type { Order, OrderStatus, Restaurant } from '@/types';
+import { unlockAudio, playNewOrder, playWaiterCall } from '@/lib/sounds';
+import type { Order, OrderStatus, Restaurant, WaiterCall } from '@/types';
+
+const AUDIO_PREF_KEY = 'dashboard-audio-enabled';
 
 interface Props {
   restaurant: Restaurant;
@@ -36,14 +39,40 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [filter, setFilter] = useState<FilterTab>('active');
   const [updating, setUpdating] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [waiterCalls, setWaiterCalls] = useState<WaiterCall[]>([]);
+  const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
+  const [audioEnabled, setAudioEnabled] = useState(false);
+
   const isFirstRender = useRef(true);
 
+  // Check localStorage for saved audio preference
+  useEffect(() => {
+    if (localStorage.getItem(AUDIO_PREF_KEY) === 'true') {
+      setAudioEnabled(true);
+      // Attempt to re-unlock (may need user interaction still, but worth trying)
+      unlockAudio().catch(() => {});
+    }
+  }, []);
+
+  async function handleEnableAudio() {
+    try {
+      await unlockAudio();
+      localStorage.setItem(AUDIO_PREF_KEY, 'true');
+      setAudioEnabled(true);
+      playNewOrder(); // play sample so user hears what it sounds like
+      toast.success('Audio notifications enabled!');
+    } catch {
+      toast.error('Could not enable audio. Try again.');
+    }
+  }
+
+  // Realtime subscriptions: orders + waiter_calls
   useEffect(() => {
     const supabase = createClient();
 
     const channel = supabase
-      .channel('kitchen-orders')
+      .channel('kitchen-realtime')
+      // ── Orders ──────────────────────────────────────────────
       .on(
         'postgres_changes',
         {
@@ -54,7 +83,6 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
         },
         async (payload) => {
           if (payload.eventType === 'INSERT') {
-            // Fetch full order with items
             const { data } = await supabase
               .from('orders')
               .select('*, items:order_items(*), table:tables(*)')
@@ -65,18 +93,30 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
               setOrders((prev) => [data as Order, ...prev]);
 
               if (!isFirstRender.current) {
-                // Play sound on new order
-                try {
-                  if (!audioRef.current) {
-                    audioRef.current = new Audio('/sounds/new-order.mp3');
-                  }
-                  await audioRef.current.play();
-                } catch {
-                  // Sound failed (e.g. browser autoplay policy) — ignore
-                }
-                toast.success(`New order #${data.order_number} received!`, {
+                if (audioEnabled) playNewOrder();
+
+                // Flash the new card
+                const id = (data as Order).id;
+                setNewOrderIds((prev) => new Set(prev).add(id));
+                setTimeout(() => {
+                  setNewOrderIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(id);
+                    return next;
+                  });
+                }, 2500);
+
+                toast.success(`New order #${(data as Order).order_number} received!`, {
                   duration: 5000,
                 });
+
+                // Browser notification if tab is backgrounded
+                if (document.hidden && Notification.permission === 'granted') {
+                  new Notification(`New order #${(data as Order).order_number}`, {
+                    body: `${restaurant.name} — ${(data as Order).items?.length ?? 0} item(s)`,
+                    icon: '/favicon.ico',
+                  });
+                }
               }
             }
           } else if (payload.eventType === 'UPDATE') {
@@ -90,20 +130,62 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
           }
         }
       )
+      // ── Waiter calls ─────────────────────────────────────────
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'waiter_calls',
+          filter: `restaurant_id=eq.${restaurant.id}`,
+        },
+        async (payload) => {
+          if (isFirstRender.current) return;
+
+          // Fetch with joined table info
+          const { data } = await supabase
+            .from('waiter_calls')
+            .select('*, table:tables(table_number)')
+            .eq('id', payload.new.id)
+            .single();
+
+          if (data) {
+            setWaiterCalls((prev) => [data as WaiterCall, ...prev]);
+            if (audioEnabled) playWaiterCall();
+            const tableLabel = (data as WaiterCall).table
+              ? `Table ${(data as WaiterCall).table!.table_number}`
+              : 'A table';
+            toast.warning(`🔔 ${tableLabel} is calling for a waiter!`, { duration: 8000 });
+          }
+        }
+      )
       .subscribe();
 
-    // Mark first render done after subscription
     isFirstRender.current = false;
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
+  // audioEnabled is intentionally excluded — we don't want to re-subscribe on toggle
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurant.id]);
+
+  // Keep audioEnabled accessible inside the subscription closure via ref
+  const audioEnabledRef = useRef(audioEnabled);
+  useEffect(() => { audioEnabledRef.current = audioEnabled; }, [audioEnabled]);
+
+  const dismissWaiterCall = useCallback(async (callId: string) => {
+    setWaiterCalls((prev) => prev.filter((c) => c.id !== callId));
+    try {
+      const supabase = createClient();
+      await supabase
+        .from('waiter_calls')
+        .update({ status: 'acknowledged' })
+        .eq('id', callId);
+    } catch { /* best-effort */ }
+  }, []);
 
   async function advanceStatus(order: Order) {
     const nextStatus = STATUS_FLOW[order.status];
     if (!nextStatus) return;
-
     setUpdating(order.id);
     try {
       const supabase = createClient();
@@ -111,9 +193,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
         .from('orders')
         .update({ status: nextStatus })
         .eq('id', order.id);
-
       if (error) throw error;
-      // Realtime will update state
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to update order');
     } finally {
@@ -148,80 +228,148 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
     (o) => o.status === 'placed' || o.status === 'preparing'
   ).length;
 
+  const pendingCalls = waiterCalls.filter((c) => c.status === 'pending');
+
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ChefHat className="w-6 h-6" />
-            Kitchen
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Today's orders · {orders.length} total
-          </p>
+    <>
+      <style>{`
+        @keyframes orderFlash {
+          0%   { box-shadow: 0 0 0 0 rgba(251,191,36,0.7); }
+          50%  { box-shadow: 0 0 0 12px rgba(251,191,36,0); }
+          100% { box-shadow: 0 0 0 0 rgba(251,191,36,0); }
+        }
+        .order-card-new {
+          animation: orderFlash 0.7s ease-out 3;
+        }
+      `}</style>
+
+      <div className="p-6 max-w-5xl mx-auto">
+
+        {/* ── Enable audio banner ── */}
+        {!audioEnabled && (
+          <div className="mb-4 flex items-center justify-between gap-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="flex items-center gap-3">
+              <Bell className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <p className="text-sm text-amber-800 font-medium">
+                Enable audio notifications for new orders and waiter calls
+              </p>
+            </div>
+            <button
+              onClick={handleEnableAudio}
+              className="flex-shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors"
+            >
+              Enable
+            </button>
+          </div>
+        )}
+
+        {/* ── Waiter call banners ── */}
+        {pendingCalls.map((call) => (
+          <div
+            key={call.id}
+            className="mb-3 flex items-center justify-between gap-4 px-4 py-3 bg-red-50 border border-red-300 rounded-xl shadow-sm"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-lg" aria-hidden>🔔</span>
+              <div>
+                <p className="text-sm font-bold text-red-800">
+                  {call.table ? `Table ${call.table.table_number}` : 'A table'} is calling for a waiter!
+                </p>
+                <p className="text-xs text-red-500">
+                  {formatDistanceToNow(new Date(call.created_at), { addSuffix: true })}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => dismissWaiterCall(call.id)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold rounded-lg transition-colors"
+            >
+              <X className="w-3 h-3" /> Dismiss
+            </button>
+          </div>
+        ))}
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <ChefHat className="w-6 h-6" />
+              Kitchen
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Today&apos;s orders · {orders.length} total
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {audioEnabled && (
+              <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                <Bell className="w-3 h-3" /> Sound on
+              </span>
+            )}
+            {activeCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                <BellRing className="w-4 h-4 text-orange-500" />
+                <span className="text-sm font-semibold text-orange-700">
+                  {activeCount} active
+                </span>
+              </div>
+            )}
+          </div>
         </div>
-        {activeCount > 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
-            <BellRing className="w-4 h-4 text-orange-500" />
-            <span className="text-sm font-semibold text-orange-700">
-              {activeCount} active
-            </span>
+
+        {/* ── Filter tabs ── */}
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit mb-6">
+          {(
+            [
+              { key: 'active', label: 'Active' },
+              { key: 'all', label: 'All' },
+              { key: 'completed', label: 'Completed' },
+            ] as { key: FilterTab; label: string }[]
+          ).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={cn(
+                'px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
+                filter === key
+                  ? 'bg-white shadow-sm text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700'
+              )}
+            >
+              {label}
+              {key === 'active' && activeCount > 0 && (
+                <span className="ml-1.5 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                  {activeCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Orders grid ── */}
+        {filtered.length === 0 ? (
+          <div className="text-center py-20 text-muted-foreground">
+            <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p className="font-medium">
+              {filter === 'active' ? 'No active orders' : 'No orders yet today'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((order) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                isNew={newOrderIds.has(order.id)}
+                onAdvance={() => advanceStatus(order)}
+                onCancel={() => cancelOrder(order)}
+                isUpdating={updating === order.id}
+              />
+            ))}
           </div>
         )}
       </div>
-
-      {/* Filter tabs */}
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit mb-6">
-        {(
-          [
-            { key: 'active', label: 'Active' },
-            { key: 'all', label: 'All' },
-            { key: 'completed', label: 'Completed' },
-          ] as { key: FilterTab; label: string }[]
-        ).map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={cn(
-              'px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
-              filter === key
-                ? 'bg-white shadow-sm text-gray-900'
-                : 'text-gray-500 hover:text-gray-700'
-            )}
-          >
-            {label}
-            {key === 'active' && activeCount > 0 && (
-              <span className="ml-1.5 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5">
-                {activeCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Orders */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
-          <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p className="font-medium">
-            {filter === 'active' ? 'No active orders' : 'No orders yet today'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              onAdvance={() => advanceStatus(order)}
-              onCancel={() => cancelOrder(order)}
-              isUpdating={updating === order.id}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -229,12 +377,13 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
 interface OrderCardProps {
   order: Order;
+  isNew: boolean;
   onAdvance: () => void;
   onCancel: () => void;
   isUpdating: boolean;
 }
 
-function OrderCard({ order, onAdvance, onCancel, isUpdating }: OrderCardProps) {
+function OrderCard({ order, isNew, onAdvance, onCancel, isUpdating }: OrderCardProps) {
   const statusMeta = ORDER_STATUSES.find((s) => s.value === order.status);
   const nextStatus = STATUS_FLOW[order.status];
   const isTerminal = order.status === 'delivered' || order.status === 'cancelled';
@@ -243,6 +392,7 @@ function OrderCard({ order, onAdvance, onCancel, isUpdating }: OrderCardProps) {
     <div
       className={cn(
         'bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden',
+        isNew && 'order-card-new',
         order.status === 'placed' && 'border-yellow-300',
         order.status === 'preparing' && 'border-blue-300',
         order.status === 'ready' && 'border-green-400',
@@ -259,19 +409,14 @@ function OrderCard({ order, onAdvance, onCancel, isUpdating }: OrderCardProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'text-xs font-semibold px-2 py-1 rounded-full',
-              statusMeta?.color
-            )}
-          >
+          <span className={cn('text-xs font-semibold px-2 py-1 rounded-full', statusMeta?.color)}>
             {statusMeta?.label}
           </span>
           <span className="text-sm font-bold">{formatPrice(order.total)}</span>
         </div>
       </div>
 
-      {/* Table / parcel info */}
+      {/* Table info */}
       <div className="px-4 py-2 border-b bg-gray-50">
         <p className="text-sm font-medium">
           {order.order_type === 'dine_in'
@@ -294,7 +439,7 @@ function OrderCard({ order, onAdvance, onCancel, isUpdating }: OrderCardProps) {
                 <span className="font-semibold">{item.quantity}×</span> {item.name}
               </span>
               {item.notes && (
-                <p className="text-xs text-muted-foreground italic">"{item.notes}"</p>
+                <p className="text-xs text-muted-foreground italic">&ldquo;{item.notes}&rdquo;</p>
               )}
             </div>
             <span className="text-xs text-muted-foreground flex-shrink-0">
@@ -309,7 +454,7 @@ function OrderCard({ order, onAdvance, onCancel, isUpdating }: OrderCardProps) {
         )}
       </div>
 
-      {/* Action buttons */}
+      {/* Actions */}
       {!isTerminal && (
         <div className="px-4 pb-4 pt-2 flex gap-2">
           <button
@@ -322,9 +467,7 @@ function OrderCard({ order, onAdvance, onCancel, isUpdating }: OrderCardProps) {
               order.status === 'ready' && 'bg-gray-700 hover:bg-gray-800'
             )}
           >
-            {isUpdating ? (
-              '…'
-            ) : order.status === 'placed' ? (
+            {isUpdating ? '…' : order.status === 'placed' ? (
               <span className="flex items-center justify-center gap-1.5">
                 <ChefHat className="w-4 h-4" /> {STATUS_LABELS[order.status]}
               </span>

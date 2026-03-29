@@ -92,6 +92,18 @@ export interface CartItem {
   is_veg: boolean;
 }
 
+export type WaiterCallStatus = 'pending' | 'acknowledged';
+
+export interface WaiterCall {
+  id: string;
+  restaurant_id: string;
+  table_id: string | null;
+  status: WaiterCallStatus;
+  created_at: string;
+  // joined
+  table?: Table;
+}
+
 export interface CartStore {
   items: CartItem[];
   addItem: (product: Product) => void;
