@@ -143,24 +143,22 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
           willChange: 'transform',
         }}
       >
-        {/* Image */}
+        {/* Image — bleeds to left/top/bottom card edges */}
         {dish.image_url && (
           <div
             style={{
-              width: 130,
-              height: 130,
+              width: 120,
+              alignSelf: 'stretch',
               flexShrink: 0,
-              margin: '12px 0 12px 12px',
-              borderRadius: 12,
+              borderRadius: '14.5px 0 0 14.5px',
               overflow: 'hidden',
-              boxShadow: `0 4px 16px ${tokens.text}14`,
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={dish.image_url}
               alt={dish.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           </div>
         )}
