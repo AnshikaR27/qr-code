@@ -139,6 +139,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
           cursor: dish.is_available ? 'pointer' : 'default',
           display: 'flex',
           flexDirection: 'row',
+          minHeight: 168,
           transition: 'transform 0.12s ease',
           willChange: 'transform',
         }}
@@ -172,10 +173,11 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
             flexDirection: 'column',
             justifyContent: 'space-between',
             minWidth: 0,
+            overflow: 'hidden',
           }}
         >
           {/* Top */}
-          <div>
+          <div style={{ overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
               <div style={{ paddingTop: 2 }}>
                 <VegBadge isVeg={dish.is_veg} veg={tokens.veg} nonveg={tokens.nonveg} cardBg={tokens.cardBg} />
@@ -214,7 +216,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
             )}
 
             {dish.name_hindi && (
-              <div style={{ fontFamily: tokens.fontBody, fontSize: 12, fontWeight: 500, color: tokens.textMuted, marginBottom: 4 }}>
+              <div style={{ fontFamily: tokens.fontBody, fontSize: 12, fontWeight: 500, color: tokens.textMuted, marginBottom: 4, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                 {dish.name_hindi}
               </div>
             )}
