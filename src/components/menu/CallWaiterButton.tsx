@@ -63,8 +63,10 @@ export default function CallWaiterButton({ restaurantId, tableId, tokens, cartVi
       if (error) throw error;
       toast.success('Waiter has been notified!', { duration: 4000 });
       startCountdown(COOLDOWN_SECONDS);
-    } catch {
-      toast.error('Could not reach waiter. Please try again.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[CallWaiter]', msg);
+      toast.error(`Could not reach waiter: ${msg}`);
     } finally {
       setLoading(false);
     }
