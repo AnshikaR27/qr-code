@@ -93,7 +93,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
               setOrders((prev) => [data as Order, ...prev]);
 
               if (!isFirstRender.current) {
-                if (audioEnabled) playNewOrder();
+                if (audioEnabledRef.current) playNewOrder();
 
                 // Flash the new card
                 const id = (data as Order).id;
@@ -151,7 +151,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
           if (data) {
             setWaiterCalls((prev) => [data as WaiterCall, ...prev]);
-            if (audioEnabled) playWaiterCall();
+            if (audioEnabledRef.current) playWaiterCall();
             const tableLabel = (data as WaiterCall).table
               ? `Table ${(data as WaiterCall).table!.table_number}`
               : 'A table';
