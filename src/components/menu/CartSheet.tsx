@@ -70,16 +70,17 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
         }}
       />
 
-      {/* Cart sheet */}
+      {/* Cart sheet — left/right + margin:auto centers without transform conflict */}
       <div
         style={{
           position: 'fixed',
           bottom: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          left: 0,
+          right: 0,
+          margin: '0 auto',
           width: '100%',
           maxWidth: 420,
-          height: '90vh',
+          height: '78vh',
           zIndex: 71,
           backgroundColor: tokens.cardBg,
           borderRadius: '24px 24px 0 0',
