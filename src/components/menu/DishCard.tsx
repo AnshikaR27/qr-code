@@ -133,7 +133,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
         onTouchEnd={dish.is_available ? tapUp : undefined}
         style={{
           borderRadius: 16,
-          border: `1px solid ${tokens.border}26`,
+          border: `1.5px solid ${tokens.border}`,
           backgroundColor: tokens.cardBg,
           overflow: 'hidden',
           cursor: dish.is_available ? 'pointer' : 'default',

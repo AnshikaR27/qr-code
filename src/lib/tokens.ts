@@ -39,6 +39,16 @@ function shiftColor(hex: string, amount: number): string {
 }
 function shiftBg(hex: string): string { return shiftColor(hex, 14); }
 
+/** Returns perceived luminance 0–1 for a hex color. */
+function luminance(hex: string): number {
+  const h = hex.replace('#', '');
+  if (h.length !== 6) return 1;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
 export const DEFAULT_TOKENS: MenuTokens = {
   primary: '#8B6914',
   secondary: '#3E2B1A',
@@ -73,14 +83,23 @@ export function buildMenuTokens(raw: Record<string, string> | null | undefined):
   const accent = t('--accent', DEFAULT_TOKENS.accent);
   const bg = t('--bg', DEFAULT_TOKENS.bg);
   const headerBg = shiftBg(bg);
+  const isDark = luminance(bg) < 0.5;
+
+  // Derive smart fallbacks from bg luminance so dark-themed restaurants
+  // get readable text even when they don't explicitly provide --text / --card-bg.
+  const textDefault    = isDark ? '#F5F5F0' : DEFAULT_TOKENS.text;
+  const mutedDefault   = isDark ? '#A09888' : DEFAULT_TOKENS.textMuted;
+  const cardBgDefault  = isDark ? shiftColor(bg, 16) : DEFAULT_TOKENS.cardBg;
+  const borderDefault  = isDark ? shiftColor(bg, 22) : DEFAULT_TOKENS.border;
+
   return {
     primary,
     secondary,
     accent,
     bg,
-    cardBg: t('--card-bg', DEFAULT_TOKENS.cardBg),
-    text: t('--text', DEFAULT_TOKENS.text),
-    textMuted: t('--text-muted', DEFAULT_TOKENS.textMuted),
+    cardBg: t('--card-bg', cardBgDefault),
+    text: t('--text', textDefault),
+    textMuted: t('--text-muted', mutedDefault),
     fontHeading: t('--font-heading', DEFAULT_TOKENS.fontHeading),
     fontBody: t('--font-body', DEFAULT_TOKENS.fontBody),
     radius: t('--radius', DEFAULT_TOKENS.radius),
@@ -95,6 +114,6 @@ export function buildMenuTokens(raw: Record<string, string> | null | undefined):
     headerBg,
     headerGradient: bg,
     ctaGradient: `linear-gradient(135deg, ${primary}, ${accent})`,
-    border: t('--border', DEFAULT_TOKENS.border),
+    border: t('--border', borderDefault),
   };
 }
