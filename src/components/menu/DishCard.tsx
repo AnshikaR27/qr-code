@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
+import { Utensils } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { MenuTokens } from '@/lib/tokens';
@@ -34,10 +35,11 @@ interface Props {
   tokens: MenuTokens;
   index: number;
   isBestseller: boolean;
+  lang?: 'en' | 'hi';
   onTap: () => void;
 }
 
-export default function DishCard({ dish, tokens, index, isBestseller, onTap }: Props) {
+export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en', onTap }: Props) {
   const { items, addItem, updateQuantity } = useCart();
   const reduced = useReducedMotion();
 
@@ -68,6 +70,9 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
 
   const cartItem = items.find((i) => i.product_id === dish.id);
   const qty = cartItem?.quantity ?? 0;
+
+  // Language-aware primary name
+  const primaryName = (lang === 'hi' && dish.name_hindi) ? dish.name_hindi : dish.name;
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
@@ -144,25 +149,31 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
           willChange: 'transform',
         }}
       >
-        {/* Image — bleeds to left/top/bottom card edges */}
-        {dish.image_url && (
-          <div
-            style={{
-              width: 120,
-              alignSelf: 'stretch',
-              flexShrink: 0,
-              borderRadius: '14.5px 0 0 14.5px',
-              overflow: 'hidden',
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+        {/* Image — bleeds to left/top/bottom card edges (or placeholder if no image) */}
+        <div
+          style={{
+            width: 112,
+            alignSelf: 'stretch',
+            flexShrink: 0,
+            borderRadius: '14.5px 0 0 14.5px',
+            overflow: 'hidden',
+            backgroundColor: dish.image_url ? undefined : `${tokens.primary}18`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {dish.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={dish.image_url}
               alt={dish.name}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-          </div>
-        )}
+          ) : (
+            <Utensils size={28} color={tokens.primary} strokeWidth={1.5} />
+          )}
+        </div>
 
         {/* Content */}
         <div
@@ -196,7 +207,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
                   WebkitBoxOrient: 'vertical',
                 } as React.CSSProperties}
               >
-                {dish.name}
+                {primaryName}
               </span>
             </div>
 
@@ -215,11 +226,15 @@ export default function DishCard({ dish, tokens, index, isBestseller, onTap }: P
               </div>
             )}
 
-            {dish.name_hindi && (
+            {lang === 'hi' && dish.name_hindi ? (
+              <div style={{ fontFamily: tokens.fontBody, fontSize: 12, fontWeight: 500, color: tokens.textMuted, marginBottom: 4, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                {dish.name}
+              </div>
+            ) : dish.name_hindi ? (
               <div style={{ fontFamily: tokens.fontBody, fontSize: 12, fontWeight: 500, color: tokens.textMuted, marginBottom: 4, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                 {dish.name_hindi}
               </div>
-            )}
+            ) : null}
 
             {dish.description && (
               <div

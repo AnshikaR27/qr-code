@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
+import { SlidersHorizontal, ChevronDown, X, ChevronUp } from 'lucide-react';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import MenuNavbar from '@/components/menu/MenuNavbar';
@@ -17,6 +17,7 @@ import type { Category, Product, Restaurant } from '@/types';
 
 type ActiveFilter = 'all' | 'veg' | 'non_veg' | 'bestseller';
 type SortBy = 'default' | 'popular' | 'price_asc' | 'price_desc';
+type Lang = 'en' | 'hi';
 
 interface Props {
   restaurant: Restaurant;
@@ -49,6 +50,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const [selectedDish, setSelectedDish] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [jumpTarget, setJumpTarget] = useState<string | null>(null);
+  const [lang, setLang] = useState<Lang>('en');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,6 +62,11 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const [filterOpen, setFilterOpen] = useState(false);
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const filterDropRef = useRef<HTMLDivElement>(null);
+
+  // Scroll state
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // Top 3 bestsellers by order_count
   const topDishIds = useMemo(
@@ -74,12 +81,34 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     [products]
   );
 
+  // Product counts per category (for tabs)
+  const productCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    categories.forEach((cat) => {
+      counts[cat.id] = products.filter((p) => p.category_id === cat.id && p.is_available).length;
+    });
+    return counts;
+  }, [products, categories]);
+
   // 5-6 random dish names for animated placeholder
   const sampledNames = useMemo(() => {
     const names = products.map((p) => p.name).filter(Boolean);
     const shuffled = [...names].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 6);
   }, [products]);
+
+  // Scroll tracking: progress bar + back-to-top + header collapse
+  useEffect(() => {
+    function handleScroll() {
+      const y = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollProgress(total > 0 ? y / total : 0);
+      setShowBackToTop(y > 300);
+      setIsScrolled(y > 60);
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Cycle placeholder every 3s when idle
   useEffect(() => {
@@ -154,6 +183,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
       ps = ps.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
+          (p.name_hindi ?? '').toLowerCase().includes(q) ||
           (p.description ?? '').toLowerCase().includes(q)
       );
     }
@@ -218,6 +248,18 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         .filter-drop-item:hover { opacity: 0.75; }
       `}</style>
 
+      {/* ── Scroll progress bar (fixed, top of page) ── */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 200, pointerEvents: 'none' }}>
+        <div
+          style={{
+            height: '100%',
+            width: `${scrollProgress * 100}%`,
+            backgroundColor: tokens.accent,
+            transition: reduced ? 'none' : 'width 0.08s linear',
+          }}
+        />
+      </div>
+
       {/* ── Sticky header: Navbar + Tabs + Search/Filter row ── */}
       <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
         <MenuNavbar
@@ -225,12 +267,17 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
           tokens={tokens}
           itemCount={itemCount}
           onCartOpen={() => setCartOpen(true)}
+          lang={lang}
+          onLangToggle={() => setLang((l) => l === 'en' ? 'hi' : 'en')}
+          isScrolled={isScrolled}
         />
         <CategoryTabs
           categories={categories}
           activeTab={activeTab}
           tokens={tokens}
           onSelect={scrollToCategory}
+          productCounts={productCounts}
+          lang={lang}
         />
 
         {/* Search + Filter button row */}
@@ -255,7 +302,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
 
-            {/* Animated placeholder overlay — hidden when input has text or is focused */}
+            {/* Animated placeholder overlay */}
             {!searchQuery && !searchFocused && sampledNames.length > 0 && (
               <div
                 style={{
@@ -472,6 +519,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
                     tokens={tokens}
                     index={i}
                     isBestseller={topDishIds.has(dish.id)}
+                    lang={lang}
                     onTap={() => setSelectedDish(dish)}
                   />
                 ))
@@ -489,6 +537,35 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         cartVisible={itemCount > 0}
       />
 
+      {/* ── Back to Top button (bottom-right) ── */}
+      {showBackToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
+          style={{
+            position: 'fixed',
+            bottom: itemCount > 0 ? 80 : 24,
+            right: 16,
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            backgroundColor: tokens.primary,
+            color: '#fff',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            zIndex: 47,
+            opacity: showBackToTop ? 1 : 0,
+            transition: 'opacity 0.2s ease, bottom 0.25s ease',
+          }}
+          aria-label="Back to top"
+        >
+          <ChevronUp size={20} strokeWidth={2.5} />
+        </button>
+      )}
+
       {/* ── Cart bar (fixed bottom) ── */}
       <CartBar
         tokens={tokens}
@@ -502,6 +579,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         product={selectedDish}
         tokens={tokens}
         isBestseller={selectedDish ? topDishIds.has(selectedDish.id) : false}
+        lang={lang}
         onClose={() => setSelectedDish(null)}
       />
 

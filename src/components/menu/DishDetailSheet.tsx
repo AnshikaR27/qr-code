@@ -21,10 +21,11 @@ interface Props {
   product: Product | null;
   tokens: MenuTokens;
   isBestseller?: boolean;
+  lang?: 'en' | 'hi';
   onClose: () => void;
 }
 
-export default function DishDetailSheet({ product, tokens, isBestseller, onClose }: Props) {
+export default function DishDetailSheet({ product, tokens, isBestseller, lang = 'en', onClose }: Props) {
   const { items, addItem, updateQuantity, updateNotes } = useCart();
   const reduced = useReducedMotion();
   const [localQty, setLocalQty] = useState(1);
@@ -34,18 +35,49 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
   const scrollRef = useRef<HTMLDivElement>(null);
   const [imgOffset, setImgOffset] = useState(0);
 
+  // ── Swipe to close ───────────────────────────────────────────────────
+  const touchStartY = useRef(0);
+  const [dragY, setDragY] = useState(0);
+  const isDragging = useRef(false);
+  const animDoneRef = useRef(false);
+
   const handleSheetScroll = useCallback(() => {
     if (!scrollRef.current || reduced) return;
     setImgOffset(Math.min(scrollRef.current.scrollTop * 0.3, 18));
   }, [reduced]);
 
+  function handleHandleTouchStart(e: React.TouchEvent) {
+    touchStartY.current = e.touches[0].clientY;
+    isDragging.current = false;
+  }
+
+  function handleHandleTouchMove(e: React.TouchEvent) {
+    const dy = e.touches[0].clientY - touchStartY.current;
+    if (dy > 0) {
+      isDragging.current = true;
+      setDragY(dy);
+    }
+  }
+
+  function handleHandleTouchEnd() {
+    if (dragY > 80) {
+      onClose();
+    } else {
+      setDragY(0);
+    }
+    isDragging.current = false;
+  }
+
   useEffect(() => {
     if (!product) return;
     setLocalQty(1);
     setImgOffset(0);
-    // Pre-populate notes from cart if item already exists
+    setDragY(0);
+    animDoneRef.current = false;
+    const t = setTimeout(() => { animDoneRef.current = true; }, 460);
     const existing = items.find((i) => i.product_id === product.id);
     setNotes(existing?.notes ?? '');
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
 
@@ -61,6 +93,10 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
   const cartQty = cartItem?.quantity ?? 0;
   const neonShadow = `${tokens.accent}1a`;
 
+  // Language-aware name display
+  const primaryName = (lang === 'hi' && dish.name_hindi) ? dish.name_hindi : dish.name;
+  const secondaryName = (lang === 'hi' && dish.name_hindi) ? dish.name : null;
+
   function handleAddToOrder() {
     if (cartQty === 0) {
       for (let i = 0; i < localQty; i++) addItem(dish);
@@ -70,6 +106,9 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
     updateNotes(dish.id, notes.trim());
     onClose();
   }
+
+  const sheetTransform = dragY > 0 ? `translateY(${dragY}px)` : 'translateY(0)';
+  const sheetOpacity = dragY > 50 ? Math.max(0.4, 1 - (dragY - 50) / 200) : 1;
 
   return (
     <>
@@ -88,10 +127,11 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
           position: 'fixed',
           inset: 0,
           zIndex: 100,
-          backgroundColor: 'rgba(0,0,0,0.5)',
+          backgroundColor: `rgba(0,0,0,${Math.max(0.2, 0.5 - dragY / 400)})`,
           display: 'flex',
           alignItems: 'flex-end',
           justifyContent: 'center',
+          transition: dragY > 0 ? 'none' : 'background-color 0.2s ease',
         }}
       >
         <div
@@ -104,41 +144,51 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
             backgroundColor: tokens.cardBg,
             borderRadius: '24px 24px 0 0',
             maxHeight: '85vh',
-            overflowY: 'auto',
+            overflowY: dragY > 0 ? 'hidden' : 'auto',
             boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
             animation: reduced ? 'none' : 'sheetUp 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both',
             position: 'relative',
+            transform: sheetTransform,
+            opacity: sheetOpacity,
+            transition: dragY > 0 ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease',
           }}
         >
-          {/* Handle */}
-          <div style={{ display: 'flex', justifyContent: 'center', margin: '12px auto 8px' }}>
-            <div style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: tokens.border }} />
+          {/* Drag handle — touch target for swipe to close */}
+          <div
+            style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 8px', cursor: 'grab', touchAction: 'none' }}
+            onTouchStart={handleHandleTouchStart}
+            onTouchMove={handleHandleTouchMove}
+            onTouchEnd={handleHandleTouchEnd}
+          >
+            <div style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: tokens.border }} />
           </div>
 
-          {/* X close button */}
+          {/* X close button — 44×44 tap target */}
           <button
             onClick={onClose}
             style={{
               position: 'absolute',
-              top: 12,
-              right: 14,
-              width: 32,
-              height: 32,
+              top: 8,
+              right: 10,
+              width: 44,
+              height: 44,
               borderRadius: '50%',
               border: 'none',
-              backgroundColor: `${tokens.border}40`,
+              backgroundColor: tokens.cardBg,
               color: tokens.textMuted,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              boxShadow: `0 2px 8px rgba(0,0,0,0.12)`,
+              zIndex: 2,
             }}
           >
-            <X size={16} strokeWidth={2.5} />
+            <X size={18} strokeWidth={2.5} />
           </button>
 
           {/* Content */}
-          <div style={{ padding: '8px 20px 32px' }}>
+          <div style={{ padding: '4px 20px 32px' }}>
             {/* Photo with hero parallax */}
             {product.image_url && (
               <div
@@ -184,13 +234,20 @@ export default function DishDetailSheet({ product, tokens, isBestseller, onClose
               )}
             </div>
 
-            {/* Dish name */}
+            {/* Dish name (language-aware) */}
             <div style={{ fontFamily: tokens.fontHeading, fontSize: 24, fontWeight: 700, color: tokens.text, lineHeight: 1.2 }}>
-              {product.name}
+              {primaryName}
             </div>
 
-            {/* Hindi name */}
-            {product.name_hindi && (
+            {/* Secondary name */}
+            {secondaryName && (
+              <div style={{ fontFamily: tokens.fontBody, fontSize: 14, fontWeight: 500, color: tokens.textMuted, marginTop: 4 }}>
+                {secondaryName}
+              </div>
+            )}
+
+            {/* Hindi name when in English mode */}
+            {lang === 'en' && product.name_hindi && (
               <div style={{ fontFamily: tokens.fontBody, fontSize: 14, fontWeight: 500, color: tokens.textMuted, marginTop: 4 }}>
                 {product.name_hindi}
               </div>

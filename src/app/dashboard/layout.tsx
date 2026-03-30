@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Sidebar from '@/components/dashboard/Sidebar';
+import GlobalNotifications from '@/components/dashboard/GlobalNotifications';
 import type { Restaurant } from '@/types';
 
 export default async function DashboardLayout({
@@ -30,6 +31,7 @@ export default async function DashboardLayout({
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar restaurant={restaurant as Restaurant} />
       <main className="flex-1 overflow-auto">
+        <GlobalNotifications restaurantId={restaurant.id} restaurantName={restaurant.name} />
         {children}
       </main>
     </div>

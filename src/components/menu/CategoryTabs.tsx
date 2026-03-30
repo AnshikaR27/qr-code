@@ -8,9 +8,11 @@ interface Props {
   activeTab: string;
   tokens: MenuTokens;
   onSelect: (id: string) => void;
+  productCounts?: Record<string, number>;
+  lang?: 'en' | 'hi';
 }
 
-export default function CategoryTabs({ categories, activeTab, tokens, onSelect }: Props) {
+export default function CategoryTabs({ categories, activeTab, tokens, onSelect, productCounts, lang = 'en' }: Props) {
   return (
     <div
       style={{
@@ -27,6 +29,8 @@ export default function CategoryTabs({ categories, activeTab, tokens, onSelect }
       `}</style>
       {categories.map((cat) => {
         const active = cat.id === activeTab;
+        const count = productCounts?.[cat.id];
+        const label = (lang === 'hi' && cat.name_hindi) ? cat.name_hindi : cat.name;
         return (
           <button
             key={cat.id}
@@ -48,7 +52,19 @@ export default function CategoryTabs({ categories, activeTab, tokens, onSelect }
               transition: 'background 0.18s ease, color 0.18s ease',
             }}
           >
-            {cat.name}
+            {label}
+            {count !== undefined && count > 0 && (
+              <span
+                style={{
+                  marginLeft: 5,
+                  fontSize: 10,
+                  fontWeight: active ? 700 : 600,
+                  opacity: active ? 0.85 : 0.65,
+                }}
+              >
+                ({count})
+              </span>
+            )}
           </button>
         );
       })}
