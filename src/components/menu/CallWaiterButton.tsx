@@ -134,8 +134,16 @@ export default function CallWaiterButton({ restaurantId, tableId, tokens, cartVi
     setShowTooltip(false);
     setLoading(true);
     try {
-      // Generate UUID client-side to avoid needing a SELECT policy for anon users
-      const callId = crypto.randomUUID();
+      // Generate UUID client-side — avoids needing a SELECT RLS policy for anon users.
+      // Falls back to a manual impl when crypto.randomUUID is unavailable (HTTP/non-secure context).
+      const callId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+              const r = (Math.random() * 16) | 0;
+              return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+            });
+
       const supabase = createClient();
       const { error } = await supabase
         .from('waiter_calls')
@@ -151,8 +159,13 @@ export default function CallWaiterButton({ restaurantId, tableId, tokens, cartVi
       startCountdown(COOLDOWN_SECONDS);
       subscribeToCall(callId);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('[CallWaiter]', msg);
+      // Supabase errors are plain objects {message, details, code}, not Error instances
+      const msg =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message
+          ?? JSON.stringify(err);
+      console.error('[CallWaiter]', err);
       toast.error(`Could not reach waiter: ${msg}`);
     } finally {
       setLoading(false);
