@@ -29,6 +29,23 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
   if (!open) return null;
 
   function handlePlaceOrder() {
+    // Save for "repeat last order" feature
+    localStorage.setItem(
+      `last-order-${restaurant.slug}`,
+      JSON.stringify({
+        items: items.map((i) => ({
+          product_id: i.product_id,
+          name: i.name,
+          price: i.price,
+          quantity: i.quantity,
+          is_veg: i.is_veg,
+          notes: i.notes,
+        })),
+        total,
+        savedAt: Date.now(),
+      })
+    );
+
     sessionStorage.setItem('pendingOrder', JSON.stringify({
       restaurant_id: restaurant.id,
       table_id: tableId,

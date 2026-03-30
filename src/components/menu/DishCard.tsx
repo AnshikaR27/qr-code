@@ -7,11 +7,9 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
-// Fixed widths for the morphing button container
 const ADD_W = 88;
 const STEP_W = 104;
 
-// Burst directions (radians): spread mostly upward with slight randomness
 const BURST = [
   (255 * Math.PI) / 180,
   (290 * Math.PI) / 180,
@@ -23,7 +21,6 @@ function VegBadge({ isVeg, veg, nonveg, cardBg }: { isVeg: boolean; veg: string;
   const color = isVeg ? veg : nonveg;
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
-      {/* fill uses cardBg not "white" so it's visible on dark card surfaces */}
       <rect x="1" y="1" width="16" height="16" rx="2" stroke={color} strokeWidth="2" fill={cardBg} />
       <circle cx="9" cy="9" r="4.5" fill={color} />
     </svg>
@@ -37,9 +34,10 @@ interface Props {
   isBestseller: boolean;
   lang?: 'en' | 'hi';
   onTap: () => void;
+  onLongPressImage?: (url: string, name: string) => void;
 }
 
-export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en', onTap }: Props) {
+export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en', onTap, onLongPressImage }: Props) {
   const { items, addItem, updateQuantity } = useCart();
   const reduced = useReducedMotion();
 
@@ -68,15 +66,33 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
   // ── Celebration particles ────────────────────────────────────────────
   const [particles, setParticles] = useState<Array<{ id: number; tx: number; ty: number }>>([]);
 
+  // ── Long press on image ──────────────────────────────────────────────
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function startLongPress() {
+    if (!dish.image_url || !onLongPressImage) return;
+    longPressTimer.current = setTimeout(() => {
+      navigator.vibrate?.(40);
+      onLongPressImage(dish.image_url!, dish.name);
+    }, 500);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+
   const cartItem = items.find((i) => i.product_id === dish.id);
   const qty = cartItem?.quantity ?? 0;
 
-  // Language-aware primary name
   const primaryName = (lang === 'hi' && dish.name_hindi) ? dish.name_hindi : dish.name;
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
     addItem(dish);
+    navigator.vibrate?.(50); // haptic feedback
     if (!reduced) spawnParticles();
   }
 
@@ -93,6 +109,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
   function handleIncrease(e: React.MouseEvent) {
     e.stopPropagation();
     updateQuantity(dish.id, qty + 1);
+    navigator.vibrate?.(30);
   }
 
   function handleDecrease(e: React.MouseEvent) {
@@ -100,7 +117,6 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
     updateQuantity(dish.id, qty - 1);
   }
 
-  // Inner card tap scale (separate from reveal so durations don't conflict)
   function tapDown(e: React.MouseEvent | React.TouchEvent) {
     (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)';
   }
@@ -109,13 +125,11 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
   }
 
   const addBtnTransform = addPressed ? 'scale(0.95)' : addHovered ? 'scale(1.05)' : 'scale(1)';
-  // Max 10% opacity (1a) on all accent glows — keeps effect subtle on any theme color
   const addBtnShadow = addHovered && !addPressed
     ? `0 6px 20px ${tokens.primary}1a`
     : `0 4px 16px ${tokens.primary}1a`;
 
   return (
-    // Outer wrapper — owns the scroll-reveal opacity/translateY
     <div
       ref={outerRef}
       style={{
@@ -128,7 +142,6 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
         willChange: 'opacity, transform',
       }}
     >
-      {/* Inner card — owns the tap-scale micro-interaction */}
       <div
         onClick={dish.is_available ? onTap : undefined}
         onMouseDown={dish.is_available ? tapDown : undefined}
@@ -149,7 +162,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
           willChange: 'transform',
         }}
       >
-        {/* Image — bleeds to left/top/bottom card edges (or placeholder if no image) */}
+        {/* Image with long-press-to-zoom */}
         <div
           style={{
             width: 112,
@@ -161,14 +174,24 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
           }}
+          onTouchStart={(e) => { e.stopPropagation(); startLongPress(); }}
+          onTouchEnd={(e) => { e.stopPropagation(); cancelLongPress(); }}
+          onTouchMove={cancelLongPress}
+          onMouseDown={(e) => { e.stopPropagation(); startLongPress(); }}
+          onMouseUp={(e) => { e.stopPropagation(); cancelLongPress(); }}
+          onMouseLeave={cancelLongPress}
+          onContextMenu={(e) => e.preventDefault()}
         >
           {dish.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={dish.image_url}
               alt={dish.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              draggable={false}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
             />
           ) : (
             <Utensils size={28} color={tokens.primary} strokeWidth={1.5} />
@@ -187,7 +210,6 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
             overflow: 'hidden',
           }}
         >
-          {/* Top */}
           <div style={{ overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
               <div style={{ paddingTop: 2 }}>
@@ -260,7 +282,6 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
             )}
 
             {dish.is_available && (
-              /* ── Button morph container ─────────────────────────────── */
               <div
                 style={{
                   position: 'relative',
@@ -271,7 +292,6 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
                   willChange: 'width',
                 }}
               >
-                {/* Celebration particles */}
                 {particles.map((p) => (
                   <div
                     key={p.id}
@@ -291,7 +311,6 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
                   />
                 ))}
 
-                {/* Add button — fades out when qty > 0 */}
                 <button
                   onClick={handleAdd}
                   onMouseEnter={() => { setAddHovered(true); setAddPressed(false); }}
@@ -325,7 +344,6 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
                   ⊕ Add
                 </button>
 
-                {/* Stepper — fades in when qty > 0 */}
                 <div
                   style={{
                     position: 'absolute', inset: 0,

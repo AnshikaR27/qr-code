@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, ChevronDown, X, ChevronUp } from 'lucide-react';
+import { SlidersHorizontal, ChevronDown, X, ChevronUp, RotateCcw } from 'lucide-react';
+import { toast } from 'sonner';
+import { formatPrice } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import MenuNavbar from '@/components/menu/MenuNavbar';
@@ -13,7 +15,7 @@ import CartBar from '@/components/menu/CartBar';
 import CartSheet from '@/components/menu/CartSheet';
 import CallWaiterButton from '@/components/menu/CallWaiterButton';
 import { useCart } from '@/hooks/useCart';
-import type { Category, Product, Restaurant } from '@/types';
+import type { CartItem, Category, Product, Restaurant } from '@/types';
 
 type ActiveFilter = 'all' | 'veg' | 'non_veg' | 'bestseller';
 type SortBy = 'default' | 'popular' | 'price_asc' | 'price_desc';
@@ -51,6 +53,15 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const [cartOpen, setCartOpen] = useState(false);
   const [jumpTarget, setJumpTarget] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>('en');
+
+  const { items: cartItems, addItem, clearCart, getTotal, getItemCount } = useCart();
+
+  // Long press image zoom
+  const [zoomedImage, setZoomedImage] = useState<{ url: string; name: string } | null>(null);
+
+  // Repeat last order
+  const [repeatOrder, setRepeatOrder] = useState<{ items: Omit<CartItem, 'name_hindi'>[]; total: number } | null>(null);
+  const [showRepeat, setShowRepeat] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,6 +107,74 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     const shuffled = [...names].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 6);
   }, [products]);
+
+  // Load repeat order from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`last-order-${restaurant.slug}`);
+      if (!stored) return;
+      const data = JSON.parse(stored) as { items: Omit<CartItem, 'name_hindi'>[]; total: number; savedAt: number };
+      // Only offer repeat within 24 hours
+      if (Date.now() - data.savedAt < 86_400_000 && data.items.length > 0) {
+        setRepeatOrder(data);
+        setShowRepeat(true);
+      }
+    } catch { /* ignore */ }
+  }, [restaurant.slug]);
+
+  // Combo suggestion toast — fires when a new main-course item is added
+  const prevCartRef = useRef<CartItem[]>([]);
+  useEffect(() => {
+    const prev = prevCartRef.current;
+    const newlyAdded = cartItems.filter((item) => !prev.find((p) => p.product_id === item.product_id));
+    if (newlyAdded.length > 0) {
+      for (const added of newlyAdded) {
+        const product = products.find((p) => p.id === added.product_id);
+        if (!product?.category_id) continue;
+        const cat = categories.find((c) => c.id === product.category_id);
+        if (!cat) continue;
+        const isMain = /\b(main|mains|curry|dal|rice|biryani|thali|sabji|sabzi|entree)\b/i.test(cat.name);
+        if (!isMain) continue;
+        const drinkCat = categories.find((c) => /\b(drink|drinks|beverage|juice|shake|lassi|chai|tea|coffee|soda)\b/i.test(c.name));
+        if (!drinkCat) continue;
+        const drinks = products.filter((p) => p.category_id === drinkCat.id && p.is_available);
+        if (drinks.length === 0) continue;
+        const suggestion = drinks[Math.floor(Math.random() * drinks.length)];
+        toast(`🥤 Pair it with a drink?`, {
+          description: `${suggestion.name} · ₹${suggestion.price}`,
+          action: { label: 'Add', onClick: () => addItem(suggestion) },
+          duration: 7000,
+        });
+        break;
+      }
+    }
+    prevCartRef.current = cartItems;
+  }, [cartItems, products, categories, addItem]);
+
+  function handleRepeatOrder() {
+    if (!repeatOrder) return;
+    clearCart();
+    for (const saved of repeatOrder.items) {
+      const liveProduct = products.find((p) => p.id === saved.product_id);
+      if (!liveProduct || !liveProduct.is_available) continue;
+      addItem(liveProduct);
+      if (saved.quantity > 1) {
+        // addItem sets qty to 1; updateQuantity will be called after
+      }
+    }
+    // Set correct quantities in a second pass (addItem always adds 1)
+    for (const saved of repeatOrder.items) {
+      if (saved.quantity > 1) {
+        const liveProduct = products.find((p) => p.id === saved.product_id);
+        if (liveProduct?.is_available) {
+          // Zustand's updateQuantity is not imported here; we'll call addItem multiple times instead
+          for (let i = 1; i < saved.quantity; i++) addItem(liveProduct);
+        }
+      }
+    }
+    setShowRepeat(false);
+    toast.success('Items added to your cart!');
+  }
 
   // Scroll tracking: progress bar + back-to-top + header collapse
   useEffect(() => {
@@ -193,7 +272,6 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     return ps;
   }
 
-  const { getTotal, getItemCount } = useCart();
   const itemCount = getItemCount();
   const total = getTotal();
 
@@ -470,6 +548,56 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
 
       {/* ── Scrolling content ── */}
       <div style={{ paddingBottom: itemCount > 0 ? 100 : 40 }}>
+
+        {/* Repeat last order banner */}
+        {showRepeat && repeatOrder && (
+          <div
+            style={{
+              margin: '12px 16px 0',
+              padding: '12px 14px',
+              backgroundColor: tokens.cardBg,
+              borderRadius: 14,
+              border: `1.5px solid ${tokens.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <RotateCcw size={18} color={tokens.primary} strokeWidth={2} style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: tokens.fontBody, fontSize: 13, fontWeight: 700, color: tokens.text, margin: 0 }}>
+                Repeat last order?
+              </p>
+              <p style={{ fontFamily: tokens.fontBody, fontSize: 11, color: tokens.textMuted, margin: '2px 0 0' }}>
+                {repeatOrder.items.length} item{repeatOrder.items.length !== 1 ? 's' : ''} · {formatPrice(repeatOrder.total)}
+              </p>
+            </div>
+            <button
+              onClick={handleRepeatOrder}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 20,
+                border: 'none',
+                backgroundColor: tokens.primary,
+                color: '#fff',
+                fontFamily: tokens.fontBody,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              Repeat
+            </button>
+            <button
+              onClick={() => setShowRepeat(false)}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: tokens.textMuted, padding: 4, display: 'flex', flexShrink: 0 }}
+            >
+              <X size={14} strokeWidth={2.5} />
+            </button>
+          </div>
+        )}
+
         {isFiltering && !hasAnyResults && (
           <div
             style={{
@@ -521,6 +649,9 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
                     isBestseller={topDishIds.has(dish.id)}
                     lang={lang}
                     onTap={() => setSelectedDish(dish)}
+                    onLongPressImage={dish.image_url
+                      ? (url, name) => setZoomedImage({ url, name })
+                      : undefined}
                   />
                 ))
               )}
@@ -591,6 +722,37 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         tableId={tableId}
         tokens={tokens}
       />
+
+      {/* ── Long press image zoom overlay ── */}
+      {zoomedImage && (
+        <div
+          onClick={() => setZoomedImage(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={zoomedImage.url}
+            alt={zoomedImage.name}
+            style={{ maxWidth: '94%', maxHeight: '78vh', objectFit: 'contain', borderRadius: 12 }}
+          />
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontFamily: tokens.fontBody, fontSize: 14, fontWeight: 600, margin: 0 }}>
+            {zoomedImage.name}
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: tokens.fontBody, fontSize: 12, margin: 0 }}>
+            Tap anywhere to close
+          </p>
+        </div>
+      )}
     </div>
   );
 }

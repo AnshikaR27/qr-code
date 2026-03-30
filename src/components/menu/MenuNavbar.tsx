@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { ShoppingBag } from 'lucide-react';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Restaurant } from '@/types';
@@ -52,6 +53,17 @@ export default function MenuNavbar({
   onLangToggle,
   isScrolled = false,
 }: Props) {
+  // Re-trigger cart animation every time count increases
+  const prevCountRef = useRef(itemCount);
+  const [animKey, setAnimKey] = useState(0);
+  useEffect(() => {
+    if (itemCount > prevCountRef.current) {
+      setAnimKey((k) => k + 1);
+      navigator.vibrate?.(60);
+    }
+    prevCountRef.current = itemCount;
+  }, [itemCount]);
+
   const { open, label: hoursLabel } = getHoursStatus(
     restaurant.opening_time,
     restaurant.closing_time
@@ -163,8 +175,9 @@ export default function MenuNavbar({
           </div>
         </div>
 
-        {/* Right — Cart bag */}
+        {/* Right — Cart bag (key forces remount → re-runs animation on every add) */}
         <button
+          key={animKey}
           onClick={onCartOpen}
           style={{
             width: 42,
@@ -178,7 +191,7 @@ export default function MenuNavbar({
             border: 'none',
             cursor: 'pointer',
             flexShrink: 0,
-            animation: itemCount > 0 ? 'bagPulse 0.3s ease' : 'none',
+            animation: 'bagPulse 0.35s ease',
           }}
         >
           <ShoppingBag size={22} color="#fff" />

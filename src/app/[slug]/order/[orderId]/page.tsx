@@ -20,6 +20,9 @@ function statusIndex(s: OrderStatus) {
   return idx === -1 ? STEPS.length : idx;
 }
 
+// Estimated prep time in minutes (stored so it persists across renders)
+const EST_MINUTES = 15;
+
 export default function OrderStatusPage() {
   const { slug, orderId } = useParams<{ slug: string; orderId: string }>();
 
@@ -27,11 +30,12 @@ export default function OrderStatusPage() {
   const [items, setItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [prevStatus, setPrevStatus] = useState<OrderStatus | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
 
-    // Initial fetch
     async function fetchOrder() {
       const { data, error: err } = await supabase
         .from('orders')
@@ -47,33 +51,32 @@ export default function OrderStatusPage() {
 
       setOrder(data as Order);
       setItems((data.items ?? []) as OrderItem[]);
+      setPrevStatus((data as Order).status);
       setLoading(false);
     }
 
     fetchOrder();
 
-    // Realtime subscription — listen for status changes on this order
     const channel = supabase
       .channel(`order-status-${orderId}`)
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `id=eq.${orderId}`,
-        },
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
         (payload) => {
-          setOrder((prev) =>
-            prev ? { ...prev, ...(payload.new as Partial<Order>) } : prev
-          );
+          const newStatus = (payload.new as Partial<Order>).status;
+          setOrder((prev) => prev ? { ...prev, ...(payload.new as Partial<Order>) } : prev);
+          setPrevStatus((prev) => {
+            if (newStatus === 'delivered' && prev !== 'delivered') {
+              setShowCelebration(true);
+              setTimeout(() => setShowCelebration(false), 5000);
+            }
+            return newStatus ?? prev;
+          });
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [orderId]);
 
   if (loading) {
@@ -88,9 +91,7 @@ export default function OrderStatusPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-3 px-4">
         <p className="text-muted-foreground">{error || 'Order not found'}</p>
-        <Link href={`/${slug}`} className="text-sm underline">
-          Back to menu
-        </Link>
+        <Link href={`/${slug}`} className="text-sm underline">Back to menu</Link>
       </div>
     );
   }
@@ -98,123 +99,214 @@ export default function OrderStatusPage() {
   const currentIdx = statusIndex(order.status);
   const isDelivered = order.status === 'delivered';
   const isCancelled = order.status === 'cancelled';
+  const isPreparing = order.status === 'preparing';
+  const isReady = order.status === 'ready';
   const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto px-4 py-6 gap-5">
-      {/* Order number */}
-      <div className="text-center">
-        <p className="text-sm text-muted-foreground">Order #{order.order_number}</p>
-        <h1 className="text-2xl font-bold mt-1">
-          {isCancelled
-            ? '❌ Order Cancelled'
-            : isDelivered
-            ? '✅ Delivered!'
-            : 'Tracking your order'}
-        </h1>
-        {!isCancelled && !isDelivered && (
-          <p className="text-sm text-muted-foreground mt-1">
-            This page updates automatically
-          </p>
-        )}
-      </div>
+    <>
+      <style>{`
+        @keyframes cookingBounce {
+          0%, 100% { transform: translateY(0) rotate(-5deg); }
+          50%       { transform: translateY(-8px) rotate(5deg); }
+        }
+        @keyframes bellSwing {
+          0%, 100% { transform: rotate(0); }
+          20%       { transform: rotate(-25deg); }
+          40%       { transform: rotate(25deg); }
+          60%       { transform: rotate(-15deg); }
+          80%       { transform: rotate(15deg); }
+        }
+        @keyframes celebPop {
+          0%   { transform: scale(0.5) translateY(20px); opacity: 0; }
+          60%  { transform: scale(1.15) translateY(-4px); opacity: 1; }
+          100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        @keyframes confettiDrop {
+          0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(120px) rotate(720deg); opacity: 0; }
+        }
+        .confetti-piece {
+          position: absolute;
+          width: 8px; height: 8px;
+          border-radius: 2px;
+          animation: confettiDrop 1.8s ease-in forwards;
+        }
+      `}</style>
 
-      {/* Progress steps */}
-      {!isCancelled && (
-        <div className="bg-white rounded-xl border p-4">
-          <div className="flex items-center justify-between relative">
-            {/* Connecting line */}
-            <div className="absolute left-0 right-0 top-5 h-0.5 bg-gray-100 mx-8" />
+      <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto px-4 py-6 gap-5">
+        {/* ── Celebration overlay ── */}
+        {showCelebration && (
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 pointer-events-none">
+            {/* Confetti burst */}
+            <div className="relative w-48 h-48">
+              {['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#da77f2'].map((color, i) => (
+                <div
+                  key={i}
+                  className="confetti-piece"
+                  style={{
+                    backgroundColor: color,
+                    left: `${15 + i * 12}%`,
+                    top: '30%',
+                    animationDelay: `${i * 0.12}s`,
+                    animationDuration: `${1.5 + i * 0.15}s`,
+                  }}
+                />
+              ))}
+            </div>
             <div
-              className="absolute left-0 top-5 h-0.5 bg-green-500 mx-8 transition-all duration-700"
-              style={{
-                width: `${(currentIdx / (STEPS.length - 1)) * 100}%`,
-                right: 'auto',
-              }}
-            />
-
-            {STEPS.map((step, i) => {
-              const done = i < currentIdx;
-              const active = i === currentIdx;
-              const Icon = step.icon;
-              return (
-                <div key={step.status} className="flex flex-col items-center gap-2 z-10 flex-1">
-                  <div
-                    className={cn(
-                      'w-10 h-10 rounded-full border-2 flex items-center justify-center transition-colors',
-                      done || active
-                        ? 'bg-green-500 border-green-500 text-white'
-                        : 'bg-white border-gray-200 text-gray-300'
-                    )}
-                  >
-                    {done ? (
-                      <CheckCircle2 className="w-5 h-5" />
-                    ) : active ? (
-                      <Icon className="w-5 h-5" />
-                    ) : (
-                      <Icon className="w-5 h-5" />
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      'text-xs font-medium text-center',
-                      done || active ? 'text-green-700' : 'text-gray-400'
-                    )}
-                  >
-                    {step.label}
-                  </span>
-                </div>
-              );
-            })}
+              className="text-center px-8 py-6 bg-white rounded-3xl shadow-2xl"
+              style={{ animation: 'celebPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both' }}
+            >
+              <div className="text-6xl mb-3">🎉</div>
+              <p className="text-xl font-bold text-gray-900">Enjoy your meal!</p>
+              <p className="text-sm text-gray-500 mt-1">Thank you for dining with us</p>
+            </div>
           </div>
+        )}
+
+        {/* ── Header ── */}
+        <div className="text-center">
+          <p className="text-sm text-muted-foreground">Order #{order.order_number}</p>
+          <h1 className="text-2xl font-bold mt-1">
+            {isCancelled
+              ? '❌ Order Cancelled'
+              : isDelivered
+              ? '✅ Enjoy your meal!'
+              : isReady
+              ? '🔔 Ready to collect!'
+              : isPreparing
+              ? '👨‍🍳 Being prepared'
+              : 'Order placed!'}
+          </h1>
+          {!isCancelled && !isDelivered && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {isReady
+                ? 'Your food is ready — come collect it now'
+                : isPreparing
+                ? `Usually ready in ~${EST_MINUTES} min`
+                : 'Kitchen will start soon…'}
+            </p>
+          )}
         </div>
-      )}
 
-      {/* Order summary */}
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="px-4 py-3 border-b flex justify-between items-center">
-          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Your Items
-          </p>
-          <span className="text-sm font-bold">{formatPrice(total)}</span>
+        {/* ── Animated status card ── */}
+        {!isCancelled && !isDelivered && (
+          <div className={cn(
+            'rounded-2xl border p-5 flex flex-col items-center gap-3 text-center transition-colors',
+            isPreparing && 'bg-amber-50 border-amber-200',
+            isReady && 'bg-green-50 border-green-300',
+            !isPreparing && !isReady && 'bg-white border-gray-200',
+          )}>
+            {isPreparing && (
+              <>
+                <div style={{ fontSize: 48, animation: 'cookingBounce 1.2s ease-in-out infinite', display: 'inline-block' }}>
+                  🍳
+                </div>
+                <p className="font-semibold text-amber-800">
+                  The kitchen is cooking your order!
+                </p>
+                <p className="text-xs text-amber-600">Estimated wait: ~{EST_MINUTES} min</p>
+              </>
+            )}
+            {isReady && (
+              <>
+                <div style={{ fontSize: 48, animation: 'bellSwing 1s ease-in-out infinite', display: 'inline-block' }}>
+                  🔔
+                </div>
+                <p className="font-semibold text-green-800 text-lg">
+                  Your order is ready!
+                </p>
+                <p className="text-xs text-green-600">Please come to the counter to collect it</p>
+              </>
+            )}
+            {order.status === 'placed' && (
+              <>
+                <div style={{ fontSize: 40 }}>⏳</div>
+                <p className="font-semibold text-gray-700">Waiting for kitchen to accept…</p>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Progress steps ── */}
+        {!isCancelled && (
+          <div className="bg-white rounded-xl border p-4">
+            <div className="flex items-center justify-between relative">
+              <div className="absolute left-0 right-0 top-5 h-0.5 bg-gray-100 mx-8" />
+              <div
+                className="absolute left-0 top-5 h-0.5 bg-green-500 mx-8 transition-all duration-700"
+                style={{ width: `${(currentIdx / (STEPS.length - 1)) * 100}%`, right: 'auto' }}
+              />
+              {STEPS.map((step, i) => {
+                const done = i < currentIdx;
+                const active = i === currentIdx;
+                const Icon = step.icon;
+                return (
+                  <div key={step.status} className="flex flex-col items-center gap-2 z-10 flex-1">
+                    <div
+                      className={cn(
+                        'w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-500',
+                        done || active
+                          ? 'bg-green-500 border-green-500 text-white'
+                          : 'bg-white border-gray-200 text-gray-300',
+                        active && 'scale-110 shadow-md shadow-green-200',
+                      )}
+                    >
+                      {done ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+                    </div>
+                    <span className={cn(
+                      'text-xs font-medium text-center',
+                      done || active ? 'text-green-700 font-bold' : 'text-gray-400'
+                    )}>
+                      {step.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Order summary ── */}
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="px-4 py-3 border-b flex justify-between items-center">
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Your Items
+            </p>
+            <span className="text-sm font-bold">{formatPrice(total)}</span>
+          </div>
+          <ul className="divide-y">
+            {items.map((item) => (
+              <li key={item.id} className="px-4 py-2.5 flex justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm">{item.quantity}× {item.name}</span>
+                  {item.notes && (
+                    <p className="text-xs text-muted-foreground italic mt-0.5">&ldquo;{item.notes}&rdquo;</p>
+                  )}
+                </div>
+                <span className="text-sm font-medium flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="divide-y">
-          {items.map((item) => (
-            <li key={item.id} className="px-4 py-2.5 flex justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <span className="text-sm">
-                  {item.quantity}× {item.name}
-                </span>
-                {item.notes && (
-                  <p className="text-xs text-muted-foreground italic mt-0.5">
-                    "{item.notes}"
-                  </p>
-                )}
-              </div>
-              <span className="text-sm font-medium flex-shrink-0">
-                {formatPrice(item.price * item.quantity)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
 
-      {/* Order type info */}
-      <div className="bg-white rounded-xl border px-4 py-3 flex justify-between text-sm">
-        <span className="text-muted-foreground">Order type</span>
-        <span className="font-medium">
-          {order.order_type === 'dine_in' ? '🪑 Dine In' : '🛍️ Parcel'}
-          {order.customer_name && ` · ${order.customer_name}`}
-        </span>
-      </div>
+        {/* ── Order type ── */}
+        <div className="bg-white rounded-xl border px-4 py-3 flex justify-between text-sm">
+          <span className="text-muted-foreground">Order type</span>
+          <span className="font-medium">
+            {order.order_type === 'dine_in' ? '🪑 Dine In' : '🛍️ Parcel'}
+            {order.customer_name && ` · ${order.customer_name}`}
+          </span>
+        </div>
 
-      {/* Back to menu */}
-      <Link
-        href={`/${slug}`}
-        className="text-center text-sm text-muted-foreground underline underline-offset-2"
-      >
-        Back to menu
-      </Link>
-    </div>
+        <Link
+          href={`/${slug}`}
+          className="text-center text-sm text-muted-foreground underline underline-offset-2"
+        >
+          Back to menu
+        </Link>
+      </div>
+    </>
   );
 }
