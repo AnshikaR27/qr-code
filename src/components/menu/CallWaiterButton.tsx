@@ -134,21 +134,22 @@ export default function CallWaiterButton({ restaurantId, tableId, tokens, cartVi
     setShowTooltip(false);
     setLoading(true);
     try {
+      // Generate UUID client-side to avoid needing a SELECT policy for anon users
+      const callId = crypto.randomUUID();
       const supabase = createClient();
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('waiter_calls')
         .insert({
+          id: callId,
           restaurant_id: restaurantId,
           table_id: tableId ?? null,
           status: 'pending',
-        })
-        .select('id')
-        .single();
+        });
       if (error) throw error;
 
       setCallStatus('pending');
       startCountdown(COOLDOWN_SECONDS);
-      subscribeToCall(data.id);
+      subscribeToCall(callId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[CallWaiter]', msg);
