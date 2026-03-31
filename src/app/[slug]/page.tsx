@@ -1,14 +1,7 @@
 import { notFound } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { createClient } from '@/lib/supabase/server';
+import MenuWrapper from './MenuWrapper';
 import type { Category, Product, Restaurant } from '@/types';
-
-// ssr: false guarantees the menu never renders on the server.
-// The splash is the very first thing the customer sees — no hydration flash.
-const CustomerMenu = dynamic(() => import('./CustomerMenu'), {
-  ssr: false,
-  loading: () => <div style={{ minHeight: '100vh' }} />,
-});
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -45,18 +38,13 @@ export default async function PublicMenuPage({ params, searchParams }: Props) {
       .order('sort_order', { ascending: true }),
   ]);
 
-  // Extract bg so the loading shell matches the restaurant's theme color
-  const bgColor = ((restaurant.design_tokens as Record<string, string> | null)?.['--bg'] ?? '#FFF8F0').trim();
-
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: bgColor }}>
-      <CustomerMenu
-        restaurant={restaurant as Restaurant}
-        categories={(categories ?? []) as Category[]}
-        products={(products ?? []) as Product[]}
-        tableId={tableId}
-      />
-    </div>
+    <MenuWrapper
+      restaurant={restaurant as Restaurant}
+      categories={(categories ?? []) as Category[]}
+      products={(products ?? []) as Product[]}
+      tableId={tableId}
+    />
   );
 }
 

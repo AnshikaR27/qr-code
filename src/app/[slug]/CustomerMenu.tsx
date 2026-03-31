@@ -14,7 +14,6 @@ import DishDetailSheet from '@/components/menu/DishDetailSheet';
 import CartBar from '@/components/menu/CartBar';
 import CartSheet from '@/components/menu/CartSheet';
 import CallWaiterButton from '@/components/menu/CallWaiterButton';
-import SplashScreen from '@/components/menu/SplashScreen';
 import { useCart } from '@/hooks/useCart';
 import type { CartItem, Category, Product, Restaurant } from '@/types';
 
@@ -56,21 +55,6 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const [lang, setLang] = useState<Lang>('en');
 
   const { items: cartItems, addItem, clearCart, getTotal, getItemCount } = useCart();
-
-  // Splash screen: true by default so it's the FIRST thing rendered.
-  // useEffect checks sessionStorage — if seen before, hides it before the
-  // first paint completes (returning visitors skip straight to menu).
-  const [showSplash, setShowSplash] = useState(true);
-  useEffect(() => {
-    if (sessionStorage.getItem(`splash-seen-${restaurant.slug}`)) {
-      setShowSplash(false);
-    }
-  }, [restaurant.slug]);
-
-  function handleSplashEnter() {
-    sessionStorage.setItem(`splash-seen-${restaurant.slug}`, '1');
-    setShowSplash(false);
-  }
 
   // Long press image zoom
   const [zoomedImage, setZoomedImage] = useState<{ url: string; name: string } | null>(null);
@@ -311,17 +295,6 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     { v: 'non_veg', label: 'Non-Veg', dot: tokens.nonveg },
     { v: 'bestseller', label: 'Popular', icon: '🔥' },
   ];
-
-  // Render ONLY the splash until dismissed — menu doesn't mount at all
-  if (showSplash) {
-    return (
-      <SplashScreen
-        restaurant={restaurant}
-        tokens={tokens}
-        onEnter={handleSplashEnter}
-      />
-    );
-  }
 
   return (
     <div
