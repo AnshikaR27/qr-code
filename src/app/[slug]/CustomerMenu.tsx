@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { SlidersHorizontal, ChevronDown, X, ChevronUp, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatPrice } from '@/lib/utils';
@@ -58,14 +58,12 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const { items: cartItems, addItem, clearCart, getTotal, getItemCount } = useCart();
 
   // Splash screen — shown once per session on first QR scan.
-  // Start true so the splash is ready on first paint; useLayoutEffect hides
-  // it synchronously (before the browser paints) for returning visitors.
-  const [showSplash, setShowSplash] = useState(true);
-  useLayoutEffect(() => {
-    if (sessionStorage.getItem(`splash-seen-${restaurant.slug}`)) {
-      setShowSplash(false);
-    }
-  }, [restaurant.slug]);
+  // Lazy initializer reads sessionStorage synchronously on first client render
+  // so the correct value is known before any paint — no effect, no double-run.
+  const [showSplash, setShowSplash] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false; // SSR: never show on server
+    return !sessionStorage.getItem(`splash-seen-${restaurant.slug}`);
+  });
 
   function handleSplashEnter() {
     sessionStorage.setItem(`splash-seen-${restaurant.slug}`, '1');
