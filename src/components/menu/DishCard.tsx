@@ -133,7 +133,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
     <div
       ref={outerRef}
       style={{
-        margin: '0 16px 16px',
+        margin: '0 16px 10px',
         opacity: revealed ? (dish.is_available ? 1 : 0.4) : 0,
         transform: revealed ? 'translateY(0)' : 'translateY(20px)',
         transition: reduced
@@ -157,7 +157,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
           cursor: dish.is_available ? 'pointer' : 'default',
           display: 'flex',
           flexDirection: 'row',
-          minHeight: 168,
+          minHeight: 110,
           transition: 'transform 0.12s ease',
           willChange: 'transform',
         }}
@@ -165,10 +165,10 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
         {/* Image with long-press-to-zoom */}
         <div
           style={{
-            width: 112,
+            width: 96,
             alignSelf: 'stretch',
             flexShrink: 0,
-            borderRadius: '14.5px 0 0 14.5px',
+            borderRadius: '14px 0 0 14px',
             overflow: 'hidden',
             backgroundColor: dish.image_url ? undefined : `${tokens.primary}18`,
             display: 'flex',
@@ -202,7 +202,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
         <div
           style={{
             flex: 1,
-            padding: 14,
+            padding: '10px 12px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
@@ -218,7 +218,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
               <span
                 style={{
                   fontFamily: tokens.fontBody,
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: 700,
                   color: tokens.text,
                   flex: 1,
@@ -261,8 +261,8 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
             {dish.description && (
               <div
                 style={{
-                  fontFamily: tokens.fontBody, fontSize: 13, fontWeight: 400, color: tokens.textMuted,
-                  overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                  fontFamily: tokens.fontBody, fontSize: 12, fontWeight: 400, color: tokens.textMuted,
+                  overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical',
                 } as React.CSSProperties}
               >
                 {dish.description}
@@ -271,9 +271,9 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
           </div>
 
           {/* Price + morphing button row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 4 }}>
             {dish.is_available ? (
-              <span style={{ fontFamily: tokens.fontBody, fontSize: 16, fontWeight: 800, color: tokens.text }}>
+              <span style={{ fontFamily: tokens.fontBody, fontSize: 14, fontWeight: 800, color: tokens.text }}>
                 ₹{dish.price}
                 {dish.spice_level > 0 && <span style={{ marginLeft: 4, fontSize: 12 }}>{'🌶️'.repeat(dish.spice_level)}</span>}
               </span>
@@ -286,7 +286,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
                 style={{
                   position: 'relative',
                   width: qty === 0 ? ADD_W : STEP_W,
-                  height: 36,
+                  height: 32,
                   flexShrink: 0,
                   transition: reduced ? 'none' : 'width 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
                   willChange: 'width',
