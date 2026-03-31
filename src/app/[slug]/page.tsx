@@ -2,6 +2,10 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { buildMenuTokens } from '@/lib/tokens';
 
+// Cache the splash page at the edge for 5 minutes.
+// After the first visitor, everyone else gets instant HTML — no Supabase query.
+export const revalidate = 300;
+
 // ── Seeded PRNG ───────────────────────────────────────────────────────────────
 function makeRng(slug: string) {
   let seed = slug.split('').reduce((a, c) => (Math.imul(a, 31) + c.charCodeAt(0)) | 0, 5381);
@@ -125,6 +129,8 @@ export default async function SplashPage({ params, searchParams }: Props) {
         overflow: 'hidden',
       }}
     >
+      {/* Prefetch menu page so its JS bundle is already downloading while the user reads the splash */}
+      <link rel="prefetch" href={menuHref} />
       <style>{`
         @keyframes splashPulse {
           0%, 100% { box-shadow: 0 0 0 0 ${tokens.accent}55; }
