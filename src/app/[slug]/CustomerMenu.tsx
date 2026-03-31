@@ -14,6 +14,7 @@ import DishDetailSheet from '@/components/menu/DishDetailSheet';
 import CartBar from '@/components/menu/CartBar';
 import CartSheet from '@/components/menu/CartSheet';
 import CallWaiterButton from '@/components/menu/CallWaiterButton';
+import SplashScreen from '@/components/menu/SplashScreen';
 import { useCart } from '@/hooks/useCart';
 import type { CartItem, Category, Product, Restaurant } from '@/types';
 
@@ -55,6 +56,18 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
   const [lang, setLang] = useState<Lang>('en');
 
   const { items: cartItems, addItem, clearCart, getTotal, getItemCount } = useCart();
+
+  // Splash screen — shown once per session on first QR scan
+  const [showSplash, setShowSplash] = useState(false);
+  useEffect(() => {
+    const key = `splash-seen-${restaurant.slug}`;
+    if (!sessionStorage.getItem(key)) setShowSplash(true);
+  }, [restaurant.slug]);
+
+  function handleSplashEnter() {
+    sessionStorage.setItem(`splash-seen-${restaurant.slug}`, '1');
+    setShowSplash(false);
+  }
 
   // Long press image zoom
   const [zoomedImage, setZoomedImage] = useState<{ url: string; name: string } | null>(null);
@@ -325,6 +338,15 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         .menu-search-input:focus { outline: none; }
         .filter-drop-item:hover { opacity: 0.75; }
       `}</style>
+
+      {/* ── Splash screen (first scan only) ── */}
+      {showSplash && (
+        <SplashScreen
+          restaurant={restaurant}
+          tokens={tokens}
+          onEnter={handleSplashEnter}
+        />
+      )}
 
       {/* ── Scroll progress bar (fixed, top of page) ── */}
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 200, pointerEvents: 'none' }}>
