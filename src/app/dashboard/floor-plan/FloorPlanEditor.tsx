@@ -56,11 +56,12 @@ function snap(v: number) {
   return Math.round(v / GRID) * GRID;
 }
 
-function tableSize(shape: FloorShape, capacity: FloorCapacity) {
-  if (shape === 'round') return { w: 80, h: 80 };
-  if (capacity <= 2)     return { w: 80, h: 80 };
-  if (capacity <= 4)     return { w: 100, h: 100 };
-  return                        { w: 140, h: 80 };
+/** Size by capacity. Round tables use border-radius:50%, square use 10px. */
+function tableSize(capacity: FloorCapacity) {
+  if (capacity <= 2) return { w: 70, h: 70 };
+  if (capacity <= 4) return { w: 90, h: 90 };
+  if (capacity <= 6) return { w: 130, h: 80 };
+  return                    { w: 160, h: 80 };
 }
 
 // ─── Live status ──────────────────────────────────────────────────────────────
@@ -130,6 +131,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [editForm, setEditForm]       = useState<EditForm | null>(null);
   const [placingTable, setPlacingTable] = useState(false);
   const [isMobile, setIsMobile]       = useState(false);
+
+  // Pending shape/capacity chosen before the user clicks to place
+  const [pendingShape, setPendingShape]       = useState<FloorShape>('round');
+  const [pendingCapacity, setPendingCapacity] = useState<FloorCapacity>(4);
 
   // ── Live status state ──────────────────────────────────────────────────────
   const [activeOrders, setActiveOrders]           = useState<Order[]>([]);
@@ -238,7 +243,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     return { status, orders, waiterCall };
   }
 
-  // Status summary counts
   const statusCounts = plan.tables.reduce(
     (acc, t) => { acc[getTableStatusInfo(t.id).status]++; return acc; },
     { available: 0, occupied: 0, ready: 0, needs_attention: 0 } as Record<TableLiveStatus, number>,
@@ -292,6 +296,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         .update({ floor_plan: next })
         .eq('id', restaurant.id);
       if (error) {
+        console.error('[FloorPlan] save error:', error);
         toast.error('Failed to save layout');
         setSaveStatus('unsaved');
       } else {
@@ -354,8 +359,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         id: created.id,
         table_number: nextNum,
         x, y,
-        shape: 'round',
-        capacity: 4,
+        shape: pendingShape,
+        capacity: pendingCapacity,
       };
 
       updatePlan(prev => ({ ...prev, tables: [...prev.tables, ft] }));
@@ -422,7 +427,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
   /**
    * If the pointer didn't move (tap), fire onTap instead of saving.
-   * Grid snapping means moves < 10px resolve to the same position anyway.
+   * Grid snapping means sub-10px moves resolve to the same position anyway.
    */
   function handlePointerUp(
     e: React.PointerEvent,
@@ -638,12 +643,77 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         </span>
       </div>
 
-      {/* Mode hint bar */}
-      {mode !== 'select' && (
+      {/* ── Mode config bar ── */}
+      {mode === 'addTable' && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5 bg-blue-50 border-b flex-shrink-0">
+          {/* Shape toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-blue-700 font-medium">Shape:</span>
+            {(['round', 'square'] as FloorShape[]).map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setPendingShape(s)}
+                className={cn(
+                  'px-2.5 py-1 text-xs rounded-md border transition-colors',
+                  pendingShape === s
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50',
+                )}
+              >
+                {s === 'round' ? '⭕ Round' : '⬛ Square'}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-4 w-px bg-blue-200" />
+
+          {/* Capacity buttons */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-blue-700 font-medium">Seats:</span>
+            {([2, 4, 6, 8] as FloorCapacity[]).map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setPendingCapacity(c)}
+                className={cn(
+                  'w-8 h-7 text-xs rounded-md border transition-colors',
+                  pendingCapacity === c
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50',
+                )}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-4 w-px bg-blue-200" />
+
+          {/* Mini preview */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-blue-700 font-medium">Preview:</span>
+            <div
+              style={{
+                width:  Math.round(tableSize(pendingCapacity).w * 0.35),
+                height: Math.round(tableSize(pendingCapacity).h * 0.35),
+                borderRadius: pendingShape === 'round' ? '50%' : 4,
+                background: 'rgba(59,130,246,0.15)',
+                border: '1.5px solid #3b82f6',
+                flexShrink: 0,
+              }}
+            />
+          </div>
+
+          <span className="text-xs text-blue-600 ml-auto">
+            {placingTable ? '⏳ Creating table…' : '🖱 Click on the canvas to place'}
+          </span>
+        </div>
+      )}
+
+      {mode === 'addLabel' && (
         <div className="px-5 py-2 bg-blue-50 border-b text-xs text-blue-700 flex-shrink-0">
-          {mode === 'addTable'
-            ? (placingTable ? '⏳ Creating table…' : '🖱 Click anywhere on the floor to place a table')
-            : '🖱 Click anywhere on the floor to place a section label'}
+          🖱 Click anywhere on the floor to place a section label
         </div>
       )}
 
@@ -676,7 +746,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           ))}
 
           {plan.tables.map(table => {
-            const { w, h } = tableSize(table.shape, table.capacity);
+            const { w, h } = tableSize(table.capacity);
             return (
               <TableElement
                 key={table.id}
@@ -844,7 +914,7 @@ function TableDetailSheet({
 }: TableDetailSheetProps) {
   const open = !!table && !!statusInfo;
   if (!open) {
-    return <Sheet open={false} onOpenChange={open => { if (!open) onClose(); }} />;
+    return <Sheet open={false} onOpenChange={o => { if (!o) onClose(); }} />;
   }
 
   const colors = STATUS_COLORS[statusInfo.status];
@@ -867,7 +937,7 @@ function TableDetailSheet({
             <div className="flex-1 min-w-0">
               <SheetTitle>Table {table.table_number}</SheetTitle>
               <SheetDescription>
-                {table.capacity} seats
+                {table.capacity} seats · {table.shape}
               </SheetDescription>
             </div>
             <span
@@ -1058,7 +1128,7 @@ function TableElement({
   onPointerUp,
   onContextMenu,
 }: TableElementProps) {
-  const { w, h } = tableSize(table.shape, table.capacity);
+  const { w, h } = tableSize(table.capacity);
   const isRound  = table.shape === 'round';
 
   const status = statusInfo?.status;
@@ -1104,7 +1174,7 @@ function TableElement({
           boxShadow: isDragging
             ? '0 8px 24px rgba(79,70,229,0.25)'
             : needsAttention
-              ? `0 0 0 3px rgba(239,68,68,0.25)`
+              ? '0 0 0 3px rgba(239,68,68,0.25)'
               : '0 2px 6px rgba(0,0,0,0.08)',
           transition: isDragging ? 'none' : 'box-shadow 0.15s, background 0.25s, border-color 0.25s',
         }}
