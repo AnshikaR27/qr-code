@@ -120,7 +120,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [saveStatus, setSaveStatus]   = useState<SaveStatus>('saved');
   const [draggingId, setDraggingId]   = useState<string | null>(null);
   const [isMobile, setIsMobile]       = useState(false);
-  const [placingTable, setPlacingTable] = useState(false);
 
   // Pending shape/capacity for the "Add Table" placement flow
   const [pendingShape, setPendingShape]       = useState<FloorShape>('round');
@@ -279,16 +278,37 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     saveTimer.current = setTimeout(async () => {
       setSaveStatus('saving');
       const supabase = createClient();
+
+      // 1. Save the visual layout JSONB
       const { error } = await supabase
         .from('restaurants')
         .update({ floor_plan: next })
         .eq('id', restaurant.id);
+
       if (error) {
         console.error('[FloorPlan] save error:', error);
         toast.error(`Save failed: ${error.message}`);
         setSaveStatus('unsaved');
-      } else {
-        setSaveStatus('saved');
+        return;
+      }
+
+      setSaveStatus('saved');
+
+      // 2. Reconcile the `tables` DB table so orders can reference them.
+      //    Upsert by id — insert new rows, update table_number if it changed.
+      //    We never delete rows (orders may reference them).
+      if (next.tables.length > 0) {
+        await supabase
+          .from('tables')
+          .upsert(
+            next.tables.map(t => ({
+              id: t.id,
+              restaurant_id: restaurant.id,
+              table_number: t.table_number,
+            })),
+            { onConflict: 'id' },
+          );
+        // Reconcile errors are non-fatal — layout is already saved
       }
     }, 1000);
   }
@@ -349,7 +369,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   }
 
   // ── Canvas click ──────────────────────────────────────────────────────────
-  async function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
+  function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target !== canvasRef.current) return;
 
     // Deselect on empty canvas click
@@ -360,7 +380,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const y    = snap(Math.max(0, e.clientY - rect.top));
 
     if (mode === 'addTable') {
-      await placeTable(x, y);
+      placeTable(x, y);
       setMode('select');
     } else if (mode === 'addLabel') {
       placeLabel(x, y);
@@ -368,39 +388,20 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     }
   }
 
-  async function placeTable(x: number, y: number) {
-    setPlacingTable(true);
-    try {
-      const supabase = createClient();
+  function placeTable(x: number, y: number) {
+    const existingNumbers = plan.tables.map(t => t.table_number);
+    const nextNum = existingNumbers.length === 0 ? 1 : Math.max(...existingNumbers) + 1;
 
-      const existingNumbers = plan.tables.map(t => t.table_number);
-      const nextNum = existingNumbers.length === 0 ? 1 : Math.max(...existingNumbers) + 1;
+    const ft: FloorTable = {
+      id: crypto.randomUUID(),
+      table_number: nextNum,
+      x, y,
+      shape: pendingShape,
+      capacity: pendingCapacity,
+    };
 
-      const { data: created, error } = await supabase
-        .from('tables')
-        .insert({ restaurant_id: restaurant.id, table_number: nextNum })
-        .select('id')
-        .single();
-
-      if (error || !created) {
-        console.error('[FloorPlan] insert table error:', error);
-        toast.error(error ? `Failed to create table: ${error.message}` : 'Failed to create table');
-        return;
-      }
-
-      const ft: FloorTable = {
-        id: created.id,
-        table_number: nextNum,
-        x, y,
-        shape: pendingShape,
-        capacity: pendingCapacity,
-      };
-
-      updatePlan(prev => ({ ...prev, tables: [...prev.tables, ft] }));
-      setEditSelectedId(ft.id);
-    } finally {
-      setPlacingTable(false);
-    }
+    updatePlan(prev => ({ ...prev, tables: [...prev.tables, ft] }));
+    setEditSelectedId(ft.id);
   }
 
   function placeLabel(x: number, y: number) {
@@ -423,19 +424,11 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     }));
   }
 
-  async function commitTableNumber(tableId: string, newNumber: number, oldNumber: number) {
+  function commitTableNumber(tableId: string, newNumber: number, oldNumber: number) {
     if (newNumber === oldNumber) return;
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('tables')
-      .update({ table_number: newNumber })
-      .eq('id', tableId);
-    if (error) {
-      toast.error(
-        error.message.toLowerCase().includes('unique')
-          ? `Table #${newNumber} already exists`
-          : 'Failed to update table number',
-      );
+    // Duplicate number check against canvas state only
+    if (plan.tables.some(t => t.id !== tableId && t.table_number === newNumber)) {
+      toast.error(`Table #${newNumber} already exists on the canvas`);
       return;
     }
     updatePlan(prev => ({
@@ -593,7 +586,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           size="sm"
           variant={mode === 'addTable' ? 'default' : 'outline'}
           onClick={() => { setMode(m => m === 'addTable' ? 'select' : 'addTable'); setEditSelectedId(null); }}
-          disabled={placingTable}
         >
           <Plus className="w-4 h-4 mr-1.5" />
           Add Table
@@ -713,7 +705,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             }} />
           </div>
           <span className="text-xs text-blue-600 ml-auto">
-            {placingTable ? '⏳ Creating table…' : '🖱 Click on the canvas to place'}
+            🖱 Click on the canvas to place
           </span>
         </div>
       )}
