@@ -383,7 +383,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         .single();
 
       if (error || !created) {
-        toast.error('Failed to create table');
+        console.error('[FloorPlan] insert table error:', error);
+        toast.error(error ? `Failed to create table: ${error.message}` : 'Failed to create table');
         return;
       }
 
