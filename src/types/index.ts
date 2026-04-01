@@ -27,6 +27,12 @@ export interface FloorPlan {
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
+export interface OrderNote {
+  id: string;
+  text: string;
+  created_at: string;
+}
+
 export type OrderType = 'dine_in' | 'parcel';
 export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
 export type SpiceLevel = 0 | 1 | 2 | 3;
@@ -93,6 +99,7 @@ export interface Order {
   status: OrderStatus;
   total: number;
   notes: string | null;
+  internal_notes?: OrderNote[];
   order_number: number;
   created_at: string;
   updated_at: string;

@@ -45,6 +45,7 @@ import type {
   FloorShape,
   FloorTable,
   Order,
+  OrderNote,
   Restaurant,
   WaiterCall,
 } from '@/types';
@@ -201,12 +202,12 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const [{ data: orders }, { data: calls }] = await Promise.all([
       supabase
         .from('orders')
-        .select('*, items:order_items(*)')
+        .select('*, items:order_items(*), table:tables(id, table_number), internal_notes')
         .eq('restaurant_id', restaurant.id)
         .in('status', ['placed', 'preparing', 'ready']),
       supabase
         .from('waiter_calls')
-        .select('*')
+        .select('*, table:tables(id, table_number)')
         .eq('restaurant_id', restaurant.id)
         .eq('status', 'pending'),
     ]);
@@ -255,9 +256,9 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   }, [restaurant.id]);
 
   // ── Status helpers ─────────────────────────────────────────────────────────
-  function getTableStatusInfo(tableId: string): TableStatusInfo {
-    const orders     = activeOrders.filter(o => o.table_id === tableId);
-    const waiterCall = activeWaiterCalls.find(wc => wc.table_id === tableId) ?? null;
+  function getTableStatusInfo(tableNumber: number): TableStatusInfo {
+    const orders     = activeOrders.filter(o => o.table?.table_number === tableNumber);
+    const waiterCall = activeWaiterCalls.find(wc => wc.table?.table_number === tableNumber) ?? null;
     let status: TableLiveStatus;
     if (waiterCall)                                  status = 'needs_attention';
     else if (orders.some(o => o.status === 'ready')) status = 'ready';
@@ -267,7 +268,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   }
 
   const statusCounts = plan.tables.reduce(
-    (acc, t) => { acc[getTableStatusInfo(t.id).status]++; return acc; },
+    (acc, t) => { acc[getTableStatusInfo(t.table_number).status]++; return acc; },
     { available: 0, occupied: 0, ready: 0, needs_attention: 0 } as Record<TableLiveStatus, number>,
   );
 
@@ -333,16 +334,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   }
 
   // ── Quick live-status actions (from detail sheet) ─────────────────────────
-  async function markTableAvailable(tableId: string) {
+  async function markTableAvailable(tableNumber: number) {
     setMarkingAvailable(true);
     try {
+      const orderIds = activeOrders
+        .filter(o => o.table?.table_number === tableNumber)
+        .map(o => o.id);
+      if (orderIds.length === 0) { setSheetTableId(null); return; }
       const supabase = createClient();
       const { error } = await supabase
         .from('orders')
         .update({ status: 'delivered' })
-        .eq('restaurant_id', restaurant.id)
-        .eq('table_id', tableId)
-        .in('status', ['placed', 'preparing', 'ready']);
+        .in('id', orderIds);
       if (error) { toast.error('Failed to clear table'); return; }
       toast.success('Table marked as available');
       setSheetTableId(null);
@@ -537,9 +540,9 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     : null;
 
   const sheetTable      = sheetTableId ? plan.tables.find(t => t.id === sheetTableId) ?? null : null;
-  const sheetStatusInfo = sheetTableId ? getTableStatusInfo(sheetTableId) : null;
+  const sheetStatusInfo = sheetTable ? getTableStatusInfo(sheetTable.table_number) : null;
 
-  const tableStatusMap = new Map(plan.tables.map(t => [t.id, getTableStatusInfo(t.id)]));
+  const tableStatusMap = new Map(plan.tables.map(t => [t.table_number, getTableStatusInfo(t.table_number)]));
 
   // ── Mobile ────────────────────────────────────────────────────────────────
   if (isMobile) {
@@ -568,6 +571,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           onAcknowledge={acknowledgeWaiterCall}
           acknowledging={acknowledging}
           markingAvailable={markingAvailable}
+          onRefresh={fetchLiveData}
         />
       </div>
     );
@@ -750,7 +754,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               <TableElement
                 key={table.id}
                 table={table}
-                statusInfo={tableStatusMap.get(table.id)}
+                statusInfo={tableStatusMap.get(table.table_number)}
                 isDragging={draggingId === table.id}
                 isSelected={editSelectedId === table.id}
                 onPointerDown={e => handlePointerDown(e, table.id, table.x, table.y)}
@@ -851,6 +855,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         onAcknowledge={acknowledgeWaiterCall}
         acknowledging={acknowledging}
         markingAvailable={markingAvailable}
+        onRefresh={fetchLiveData}
       />
     </div>
   );
@@ -983,10 +988,11 @@ interface TableDetailSheetProps {
   table: FloorTable | null;
   statusInfo: TableStatusInfo | null;
   onClose: () => void;
-  onMarkAvailable: (tableId: string) => Promise<void>;
+  onMarkAvailable: (tableNumber: number) => Promise<void>;
   onAcknowledge: (callId: string) => Promise<void>;
   acknowledging: boolean;
   markingAvailable: boolean;
+  onRefresh: () => void;
 }
 
 function TableDetailSheet({
@@ -997,6 +1003,7 @@ function TableDetailSheet({
   onAcknowledge,
   acknowledging,
   markingAvailable,
+  onRefresh,
 }: TableDetailSheetProps) {
   const open = !!table && !!statusInfo;
   if (!open) return <Sheet open={false} onOpenChange={o => { if (!o) onClose(); }} />;
@@ -1056,7 +1063,7 @@ function TableDetailSheet({
             <div>
               <p className="text-sm font-semibold mb-3">Active Orders ({statusInfo.orders.length})</p>
               <div className="space-y-3">
-                {statusInfo.orders.map(order => <OrderCard key={order.id} order={order} />)}
+                {statusInfo.orders.map(order => <OrderCard key={order.id} order={order} onRefresh={onRefresh} />)}
               </div>
             </div>
           ) : (
@@ -1072,7 +1079,7 @@ function TableDetailSheet({
             <Button
               variant="outline"
               className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-              onClick={() => onMarkAvailable(table.id)}
+              onClick={() => onMarkAvailable(table.table_number)}
               disabled={markingAvailable}
             >
               {markingAvailable
@@ -1099,8 +1106,42 @@ const ORDER_STATUS_STYLE: Record<string, { bg: string; text: string; border: str
   cancelled: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5', label: 'Cancelled' },
 };
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order, onRefresh }: { order: Order; onRefresh: () => void }) {
   const st = ORDER_STATUS_STYLE[order.status] ?? ORDER_STATUS_STYLE.placed;
+  const [noteText, setNoteText]   = useState('');
+  const [saving, setSaving]       = useState(false);
+
+  async function addNote() {
+    const text = noteText.trim();
+    if (!text) return;
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const newNote: OrderNote = { id: crypto.randomUUID(), text, created_at: new Date().toISOString() };
+      const existing: OrderNote[] = order.internal_notes ?? [];
+      const { error } = await supabase
+        .from('orders')
+        .update({ internal_notes: [...existing, newNote] })
+        .eq('id', order.id);
+      if (error) { toast.error('Failed to add note'); return; }
+      setNoteText('');
+      onRefresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteNote(noteId: string) {
+    const supabase = createClient();
+    const updated = (order.internal_notes ?? []).filter(n => n.id !== noteId);
+    const { error } = await supabase
+      .from('orders')
+      .update({ internal_notes: updated })
+      .eq('id', order.id);
+    if (error) { toast.error('Failed to delete note'); return; }
+    onRefresh();
+  }
+
   return (
     <div className="rounded-lg border bg-white p-3 space-y-2.5">
       <div className="flex items-start justify-between gap-2">
@@ -1130,6 +1171,48 @@ function OrderCard({ order }: { order: Order }) {
           ))}
         </ul>
       )}
+
+      {/* Internal notes */}
+      <div className="pt-2 border-t space-y-2">
+        {(order.internal_notes ?? []).length > 0 && (
+          <ul className="space-y-1.5">
+            {(order.internal_notes ?? []).map(note => (
+              <li key={note.id} className="flex items-start gap-2 group">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-700">{note.text}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
+                  </p>
+                </div>
+                <button
+                  onClick={() => deleteNote(note.id)}
+                  className="opacity-0 group-hover:opacity-100 p-0.5 text-red-400 hover:text-red-600 transition-all flex-shrink-0"
+                  title="Delete note"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-1.5">
+          <input
+            type="text"
+            value={noteText}
+            onChange={e => setNoteText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addNote(); }}
+            placeholder="Add internal note…"
+            className="flex-1 text-xs border rounded-md px-2 py-1 focus:outline-none focus:border-blue-400"
+          />
+          <button
+            onClick={addNote}
+            disabled={saving || !noteText.trim()}
+            className="px-2 py-1 text-xs rounded-md bg-gray-100 hover:bg-gray-200 disabled:opacity-40 transition-colors flex-shrink-0"
+          >
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1138,7 +1221,7 @@ function OrderCard({ order }: { order: Order }) {
 
 interface ViewCanvasProps {
   plan: FloorPlan;
-  tableStatusMap: Map<string, TableStatusInfo>;
+  tableStatusMap: Map<number, TableStatusInfo>;
   onTableClick: (table: FloorTable) => void;
 }
 
@@ -1158,7 +1241,7 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
           key={t.id}
           table={t}
           viewOnly
-          statusInfo={tableStatusMap.get(t.id)}
+          statusInfo={tableStatusMap.get(t.table_number)}
           onClick={() => onTableClick(t)}
         />
       ))}
