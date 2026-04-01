@@ -297,7 +297,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         .eq('id', restaurant.id);
       if (error) {
         console.error('[FloorPlan] save error:', error);
-        toast.error('Failed to save layout');
+        toast.error(`Save failed: ${error.message}`);
         setSaveStatus('unsaved');
       } else {
         setSaveStatus('saved');
@@ -335,14 +335,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     try {
       const supabase = createClient();
 
-      const { data: dbTables } = await supabase
-        .from('tables')
-        .select('table_number')
-        .eq('restaurant_id', restaurant.id);
-
-      const usedNums = new Set((dbTables ?? []).map(t => t.table_number));
-      let nextNum = 1;
-      while (usedNums.has(nextNum)) nextNum++;
+      const existingNumbers = plan.tables.map(t => t.table_number);
+      const nextNum = existingNumbers.length === 0 ? 1 : Math.max(...existingNumbers) + 1;
 
       const { data: created, error } = await supabase
         .from('tables')
