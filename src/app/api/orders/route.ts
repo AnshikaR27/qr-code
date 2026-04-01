@@ -41,11 +41,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Restaurant not found' }, { status: 404 });
   }
 
-  // Fetch product prices server-side — never trust client prices
+  // Fetch product prices server-side — never trust client prices.
+  // Also grab name_hindi and the category name (via FK) so we can
+  // denormalize them into order_items for kitchen ticket printing.
   const productIds = items.map((i) => i.product_id);
   const { data: dbProducts, error: prodErr } = await getSupabaseAdmin()
     .from('products')
-    .select('id, price, name, is_available')
+    .select('id, price, name, name_hindi, is_available, category:categories(name)')
     .in('id', productIds)
     .eq('restaurant_id', restaurant_id);
 
@@ -101,13 +103,19 @@ export async function POST(req: NextRequest) {
   // Insert order items using DB prices and names
   const orderItems = items.map((item) => {
     const p = productMap.get(item.product_id)!;
+    // Supabase returns the FK-joined row as an object or null at runtime,
+    // but the inferred TS type may show it as an array — cast via unknown.
+    const categoryName =
+      (p.category as unknown as { name: string } | null)?.name ?? null;
     return {
       order_id: order.id,
       product_id: item.product_id,
-      name: p.name,          // denormalized from DB, not client
-      price: p.price,        // server-side price
+      name: p.name,                    // denormalized from DB, not client
+      name_hindi: p.name_hindi ?? null, // for bilingual kitchen tickets
+      price: p.price,                  // server-side price
       quantity: item.quantity,
       notes: item.notes ?? null,
+      category_name: categoryName,     // owner's existing category, for station printing
     };
   });
 

@@ -1,3 +1,32 @@
+// ─── Floor plan ───────────────────────────────────────────────────────────────
+
+export type FloorShape    = 'round' | 'square';
+export type FloorCapacity = 2 | 4 | 6 | 8;
+
+export interface FloorTable {
+  /** Same UUID as tables.id — keeps floor plan in sync with orders */
+  id: string;
+  table_number: number;
+  x: number;
+  y: number;
+  shape: FloorShape;
+  capacity: FloorCapacity;
+}
+
+export interface FloorLabel {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+}
+
+export interface FloorPlan {
+  tables: FloorTable[];
+  labels: FloorLabel[];
+}
+
+// ─── Domain types ─────────────────────────────────────────────────────────────
+
 export type OrderType = 'dine_in' | 'parcel';
 export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
 export type SpiceLevel = 0 | 1 | 2 | 3;
@@ -16,6 +45,7 @@ export interface Restaurant {
   logo_url: string | null;
   stitch_project_id: string | null;
   design_tokens: Record<string, string> | null;
+  floor_plan: FloorPlan | null;
   created_at: string;
   updated_at: string;
 }
@@ -76,9 +106,11 @@ export interface OrderItem {
   order_id: string;
   product_id: string | null;
   name: string;
+  name_hindi: string | null;
   price: number;
   quantity: number;
   notes: string | null;
+  category_name: string | null;
 }
 
 // Cart (client-side only, Zustand store)
