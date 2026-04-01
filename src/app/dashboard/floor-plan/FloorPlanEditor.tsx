@@ -13,6 +13,9 @@ import {
   X,
   WifiOff,
   Bell,
+  Trash2,
+  Eye,
+  Undo2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -56,10 +59,10 @@ function snap(v: number) {
   return Math.round(v / GRID) * GRID;
 }
 
-/** Size by capacity. Round tables use border-radius:50%, square use 10px. */
+/** Size by capacity. Round = border-radius 50%, square = 10px. */
 function tableSize(capacity: FloorCapacity) {
-  if (capacity <= 2) return { w: 70, h: 70 };
-  if (capacity <= 4) return { w: 90, h: 90 };
+  if (capacity <= 2) return { w: 70,  h: 70 };
+  if (capacity <= 4) return { w: 90,  h: 90 };
   if (capacity <= 6) return { w: 130, h: 80 };
   return                    { w: 160, h: 80 };
 }
@@ -93,19 +96,8 @@ const STATUS_LABELS: Record<TableLiveStatus, string> = {
 type SaveStatus = 'saved' | 'saving' | 'unsaved';
 type EditorMode = 'select' | 'addTable' | 'addLabel';
 
-interface CtxMenu {
+interface LabelEditForm {
   id: string;
-  type: 'table' | 'label';
-  screenX: number;
-  screenY: number;
-}
-
-interface EditForm {
-  id: string;
-  type: 'table' | 'label';
-  table_number: number;
-  shape: FloorShape;
-  capacity: FloorCapacity;
   text: string;
 }
 
@@ -127,20 +119,31 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [mode, setMode]               = useState<EditorMode>('select');
   const [saveStatus, setSaveStatus]   = useState<SaveStatus>('saved');
   const [draggingId, setDraggingId]   = useState<string | null>(null);
-  const [ctxMenu, setCtxMenu]         = useState<CtxMenu | null>(null);
-  const [editForm, setEditForm]       = useState<EditForm | null>(null);
-  const [placingTable, setPlacingTable] = useState(false);
   const [isMobile, setIsMobile]       = useState(false);
+  const [placingTable, setPlacingTable] = useState(false);
 
-  // Pending shape/capacity chosen before the user clicks to place
+  // Pending shape/capacity for the "Add Table" placement flow
   const [pendingShape, setPendingShape]       = useState<FloorShape>('round');
   const [pendingCapacity, setPendingCapacity] = useState<FloorCapacity>(4);
+
+  // Selected table for the floating edit toolbar
+  const [editSelectedId, setEditSelectedId] = useState<string | null>(null);
+
+  // Table shown in the live-status detail sheet (opened from the toolbar)
+  const [sheetTableId, setSheetTableId] = useState<string | null>(null);
+
+  // Label text editing (Dialog)
+  const [labelEditForm, setLabelEditForm] = useState<LabelEditForm | null>(null);
+
+  // Context menu (right-click)
+  const [ctxMenu, setCtxMenu] = useState<{
+    id: string; type: 'table' | 'label'; screenX: number; screenY: number;
+  } | null>(null);
 
   // ── Live status state ──────────────────────────────────────────────────────
   const [activeOrders, setActiveOrders]           = useState<Order[]>([]);
   const [activeWaiterCalls, setActiveWaiterCalls] = useState<WaiterCall[]>([]);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
-  const [selectedTableId, setSelectedTableId]     = useState<string | null>(null);
   const [acknowledging, setAcknowledging]         = useState(false);
   const [markingAvailable, setMarkingAvailable]   = useState(false);
 
@@ -151,6 +154,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const dragMoved            = useRef(false);
   const pointerDownClient    = useRef({ x: 0, y: 0 });
   const realtimeConnectedRef = useRef(false);
+  /** Single-level undo snapshot taken before every mutation. */
+  const previousPlan         = useRef<FloorPlan | null>(null);
 
   // ── Responsive check ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -160,13 +165,36 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setCtxMenu(null); setMode('select'); }
+      // Ignore when focus is inside an input / textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA';
+
+      if (e.key === 'Escape') {
+        setCtxMenu(null);
+        setMode('select');
+        setEditSelectedId(null);
+        return;
+      }
+
+      if (!isTyping && (e.key === 'Delete' || e.key === 'Backspace') && editSelectedId) {
+        e.preventDefault();
+        removeTable(editSelectedId);
+        setEditSelectedId(null);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        handleUndo();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editSelectedId]);
 
   // ── Live data fetch ────────────────────────────────────────────────────────
   async function fetchLiveData() {
@@ -190,7 +218,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   // ── Realtime subscription + fallback poll ──────────────────────────────────
   useEffect(() => {
     fetchLiveData();
-
     const supabase = createClient();
 
     const channel = supabase
@@ -217,7 +244,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         setRealtimeConnected(connected);
       });
 
-    // Fallback poll every 30s when realtime is disconnected
     const pollInterval = setInterval(() => {
       if (!realtimeConnectedRef.current) fetchLiveData();
     }, 30_000);
@@ -233,13 +259,11 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   function getTableStatusInfo(tableId: string): TableStatusInfo {
     const orders     = activeOrders.filter(o => o.table_id === tableId);
     const waiterCall = activeWaiterCalls.find(wc => wc.table_id === tableId) ?? null;
-
     let status: TableLiveStatus;
-    if (waiterCall)                                    status = 'needs_attention';
-    else if (orders.some(o => o.status === 'ready'))   status = 'ready';
-    else if (orders.length > 0)                        status = 'occupied';
-    else                                               status = 'available';
-
+    if (waiterCall)                                  status = 'needs_attention';
+    else if (orders.some(o => o.status === 'ready')) status = 'ready';
+    else if (orders.length > 0)                      status = 'occupied';
+    else                                             status = 'available';
     return { status, orders, waiterCall };
   }
 
@@ -247,42 +271,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     (acc, t) => { acc[getTableStatusInfo(t.id).status]++; return acc; },
     { available: 0, occupied: 0, ready: 0, needs_attention: 0 } as Record<TableLiveStatus, number>,
   );
-
-  // ── Quick actions ──────────────────────────────────────────────────────────
-  async function markTableAvailable(tableId: string) {
-    setMarkingAvailable(true);
-    try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: 'delivered' })
-        .eq('restaurant_id', restaurant.id)
-        .eq('table_id', tableId)
-        .in('status', ['placed', 'preparing', 'ready']);
-      if (error) { toast.error('Failed to clear table'); return; }
-      toast.success('Table marked as available');
-      setSelectedTableId(null);
-      fetchLiveData();
-    } finally {
-      setMarkingAvailable(false);
-    }
-  }
-
-  async function acknowledgeWaiterCall(callId: string) {
-    setAcknowledging(true);
-    try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('waiter_calls')
-        .update({ status: 'acknowledged' })
-        .eq('id', callId);
-      if (error) { toast.error('Failed to acknowledge call'); return; }
-      toast.success('Waiter call acknowledged');
-      fetchLiveData();
-    } finally {
-      setAcknowledging(false);
-    }
-  }
 
   // ── Save helpers ───────────────────────────────────────────────────────────
   function scheduleSave(next: FloorPlan) {
@@ -305,17 +293,67 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     }, 1000);
   }
 
+  /** Mutate plan, snapshot previous state for undo, schedule save. */
   function updatePlan(updater: (prev: FloorPlan) => FloorPlan) {
     setPlan(prev => {
+      previousPlan.current = prev;
       const next = updater(prev);
       scheduleSave(next);
       return next;
     });
   }
 
-  // ── Canvas click to place ──────────────────────────────────────────────────
+  // ── Undo ──────────────────────────────────────────────────────────────────
+  function handleUndo() {
+    const prev = previousPlan.current;
+    if (!prev) return;
+    previousPlan.current = null;
+    setPlan(prev);
+    scheduleSave(prev);
+  }
+
+  // ── Quick live-status actions (from detail sheet) ─────────────────────────
+  async function markTableAvailable(tableId: string) {
+    setMarkingAvailable(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'delivered' })
+        .eq('restaurant_id', restaurant.id)
+        .eq('table_id', tableId)
+        .in('status', ['placed', 'preparing', 'ready']);
+      if (error) { toast.error('Failed to clear table'); return; }
+      toast.success('Table marked as available');
+      setSheetTableId(null);
+      fetchLiveData();
+    } finally {
+      setMarkingAvailable(false);
+    }
+  }
+
+  async function acknowledgeWaiterCall(callId: string) {
+    setAcknowledging(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('waiter_calls')
+        .update({ status: 'acknowledged' })
+        .eq('id', callId);
+      if (error) { toast.error('Failed to acknowledge call'); return; }
+      toast.success('Waiter call acknowledged');
+      fetchLiveData();
+    } finally {
+      setAcknowledging(false);
+    }
+  }
+
+  // ── Canvas click ──────────────────────────────────────────────────────────
   async function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target !== canvasRef.current) return;
+
+    // Deselect on empty canvas click
+    setEditSelectedId(null);
 
     const rect = canvasRef.current!.getBoundingClientRect();
     const x    = snap(Math.max(0, e.clientX - rect.left));
@@ -358,21 +396,62 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       };
 
       updatePlan(prev => ({ ...prev, tables: [...prev.tables, ft] }));
+      setEditSelectedId(ft.id);
     } finally {
       setPlacingTable(false);
     }
   }
 
   function placeLabel(x: number, y: number) {
-    const fl: FloorLabel = {
-      id: crypto.randomUUID(),
-      text: 'Section',
-      x, y,
-    };
+    const fl: FloorLabel = { id: crypto.randomUUID(), text: 'Section', x, y };
     updatePlan(prev => ({ ...prev, labels: [...prev.labels, fl] }));
   }
 
-  // ── Drag (with tap detection) ──────────────────────────────────────────────
+  // ── Inline table edits (from floating toolbar) ────────────────────────────
+  function changeCapacity(tableId: string, capacity: FloorCapacity) {
+    updatePlan(prev => ({
+      ...prev,
+      tables: prev.tables.map(t => t.id === tableId ? { ...t, capacity } : t),
+    }));
+  }
+
+  function changeShape(tableId: string, shape: FloorShape) {
+    updatePlan(prev => ({
+      ...prev,
+      tables: prev.tables.map(t => t.id === tableId ? { ...t, shape } : t),
+    }));
+  }
+
+  async function commitTableNumber(tableId: string, newNumber: number, oldNumber: number) {
+    if (newNumber === oldNumber) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('tables')
+      .update({ table_number: newNumber })
+      .eq('id', tableId);
+    if (error) {
+      toast.error(
+        error.message.toLowerCase().includes('unique')
+          ? `Table #${newNumber} already exists`
+          : 'Failed to update table number',
+      );
+      return;
+    }
+    updatePlan(prev => ({
+      ...prev,
+      tables: prev.tables.map(t => t.id === tableId ? { ...t, table_number: newNumber } : t),
+    }));
+  }
+
+  function removeTable(tableId: string) {
+    updatePlan(prev => ({ ...prev, tables: prev.tables.filter(t => t.id !== tableId) }));
+  }
+
+  function removeLabel(labelId: string) {
+    updatePlan(prev => ({ ...prev, labels: prev.labels.filter(l => l.id !== labelId) }));
+  }
+
+  // ── Drag ─────────────────────────────────────────────────────────────────
   function handlePointerDown(
     e: React.PointerEvent,
     id: string,
@@ -419,25 +498,23 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     }));
   }
 
-  /**
-   * If the pointer didn't move (tap), fire onTap instead of saving.
-   * Grid snapping means sub-10px moves resolve to the same position anyway.
-   */
-  function handlePointerUp(
-    e: React.PointerEvent,
-    id: string,
-    onTap?: () => void,
-  ) {
+  function handlePointerUp(e: React.PointerEvent, id: string, isTable: boolean) {
     if (draggingId !== id) return;
     setDraggingId(null);
-    if (!dragMoved.current && onTap) {
-      onTap();
-    } else if (dragMoved.current) {
-      setPlan(prev => { scheduleSave(prev); return prev; });
+    if (!dragMoved.current) {
+      // tap — select the table (or ignore for labels)
+      if (isTable) setEditSelectedId(id);
+    } else {
+      // drag ended — save new position
+      setPlan(prev => {
+        previousPlan.current = prev;
+        scheduleSave(prev);
+        return prev;
+      });
     }
   }
 
-  // ── Context menu ──────────────────────────────────────────────────────────
+  // ── Context menu ─────────────────────────────────────────────────────────
   function handleContextMenu(
     e: React.MouseEvent,
     id: string,
@@ -448,74 +525,30 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     setCtxMenu({ id, type, screenX: e.clientX, screenY: e.clientY });
   }
 
-  function openEdit(id: string, type: 'table' | 'label') {
-    if (type === 'table') {
-      const t = plan.tables.find(t => t.id === id);
-      if (!t) return;
-      setEditForm({ id, type, table_number: t.table_number, shape: t.shape, capacity: t.capacity, text: '' });
-    } else {
-      const l = plan.labels.find(l => l.id === id);
-      if (!l) return;
-      setEditForm({ id, type, table_number: 1, shape: 'round', capacity: 4, text: l.text });
-    }
-  }
-
-  function removeElement(id: string, type: 'table' | 'label') {
+  // ── Label edit dialog ─────────────────────────────────────────────────────
+  function commitLabelEdit() {
+    if (!labelEditForm) return;
     updatePlan(prev => ({
-      tables: type === 'table' ? prev.tables.filter(t => t.id !== id) : prev.tables,
-      labels: type === 'label' ? prev.labels.filter(l => l.id !== id) : prev.labels,
+      ...prev,
+      labels: prev.labels.map(l =>
+        l.id === labelEditForm.id ? { ...l, text: labelEditForm.text } : l,
+      ),
     }));
+    setLabelEditForm(null);
   }
 
-  // ── Edit dialog save ───────────────────────────────────────────────────────
-  async function commitEdit() {
-    if (!editForm) return;
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const editSelectedTable = editSelectedId
+    ? plan.tables.find(t => t.id === editSelectedId) ?? null
+    : null;
 
-    if (editForm.type === 'table') {
-      const { id, table_number, shape, capacity } = editForm;
-      const current = plan.tables.find(t => t.id === id);
+  const sheetTable      = sheetTableId ? plan.tables.find(t => t.id === sheetTableId) ?? null : null;
+  const sheetStatusInfo = sheetTableId ? getTableStatusInfo(sheetTableId) : null;
 
-      if (current && current.table_number !== table_number) {
-        const supabase = createClient();
-        const { error } = await supabase
-          .from('tables')
-          .update({ table_number })
-          .eq('id', id);
+  const tableStatusMap = new Map(plan.tables.map(t => [t.id, getTableStatusInfo(t.id)]));
 
-        if (error) {
-          toast.error(
-            error.message.toLowerCase().includes('unique')
-              ? `Table #${table_number} already exists`
-              : 'Failed to update table number',
-          );
-          return;
-        }
-      }
-
-      updatePlan(prev => ({
-        ...prev,
-        tables: prev.tables.map(t =>
-          t.id === id ? { ...t, table_number, shape, capacity } : t,
-        ),
-      }));
-    } else {
-      const { id, text } = editForm;
-      updatePlan(prev => ({
-        ...prev,
-        labels: prev.labels.map(l => l.id === id ? { ...l, text } : l),
-      }));
-    }
-
-    setEditForm(null);
-  }
-
-  // ── Derived ────────────────────────────────────────────────────────────────
-  const selectedTable      = selectedTableId ? plan.tables.find(t => t.id === selectedTableId) ?? null : null;
-  const selectedStatusInfo = selectedTableId ? getTableStatusInfo(selectedTableId) : null;
-
-  // ── Mobile view-only ───────────────────────────────────────────────────────
+  // ── Mobile ────────────────────────────────────────────────────────────────
   if (isMobile) {
-    const tableStatusMap = new Map(plan.tables.map(t => [t.id, getTableStatusInfo(t.id)]));
     return (
       <div className="p-4 space-y-4">
         <div>
@@ -530,13 +563,13 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           <ViewCanvas
             plan={plan}
             tableStatusMap={tableStatusMap}
-            onTableClick={t => setSelectedTableId(t.id)}
+            onTableClick={t => setSheetTableId(t.id)}
           />
         </div>
         <TableDetailSheet
-          table={selectedTable}
-          statusInfo={selectedStatusInfo}
-          onClose={() => setSelectedTableId(null)}
+          table={sheetTable}
+          statusInfo={sheetStatusInfo}
+          onClose={() => setSheetTableId(null)}
           onMarkAvailable={markTableAvailable}
           onAcknowledge={acknowledgeWaiterCall}
           acknowledging={acknowledging}
@@ -546,21 +579,19 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     );
   }
 
-  // ── Desktop editor ─────────────────────────────────────────────────────────
-  const tableStatusMap = new Map(plan.tables.map(t => [t.id, getTableStatusInfo(t.id)]));
-
+  // ── Desktop editor ────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen overflow-hidden">
+
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2 px-5 py-3 border-b bg-white flex-shrink-0">
         <h1 className="text-base font-semibold mr-1">Floor Plan</h1>
-
         <div className="h-5 w-px bg-border mx-1" />
 
         <Button
           size="sm"
           variant={mode === 'addTable' ? 'default' : 'outline'}
-          onClick={() => setMode(m => m === 'addTable' ? 'select' : 'addTable')}
+          onClick={() => { setMode(m => m === 'addTable' ? 'select' : 'addTable'); setEditSelectedId(null); }}
           disabled={placingTable}
         >
           <Plus className="w-4 h-4 mr-1.5" />
@@ -570,7 +601,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         <Button
           size="sm"
           variant={mode === 'addLabel' ? 'default' : 'outline'}
-          onClick={() => setMode(m => m === 'addLabel' ? 'select' : 'addLabel')}
+          onClick={() => { setMode(m => m === 'addLabel' ? 'select' : 'addLabel'); setEditSelectedId(null); }}
         >
           <Type className="w-4 h-4 mr-1.5" />
           Add Label
@@ -584,6 +615,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             <X className="w-3.5 h-3.5" /> Cancel
           </button>
         )}
+
+        {/* Undo button */}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleUndo}
+          disabled={!previousPlan.current}
+          className="ml-1"
+          title="Undo last action (Ctrl+Z)"
+        >
+          <Undo2 className="w-4 h-4" />
+        </Button>
 
         <div className="ml-auto flex items-center gap-4">
           {/* Realtime indicator */}
@@ -600,7 +643,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               </>
             )}
           </div>
-
           {/* Save status */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             {saveStatus === 'saving'  && <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>}
@@ -615,90 +657,60 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         <span className="text-muted-foreground font-medium">
           {plan.tables.length} table{plan.tables.length !== 1 ? 's' : ''}:
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-green-700 font-medium">{statusCounts.available}</span>
-          <span className="text-muted-foreground">available</span>
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-amber-500" />
-          <span className="text-amber-700 font-medium">{statusCounts.occupied}</span>
-          <span className="text-muted-foreground">occupied</span>
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-blue-500" />
-          <span className="text-blue-700 font-medium">{statusCounts.ready}</span>
-          <span className="text-muted-foreground">ready</span>
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-red-500" />
-          <span className="text-red-700 font-medium">{statusCounts.needs_attention}</span>
-          <span className="text-muted-foreground">needs attention</span>
-        </span>
+        {([
+          { key: 'available', color: 'bg-green-500', textColor: 'text-green-700', label: 'available' },
+          { key: 'occupied',  color: 'bg-amber-500', textColor: 'text-amber-700', label: 'occupied' },
+          { key: 'ready',     color: 'bg-blue-500',  textColor: 'text-blue-700',  label: 'ready' },
+          { key: 'needs_attention', color: 'bg-red-500', textColor: 'text-red-700', label: 'needs attention' },
+        ] as const).map(({ key, color, textColor, label }) => (
+          <span key={key} className="flex items-center gap-1.5">
+            <span className={cn('w-2 h-2 rounded-full', color)} />
+            <span className={cn('font-medium', textColor)}>{statusCounts[key]}</span>
+            <span className="text-muted-foreground">{label}</span>
+          </span>
+        ))}
       </div>
 
-      {/* ── Mode config bar ── */}
+      {/* ── Add-table config bar ── */}
       {mode === 'addTable' && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5 bg-blue-50 border-b flex-shrink-0">
-          {/* Shape toggle */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-blue-700 font-medium">Shape:</span>
             {(['round', 'square'] as FloorShape[]).map(s => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setPendingShape(s)}
+              <button key={s} type="button" onClick={() => setPendingShape(s)}
                 className={cn(
                   'px-2.5 py-1 text-xs rounded-md border transition-colors',
-                  pendingShape === s
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50',
-                )}
-              >
+                  pendingShape === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50',
+                )}>
                 {s === 'round' ? '⭕ Round' : '⬛ Square'}
               </button>
             ))}
           </div>
-
           <div className="h-4 w-px bg-blue-200" />
-
-          {/* Capacity buttons */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-blue-700 font-medium">Seats:</span>
             {([2, 4, 6, 8] as FloorCapacity[]).map(c => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setPendingCapacity(c)}
+              <button key={c} type="button" onClick={() => setPendingCapacity(c)}
                 className={cn(
                   'w-8 h-7 text-xs rounded-md border transition-colors',
-                  pendingCapacity === c
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50',
-                )}
-              >
+                  pendingCapacity === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50',
+                )}>
                 {c}
               </button>
             ))}
           </div>
-
           <div className="h-4 w-px bg-blue-200" />
-
-          {/* Mini preview */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-blue-700 font-medium">Preview:</span>
-            <div
-              style={{
-                width:  Math.round(tableSize(pendingCapacity).w * 0.35),
-                height: Math.round(tableSize(pendingCapacity).h * 0.35),
-                borderRadius: pendingShape === 'round' ? '50%' : 4,
-                background: 'rgba(59,130,246,0.15)',
-                border: '1.5px solid #3b82f6',
-                flexShrink: 0,
-              }}
-            />
+            <div style={{
+              width:  Math.round(tableSize(pendingCapacity).w * 0.35),
+              height: Math.round(tableSize(pendingCapacity).h * 0.35),
+              borderRadius: pendingShape === 'round' ? '50%' : 4,
+              background: 'rgba(59,130,246,0.15)',
+              border: '1.5px solid #3b82f6',
+              flexShrink: 0,
+            }} />
           </div>
-
           <span className="text-xs text-blue-600 ml-auto">
             {placingTable ? '⏳ Creating table…' : '🖱 Click on the canvas to place'}
           </span>
@@ -734,7 +746,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               isDragging={draggingId === label.id}
               onPointerDown={e => handlePointerDown(e, label.id, label.x, label.y)}
               onPointerMove={e => handlePointerMove(e, label.id, 120, 32)}
-              onPointerUp={e => handlePointerUp(e, label.id)}
+              onPointerUp={e => handlePointerUp(e, label.id, false)}
               onContextMenu={e => handleContextMenu(e, label.id, 'label')}
             />
           ))}
@@ -747,13 +759,26 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 table={table}
                 statusInfo={tableStatusMap.get(table.id)}
                 isDragging={draggingId === table.id}
+                isSelected={editSelectedId === table.id}
                 onPointerDown={e => handlePointerDown(e, table.id, table.x, table.y)}
                 onPointerMove={e => handlePointerMove(e, table.id, w, h)}
-                onPointerUp={e => handlePointerUp(e, table.id, () => setSelectedTableId(table.id))}
+                onPointerUp={e => handlePointerUp(e, table.id, true)}
                 onContextMenu={e => handleContextMenu(e, table.id, 'table')}
               />
             );
           })}
+
+          {/* Floating edit toolbar — renders inside canvas so it stays in flow */}
+          {editSelectedTable && (
+            <FloatingToolbar
+              table={editSelectedTable}
+              onCapacityChange={c => changeCapacity(editSelectedTable.id, c)}
+              onShapeChange={s => changeShape(editSelectedTable.id, s)}
+              onNumberCommit={(n) => commitTableNumber(editSelectedTable.id, n, editSelectedTable.table_number)}
+              onDelete={() => { removeTable(editSelectedTable.id); setEditSelectedId(null); }}
+              onViewStatus={() => setSheetTableId(editSelectedTable.id)}
+            />
+          )}
         </div>
       </div>
 
@@ -762,125 +787,199 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} />
           <div
-            className="fixed z-50 min-w-[148px] rounded-lg border bg-white py-1 shadow-lg"
+            className="fixed z-50 min-w-[160px] rounded-lg border bg-white py-1 shadow-lg"
             style={{ left: ctxMenu.screenX, top: ctxMenu.screenY }}
           >
-            <button
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
-              onClick={() => { openEdit(ctxMenu.id, ctxMenu.type); setCtxMenu(null); }}
-            >
-              ✏️ Edit
-            </button>
+            {ctxMenu.type === 'label' && (
+              <button
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+                onClick={() => {
+                  const l = plan.labels.find(l => l.id === ctxMenu.id);
+                  if (l) setLabelEditForm({ id: l.id, text: l.text });
+                  setCtxMenu(null);
+                }}
+              >
+                ✏️ Edit label
+              </button>
+            )}
+            {ctxMenu.type === 'table' && (
+              <button
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+                onClick={() => { setEditSelectedId(ctxMenu.id); setCtxMenu(null); }}
+              >
+                ✏️ Edit table
+              </button>
+            )}
             <button
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-              onClick={() => { removeElement(ctxMenu.id, ctxMenu.type); setCtxMenu(null); }}
+              onClick={() => {
+                if (ctxMenu.type === 'table') { removeTable(ctxMenu.id); if (editSelectedId === ctxMenu.id) setEditSelectedId(null); }
+                else removeLabel(ctxMenu.id);
+                setCtxMenu(null);
+              }}
             >
-              🗑 Remove
+              <Trash2 className="w-3.5 h-3.5" />
+              {ctxMenu.type === 'table' ? 'Delete table' : 'Delete label'}
             </button>
           </div>
         </>
       )}
 
-      {/* ── Edit dialog ── */}
-      <Dialog open={!!editForm} onOpenChange={() => setEditForm(null)}>
+      {/* ── Label edit dialog ── */}
+      <Dialog open={!!labelEditForm} onOpenChange={() => setLabelEditForm(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>
-              {editForm?.type === 'table'
-                ? `Edit Table #${editForm.table_number}`
-                : 'Edit Label'}
-            </DialogTitle>
+            <DialogTitle>Edit Label</DialogTitle>
           </DialogHeader>
-
-          {editForm?.type === 'table' ? (
-            <div className="space-y-4 py-1">
-              <div>
-                <Label htmlFor="tnum">Table Number</Label>
-                <Input
-                  id="tnum"
-                  type="number"
-                  min={1}
-                  value={editForm.table_number}
-                  onChange={e =>
-                    setEditForm(f => f ? { ...f, table_number: Math.max(1, parseInt(e.target.value) || 1) } : f)
-                  }
-                  className="mt-1.5"
-                />
-              </div>
-
-              <div>
-                <Label>Shape</Label>
-                <div className="flex gap-2 mt-1.5">
-                  {(['round', 'square'] as FloorShape[]).map(s => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setEditForm(f => f ? { ...f, shape: s } : f)}
-                      className={cn(
-                        'flex-1 py-2 text-sm rounded-lg border transition-colors',
-                        editForm.shape === s
-                          ? 'bg-gray-900 text-white border-gray-900'
-                          : 'bg-white hover:bg-gray-50',
-                      )}
-                    >
-                      {s === 'round' ? '⭕ Round' : '⬛ Square'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label>Capacity</Label>
-                <div className="flex gap-2 mt-1.5">
-                  {([2, 4, 6, 8] as FloorCapacity[]).map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setEditForm(f => f ? { ...f, capacity: c } : f)}
-                      className={cn(
-                        'flex-1 py-2 text-sm rounded-lg border transition-colors',
-                        editForm.capacity === c
-                          ? 'bg-gray-900 text-white border-gray-900'
-                          : 'bg-white hover:bg-gray-50',
-                      )}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="py-1">
-              <Label htmlFor="ltext">Label Text</Label>
-              <Input
-                id="ltext"
-                value={editForm?.text ?? ''}
-                onChange={e => setEditForm(f => f ? { ...f, text: e.target.value } : f)}
-                placeholder="e.g. Patio, Main Hall, Bar"
-                className="mt-1.5"
-                autoFocus
-              />
-            </div>
-          )}
-
+          <div className="py-1">
+            <Label htmlFor="ltext">Label Text</Label>
+            <Input
+              id="ltext"
+              value={labelEditForm?.text ?? ''}
+              onChange={e => setLabelEditForm(f => f ? { ...f, text: e.target.value } : f)}
+              placeholder="e.g. Patio, Main Hall, Bar"
+              className="mt-1.5"
+              autoFocus
+            />
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditForm(null)}>Cancel</Button>
-            <Button onClick={commitEdit}>Save</Button>
+            <Button variant="outline" onClick={() => setLabelEditForm(null)}>Cancel</Button>
+            <Button onClick={commitLabelEdit}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── Table detail sheet ── */}
+      {/* ── Live status sheet ── */}
       <TableDetailSheet
-        table={selectedTable}
-        statusInfo={selectedStatusInfo}
-        onClose={() => setSelectedTableId(null)}
+        table={sheetTable}
+        statusInfo={sheetStatusInfo}
+        onClose={() => setSheetTableId(null)}
         onMarkAvailable={markTableAvailable}
         onAcknowledge={acknowledgeWaiterCall}
         acknowledging={acknowledging}
         markingAvailable={markingAvailable}
       />
+    </div>
+  );
+}
+
+// ─── FloatingToolbar ─────────────────────────────────────────────────────────
+
+interface FloatingToolbarProps {
+  table: FloorTable;
+  onCapacityChange: (c: FloorCapacity) => void;
+  onShapeChange: (s: FloorShape) => void;
+  onNumberCommit: (n: number) => void;
+  onDelete: () => void;
+  onViewStatus: () => void;
+}
+
+function FloatingToolbar({
+  table,
+  onCapacityChange,
+  onShapeChange,
+  onNumberCommit,
+  onDelete,
+  onViewStatus,
+}: FloatingToolbarProps) {
+  const [numVal, setNumVal] = useState(String(table.table_number));
+
+  // Keep local input in sync when the table number changes externally
+  useEffect(() => {
+    setNumVal(String(table.table_number));
+  }, [table.table_number]);
+
+  const { w, h } = tableSize(table.capacity);
+  // Show above by default; flip below if table is near the top
+  const showBelow = table.y < 90;
+
+  function commitNum() {
+    const n = parseInt(numVal, 10);
+    if (isNaN(n) || n < 1) { setNumVal(String(table.table_number)); return; }
+    onNumberCommit(n);
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: table.x + w / 2,
+        top: showBelow ? table.y + h + 8 : table.y - 8,
+        transform: showBelow ? 'translateX(-50%)' : 'translate(-50%, -100%)',
+        zIndex: 100,
+        pointerEvents: 'auto',
+      }}
+      // Stop pointer events bubbling to canvas (prevents deselect)
+      onPointerDown={e => e.stopPropagation()}
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl shadow-xl px-2 py-1.5 text-xs whitespace-nowrap">
+
+        {/* Table number input */}
+        <input
+          type="number"
+          min={1}
+          value={numVal}
+          onChange={e => setNumVal(e.target.value)}
+          onBlur={commitNum}
+          onKeyDown={e => { if (e.key === 'Enter') { commitNum(); (e.target as HTMLInputElement).blur(); } }}
+          className="w-10 text-center border border-gray-200 rounded-md text-xs py-0.5 font-mono [appearance:textfield] focus:outline-none focus:border-blue-400"
+          title="Table number"
+        />
+
+        <div className="w-px h-4 bg-gray-200 mx-0.5" />
+
+        {/* Shape toggle (only relevant for 2 and 4-seat tables) */}
+        {table.capacity <= 4 && (
+          <>
+            <button
+              onClick={() => onShapeChange(table.shape === 'round' ? 'square' : 'round')}
+              className="px-1.5 py-0.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600"
+              title={`Switch to ${table.shape === 'round' ? 'square' : 'round'}`}
+            >
+              {table.shape === 'round' ? '⭕' : '⬛'}
+            </button>
+            <div className="w-px h-4 bg-gray-200 mx-0.5" />
+          </>
+        )}
+
+        {/* Capacity buttons */}
+        {([2, 4, 6, 8] as FloorCapacity[]).map(c => (
+          <button
+            key={c}
+            onClick={() => onCapacityChange(c)}
+            className={cn(
+              'w-6 h-6 rounded-md text-xs font-medium transition-colors',
+              table.capacity === c
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-500 hover:bg-gray-100',
+            )}
+            title={`${c} seats`}
+          >
+            {c}
+          </button>
+        ))}
+
+        <div className="w-px h-4 bg-gray-200 mx-0.5" />
+
+        {/* View live status */}
+        <button
+          onClick={onViewStatus}
+          className="p-1 rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+          title="View live status"
+        >
+          <Eye className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Delete */}
+        <button
+          onClick={onDelete}
+          className="p-1 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+          title="Delete table (Del)"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -907,16 +1006,13 @@ function TableDetailSheet({
   markingAvailable,
 }: TableDetailSheetProps) {
   const open = !!table && !!statusInfo;
-  if (!open) {
-    return <Sheet open={false} onOpenChange={o => { if (!o) onClose(); }} />;
-  }
+  if (!open) return <Sheet open={false} onOpenChange={o => { if (!o) onClose(); }} />;
 
   const colors = STATUS_COLORS[statusInfo.status];
 
   return (
     <Sheet open onOpenChange={o => { if (!o) onClose(); }}>
       <SheetContent side="right" className="flex flex-col p-0 gap-0 overflow-hidden sm:max-w-md">
-        {/* Header */}
         <SheetHeader
           className="border-b p-4 flex-shrink-0"
           style={{ borderLeftColor: colors.border, borderLeftWidth: 4 }}
@@ -930,9 +1026,7 @@ function TableDetailSheet({
             </div>
             <div className="flex-1 min-w-0">
               <SheetTitle>Table {table.table_number}</SheetTitle>
-              <SheetDescription>
-                {table.capacity} seats · {table.shape}
-              </SheetDescription>
+              <SheetDescription>{table.capacity} seats · {table.shape}</SheetDescription>
             </div>
             <span
               className="text-xs font-medium px-2 py-1 rounded-full flex-shrink-0"
@@ -943,9 +1037,7 @@ function TableDetailSheet({
           </div>
         </SheetHeader>
 
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          {/* Waiter call banner */}
           {statusInfo.waiterCall && (
             <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-200">
               <Bell className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -962,23 +1054,16 @@ function TableDetailSheet({
                 onClick={() => onAcknowledge(statusInfo.waiterCall!.id)}
                 disabled={acknowledging}
               >
-                {acknowledging
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : 'Acknowledge'}
+                {acknowledging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Acknowledge'}
               </Button>
             </div>
           )}
 
-          {/* Orders */}
           {statusInfo.orders.length > 0 ? (
             <div>
-              <p className="text-sm font-semibold mb-3">
-                Active Orders ({statusInfo.orders.length})
-              </p>
+              <p className="text-sm font-semibold mb-3">Active Orders ({statusInfo.orders.length})</p>
               <div className="space-y-3">
-                {statusInfo.orders.map(order => (
-                  <OrderCard key={order.id} order={order} />
-                ))}
+                {statusInfo.orders.map(order => <OrderCard key={order.id} order={order} />)}
               </div>
             </div>
           ) : (
@@ -989,7 +1074,6 @@ function TableDetailSheet({
           )}
         </div>
 
-        {/* Footer actions */}
         <SheetFooter className="border-t bg-gray-50 p-4 flex-col gap-2 flex-shrink-0">
           {statusInfo.orders.length > 0 && (
             <Button
@@ -999,14 +1083,12 @@ function TableDetailSheet({
               disabled={markingAvailable}
             >
               {markingAvailable
-                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Clearing table…</>
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Clearing table…</>
                 : 'Mark Available'}
             </Button>
           )}
           <Button variant="outline" className="w-full" asChild>
-            <Link href="/dashboard/orders">
-              View Full Orders Dashboard
-            </Link>
+            <Link href="/dashboard/orders">View Full Orders Dashboard</Link>
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -1026,7 +1108,6 @@ const ORDER_STATUS_STYLE: Record<string, { bg: string; text: string; border: str
 
 function OrderCard({ order }: { order: Order }) {
   const st = ORDER_STATUS_STYLE[order.status] ?? ORDER_STATUS_STYLE.placed;
-
   return (
     <div className="rounded-lg border bg-white p-3 space-y-2.5">
       <div className="flex items-start justify-between gap-2">
@@ -1044,11 +1125,8 @@ function OrderCard({ order }: { order: Order }) {
             {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
           </p>
         </div>
-        <span className="text-sm font-semibold text-right flex-shrink-0">
-          {formatPrice(order.total)}
-        </span>
+        <span className="text-sm font-semibold text-right flex-shrink-0">{formatPrice(order.total)}</span>
       </div>
-
       {order.items && order.items.length > 0 && (
         <ul className="space-y-1 pt-2 border-t">
           {order.items.map(item => (
@@ -1075,9 +1153,7 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
   return (
     <div
       style={{
-        width: CANVAS_W,
-        height: CANVAS_H,
-        position: 'relative',
+        width: CANVAS_W, height: CANVAS_H, position: 'relative',
         backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)',
         backgroundSize: `${GRID}px ${GRID}px`,
       }}
@@ -1104,6 +1180,7 @@ interface TableElementProps {
   viewOnly?: boolean;
   statusInfo?: TableStatusInfo;
   isDragging?: boolean;
+  isSelected?: boolean;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
@@ -1112,24 +1189,16 @@ interface TableElementProps {
 }
 
 function TableElement({
-  table,
-  viewOnly,
-  statusInfo,
-  isDragging,
-  onClick,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onContextMenu,
+  table, viewOnly, statusInfo, isDragging, isSelected,
+  onClick, onPointerDown, onPointerMove, onPointerUp, onContextMenu,
 }: TableElementProps) {
   const { w, h } = tableSize(table.capacity);
   const isRound  = table.shape === 'round';
-
-  const status = statusInfo?.status;
-  const colors = status ? STATUS_COLORS[status] : null;
+  const status   = statusInfo?.status;
+  const colors   = status ? STATUS_COLORS[status] : null;
 
   const bg     = isDragging ? '#e0e7ff' : (colors?.bg     ?? '#f0f4ff');
-  const border = isDragging ? '#4f46e5' : (colors?.border ?? '#818cf8');
+  const border = isDragging ? '#4f46e5' : isSelected ? '#2563eb' : (colors?.border ?? '#818cf8');
   const text   = isDragging ? '#3730a3' : (colors?.text   ?? '#3730a3');
   const sub    = isDragging ? '#6366f1' : (colors?.sub    ?? '#6366f1');
 
@@ -1138,14 +1207,10 @@ function TableElement({
   return (
     <div
       style={{
-        position: 'absolute',
-        left: table.x,
-        top: table.y,
-        width: w,
-        height: h,
+        position: 'absolute', left: table.x, top: table.y, width: w, height: h,
         cursor: viewOnly ? 'pointer' : isDragging ? 'grabbing' : 'grab',
         touchAction: 'none',
-        zIndex: isDragging ? 50 : 2,
+        zIndex: isDragging ? 50 : isSelected ? 10 : 2,
       }}
       className={needsAttention ? 'animate-pulse' : undefined}
       onClick={viewOnly ? onClick : undefined}
@@ -1154,25 +1219,32 @@ function TableElement({
       onPointerUp={onPointerUp}
       onContextMenu={onContextMenu}
     >
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          borderRadius: isRound ? '50%' : 10,
-          background: bg,
-          border: `2px solid ${border}`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: isDragging
-            ? '0 8px 24px rgba(79,70,229,0.25)'
+      {/* Selection ring */}
+      {isSelected && (
+        <div style={{
+          position: 'absolute', inset: -4,
+          borderRadius: isRound ? '50%' : 14,
+          border: '2px solid #2563eb',
+          opacity: 0.5,
+          pointerEvents: 'none',
+        }} />
+      )}
+
+      <div style={{
+        width: '100%', height: '100%',
+        borderRadius: isRound ? '50%' : 10,
+        background: bg,
+        border: `2px solid ${border}`,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        boxShadow: isDragging
+          ? '0 8px 24px rgba(79,70,229,0.25)'
+          : isSelected
+            ? '0 0 0 3px rgba(37,99,235,0.2), 0 2px 8px rgba(0,0,0,0.12)'
             : needsAttention
               ? '0 0 0 3px rgba(239,68,68,0.25)'
               : '0 2px 6px rgba(0,0,0,0.08)',
-          transition: isDragging ? 'none' : 'box-shadow 0.15s, background 0.25s, border-color 0.25s',
-        }}
-      >
+        transition: isDragging ? 'none' : 'box-shadow 0.15s, background 0.25s, border-color 0.25s',
+      }}>
         <span style={{ fontWeight: 700, fontSize: 13, color: text, lineHeight: 1 }}>
           #{table.table_number}
         </span>
@@ -1196,45 +1268,27 @@ interface LabelElementProps {
   onContextMenu?: (e: React.MouseEvent) => void;
 }
 
-function LabelElement({
-  label,
-  viewOnly,
-  isDragging,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onContextMenu,
-}: LabelElementProps) {
+function LabelElement({ label, viewOnly, isDragging, onPointerDown, onPointerMove, onPointerUp, onContextMenu }: LabelElementProps) {
   return (
     <div
       style={{
-        position: 'absolute',
-        left: label.x,
-        top: label.y,
+        position: 'absolute', left: label.x, top: label.y,
         cursor: viewOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
-        touchAction: 'none',
-        zIndex: isDragging ? 50 : 1,
+        touchAction: 'none', zIndex: isDragging ? 50 : 1,
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onContextMenu={onContextMenu}
     >
-      <div
-        style={{
-          padding: '4px 12px',
-          borderRadius: 5,
-          background: isDragging ? 'rgba(0,0,0,0.09)' : 'rgba(0,0,0,0.05)',
-          border: '1.5px dashed #94a3b8',
-          fontSize: 13,
-          fontWeight: 600,
-          color: '#475569',
-          whiteSpace: 'nowrap',
-          boxShadow: isDragging ? '0 4px 12px rgba(0,0,0,0.12)' : 'none',
-          letterSpacing: '0.03em',
-          textTransform: 'uppercase',
-        }}
-      >
+      <div style={{
+        padding: '4px 12px', borderRadius: 5,
+        background: isDragging ? 'rgba(0,0,0,0.09)' : 'rgba(0,0,0,0.05)',
+        border: '1.5px dashed #94a3b8', fontSize: 13, fontWeight: 600,
+        color: '#475569', whiteSpace: 'nowrap',
+        boxShadow: isDragging ? '0 4px 12px rgba(0,0,0,0.12)' : 'none',
+        letterSpacing: '0.03em', textTransform: 'uppercase',
+      }}>
         {label.text}
       </div>
     </div>
