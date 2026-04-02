@@ -22,7 +22,8 @@
       "Bash(npx supabase:*)",
       "Bash(vercel --prod)",
       "Bash(npm run:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(echo \"EXIT:$?\")"
     ]
   }
 }

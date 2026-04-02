@@ -6,9 +6,17 @@ import { Loader2, Upload, ExternalLink, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
-import type { Restaurant } from '@/types';
+import { INDIAN_STATES } from '@/lib/constants';
+import type { BillingConfig, Restaurant } from '@/types';
 
 interface Props {
   restaurant: Restaurant;
@@ -38,8 +46,29 @@ function toForm(r: Restaurant): FormState {
   };
 }
 
+const DEFAULT_BILLING: BillingConfig = {
+  gstin: '',
+  fssai: '',
+  gst_rate: 5,
+  service_charge_enabled: false,
+  service_charge_percent: 10,
+  sac_code: '996331',
+  legal_name: '',
+  billing_address: '',
+  state: '',
+};
+
+function toBillingForm(r: Restaurant): BillingConfig {
+  return {
+    ...DEFAULT_BILLING,
+    ...(r.billing_config ?? {}),
+  };
+}
+
 export default function SettingsClient({ restaurant }: Props) {
   const [form, setForm] = useState<FormState>(toForm(restaurant));
+  const [billing, setBilling] = useState<BillingConfig>(() => toBillingForm(restaurant));
+  const [billingErrors, setBillingErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -56,12 +85,32 @@ export default function SettingsClient({ restaurant }: Props) {
     setErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
   }
 
+  function setBill<K extends keyof BillingConfig>(key: K, value: BillingConfig[K]) {
+    setBilling((prev) => ({ ...prev, [key]: value }));
+    setBillingErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
+  }
+
   function validate() {
     const errs: Record<string, string> = {};
     if (!form.name.trim()) errs.name = 'Restaurant name is required';
     if (form.phone && (form.phone.length < 10 || form.phone.length > 15))
       errs.phone = 'Enter a valid phone number';
     setErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
+  function validateBilling(): boolean {
+    const errs: Record<string, string> = {};
+    if (billing.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(billing.gstin)) {
+      errs.gstin = 'Invalid GSTIN format (e.g. 27AAPFU0939F1ZV)';
+    }
+    if (billing.fssai && !/^\d{14}$/.test(billing.fssai)) {
+      errs.fssai = 'FSSAI number must be 14 digits';
+    }
+    if (billing.service_charge_enabled && (billing.service_charge_percent < 0 || billing.service_charge_percent > 20)) {
+      errs.service_charge_percent = 'Service charge must be between 0% and 20%';
+    }
+    setBillingErrors(errs);
     return Object.keys(errs).length === 0;
   }
 
@@ -136,6 +185,7 @@ export default function SettingsClient({ restaurant }: Props) {
 
   async function handleSave() {
     if (!validate()) return;
+    if (!validateBilling()) return;
     setSaving(true);
     try {
       const supabase = createClient();
@@ -150,6 +200,7 @@ export default function SettingsClient({ restaurant }: Props) {
           closing_time: form.closing_time,
           logo_url: form.logo_url || null,
           stitch_project_id: form.stitch_project_id.trim() || null,
+          billing_config: billing,
         })
         .eq('id', restaurant.id);
 
@@ -356,6 +407,137 @@ export default function SettingsClient({ restaurant }: Props) {
                 </div>
               </div>
             </div>
+          )}
+        </Section>
+
+        {/* ── Tax & Billing ── */}
+        <Section title="Tax &amp; Billing">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="GSTIN" error={billingErrors.gstin}>
+              <Input
+                value={billing.gstin}
+                onChange={(e) => setBill('gstin', e.target.value.toUpperCase())}
+                placeholder="27AAPFU0939F1ZV"
+                maxLength={15}
+                className="font-mono"
+              />
+            </Field>
+            <Field label="FSSAI License No." error={billingErrors.fssai}>
+              <Input
+                value={billing.fssai}
+                onChange={(e) => setBill('fssai', e.target.value.replace(/\D/g, ''))}
+                placeholder="14-digit number"
+                maxLength={14}
+                className="font-mono"
+              />
+            </Field>
+          </div>
+
+          <Field label="Legal Name (for bills)">
+            <Input
+              value={billing.legal_name}
+              onChange={(e) => setBill('legal_name', e.target.value)}
+              placeholder="Same as restaurant name if blank"
+            />
+          </Field>
+
+          <Field label="Billing Address">
+            <Input
+              value={billing.billing_address}
+              onChange={(e) => setBill('billing_address', e.target.value)}
+              placeholder="Full address shown on bill"
+            />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="State">
+              <Select value={billing.state || '__none__'} onValueChange={(v) => setBill('state', v === '__none__' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select state —</SelectItem>
+                  {INDIAN_STATES.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="SAC Code">
+              <Input
+                value={billing.sac_code}
+                onChange={(e) => setBill('sac_code', e.target.value)}
+                placeholder="996331"
+                className="font-mono"
+              />
+            </Field>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground uppercase tracking-wide text-xs">GST Rate</Label>
+            <div className="flex gap-3">
+              {([5, 18] as const).map((rate) => (
+                <label key={rate} className={cn(
+                  'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border cursor-pointer transition-colors',
+                  billing.gst_rate === rate
+                    ? 'bg-blue-50 border-blue-400 text-blue-800'
+                    : 'border-gray-200 hover:bg-gray-50'
+                )}>
+                  <input
+                    type="radio"
+                    name="gst_rate"
+                    value={rate}
+                    checked={billing.gst_rate === rate}
+                    onChange={() => setBill('gst_rate', rate)}
+                    className="sr-only"
+                  />
+                  <div className="text-center">
+                    <div className="font-bold text-sm">{rate}% GST</div>
+                    <div className="text-xs opacity-70">
+                      {rate === 5 ? 'Standard restaurant' : 'Specified premises'}
+                    </div>
+                    <div className="text-xs opacity-60">
+                      {rate === 5 ? 'CGST 2.5% + SGST 2.5%' : 'CGST 9% + SGST 9%'}
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+            <div>
+              <p className="text-sm font-medium">Service Charge</p>
+              <p className="text-xs text-muted-foreground">Applied before GST, not taxable</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBill('service_charge_enabled', !billing.service_charge_enabled)}
+              className={cn(
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                billing.service_charge_enabled ? 'bg-blue-600' : 'bg-gray-200'
+              )}
+            >
+              <span className={cn(
+                'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                billing.service_charge_enabled ? 'translate-x-6' : 'translate-x-1'
+              )} />
+            </button>
+          </div>
+
+          {billing.service_charge_enabled && (
+            <Field label="Service Charge %" error={billingErrors.service_charge_percent}>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  max="20"
+                  step="0.5"
+                  value={billing.service_charge_percent}
+                  onChange={(e) => setBill('service_charge_percent', parseFloat(e.target.value) || 0)}
+                  className="w-28"
+                />
+                <span className="text-sm text-muted-foreground">% of subtotal (common: 5, 7.5, 10)</span>
+              </div>
+            </Field>
           )}
         </Section>
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { BellRing, ChefHat, PackageCheck, CheckCheck, XCircle, Printer } from 'lucide-react';
+import { BellRing, ChefHat, PackageCheck, CheckCheck, XCircle, Printer, ReceiptText } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
 import { ORDER_STATUSES } from '@/lib/constants';
@@ -140,6 +140,17 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
     }
   }
 
+  function handlePrintBill(order: Order) {
+    const config = restaurant.billing_config;
+    if (!config?.gstin && !config?.legal_name) {
+      toast.error('Set up Tax & Billing in Settings first');
+      return;
+    }
+    import('@/lib/billing').then(({ printCustomerBill }) => {
+      printCustomerBill(order, restaurant, config!);
+    });
+  }
+
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = orders.filter((o) => {
     if (filter === 'active')    return o.status === 'placed' || o.status === 'preparing' || o.status === 'ready';
@@ -210,6 +221,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
             <OrderCard
               key={order.id}
               order={order}
+              restaurant={restaurant}
               onAdvance={
                 order.status === 'placed'
                   ? () => openAcceptDialog(order)   // ← shows print dialog first
@@ -217,6 +229,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
               }
               onCancel={() => cancelOrder(order)}
               onReprint={() => openReprintDialog(order)}
+              onPrintBill={() => handlePrintBill(order)}
               isUpdating={updating === order.id}
             />
           ))}
@@ -240,13 +253,15 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
 interface OrderCardProps {
   order: Order;
+  restaurant: Restaurant;
   onAdvance: () => void;
   onCancel: () => void;
   onReprint: () => void;
+  onPrintBill: () => void;
   isUpdating: boolean;
 }
 
-function OrderCard({ order, onAdvance, onCancel, onReprint, isUpdating }: OrderCardProps) {
+function OrderCard({ order, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
   const statusMeta = ORDER_STATUSES.find((s) => s.value === order.status);
   const isTerminal = order.status === 'delivered' || order.status === 'cancelled';
 
@@ -278,6 +293,15 @@ function OrderCard({ order, onAdvance, onCancel, onReprint, isUpdating }: OrderC
               title="Reprint KOT"
             >
               <Printer className="w-4 h-4" />
+            </button>
+          )}
+          {!isTerminal && (
+            <button
+              onClick={onPrintBill}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-gray-100 transition-colors"
+              title="Print Customer Bill"
+            >
+              <ReceiptText className="w-4 h-4" />
             </button>
           )}
           <span className={cn('text-xs font-semibold px-2 py-1 rounded-full', statusMeta?.color)}>

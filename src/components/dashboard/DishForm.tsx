@@ -21,8 +21,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { SPICE_LEVELS, ALLERGEN_OPTIONS } from '@/lib/constants';
-import type { Category, Product } from '@/types';
+import { SPICE_LEVELS, ALLERGEN_OPTIONS, TAX_CATEGORIES } from '@/lib/constants';
+import type { Category, Product, TaxCategory } from '@/types';
 
 // ── Client-side image compression ────────────────────────────────────────────
 
@@ -89,6 +89,7 @@ interface FormState {
   spice_level: number;
   allergens: string[];
   image_url: string;
+  tax_category: TaxCategory;
 }
 
 function getInitialState(product?: Product | null): FormState {
@@ -104,6 +105,7 @@ function getInitialState(product?: Product | null): FormState {
       spice_level: product.spice_level,
       allergens: product.allergens ?? [],
       image_url: product.image_url ?? '',
+      tax_category: product.tax_category ?? 'food',
     };
   }
   return {
@@ -117,6 +119,7 @@ function getInitialState(product?: Product | null): FormState {
     spice_level: 1,
     allergens: [],
     image_url: '',
+    tax_category: 'food',
   };
 }
 
@@ -305,6 +308,7 @@ export default function DishForm({
         spice_level: form.spice_level,
         allergens: form.allergens,
         image_url: form.image_url || null,
+        tax_category: form.tax_category,
       };
 
       if (editProduct) {
@@ -445,6 +449,29 @@ export default function DishForm({
                 rows={2}
               />
             )}
+          </div>
+
+          {/* Tax Category */}
+          <div className="space-y-1">
+            <Label>Tax Category</Label>
+            <Select value={form.tax_category} onValueChange={(v) => set('tax_category', v as TaxCategory)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TAX_CATEGORIES.map((tc) => (
+                  <SelectItem key={tc.value} value={tc.value}>
+                    <div>
+                      <span className="font-medium">{tc.label}</span>
+                      <span className="text-xs text-muted-foreground ml-2">{tc.hint}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {TAX_CATEGORIES.find((t) => t.value === form.tax_category)?.hint}
+            </p>
           </div>
 
           {/* Veg / Jain toggles */}

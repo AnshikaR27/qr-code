@@ -1,3 +1,19 @@
+// ─── Billing ──────────────────────────────────────────────────────────────────
+
+export type TaxCategory = 'food' | 'packaged' | 'beverage_aerated';
+
+export interface BillingConfig {
+  gstin: string;
+  fssai: string;
+  gst_rate: 5 | 18;
+  service_charge_enabled: boolean;
+  service_charge_percent: number;
+  sac_code: string;
+  legal_name: string;
+  billing_address: string;
+  state: string;
+}
+
 // ─── Floor plan ───────────────────────────────────────────────────────────────
 
 export type FloorShape    = 'round' | 'square';
@@ -54,6 +70,7 @@ export interface Restaurant {
   stitch_project_id: string | null;
   design_tokens: Record<string, string> | null;
   floor_plan: FloorPlan | null;
+  billing_config: BillingConfig | null;
   created_at: string;
   updated_at: string;
 }
@@ -82,6 +99,7 @@ export interface Product {
   is_available: boolean;
   sort_order: number;
   order_count: number;
+  tax_category: TaxCategory;
 }
 
 export interface Table {
@@ -121,6 +139,7 @@ export interface OrderItem {
   quantity: number;
   notes: string | null;
   category_name: string | null;
+  tax_category: TaxCategory;
 }
 
 // Cart (client-side only, Zustand store)
