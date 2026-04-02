@@ -122,7 +122,7 @@ export default function GlobalNotifications({ restaurantId, restaurantName }: Pr
           if (isFirstRender.current) return;
           const { data } = await supabase
             .from('waiter_calls')
-            .select('*, table:tables(table_number)')
+            .select('*, table:tables(table_number, display_name)')
             .eq('id', payload.new.id)
             .single();
           if (data) {
@@ -206,7 +206,7 @@ export default function GlobalNotifications({ restaurantId, restaurantName }: Pr
               <span className="text-2xl" aria-hidden>🔔</span>
               <div>
                 <p className="text-base font-bold text-red-800">
-                  {call.table ? `Table ${call.table.table_number}` : 'A table'} is calling for a waiter!
+                  {call.table ? `Table ${call.table.display_name?.trim() || call.table.table_number}` : 'A table'} is calling for a waiter!
                 </p>
                 <p className="text-xs text-red-500 mt-0.5">
                   {formatDistanceToNow(new Date(call.created_at), { addSuffix: true })}
@@ -225,7 +225,7 @@ export default function GlobalNotifications({ restaurantId, restaurantName }: Pr
         {/* New order banners */}
         {pendingNewOrders.map((order) => {
           const count = order.items?.length ?? 0;
-          const tableLabel = order.table ? `Table ${order.table.table_number}` : 'Dine In';
+          const tableLabel = order.table ? `Table ${order.table.display_name?.trim() || order.table.table_number}` : 'Dine In';
           return (
             <div
               key={order.id}

@@ -7,6 +7,8 @@ export interface FloorTable {
   /** Same UUID as tables.id — keeps floor plan in sync with orders */
   id: string;
   table_number: number;
+  /** Human-readable label shown in the UI (e.g. "L1", "VIP2"). Falls back to #table_number when null. */
+  display_name: string | null;
   x: number;
   y: number;
   shape: FloorShape;
@@ -86,6 +88,7 @@ export interface Table {
   id: string;
   restaurant_id: string;
   table_number: number;
+  display_name?: string | null;
   qr_code_url: string | null;
 }
 

@@ -61,6 +61,11 @@ function snap(v: number) {
   return Math.round(v / GRID) * GRID;
 }
 
+/** Prefer display_name when set, fall back to #table_number. */
+function tableLabel(t: { table_number: number; display_name?: string | null }): string {
+  return t.display_name?.trim() || `#${t.table_number}`;
+}
+
 /** Size by capacity. Round = border-radius 50%, square = 10px. */
 function tableSize(capacity: FloorCapacity) {
   if (capacity <= 2) return { w: 70,  h: 70 };
@@ -135,9 +140,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [draggingId, setDraggingId]   = useState<string | null>(null);
   const [isMobile, setIsMobile]       = useState(false);
 
-  // Pending shape/capacity for the "Add Table" placement flow
-  const [pendingShape, setPendingShape]       = useState<FloorShape>('round');
-  const [pendingCapacity, setPendingCapacity] = useState<FloorCapacity>(4);
+  // Pending shape/capacity/name for the "Add Table" placement flow
+  const [pendingShape, setPendingShape]           = useState<FloorShape>('round');
+  const [pendingCapacity, setPendingCapacity]     = useState<FloorCapacity>(4);
+  const [pendingDisplayName, setPendingDisplayName] = useState('');
 
   // Selected table for the floating edit toolbar
   const [editSelectedId, setEditSelectedId] = useState<string | null>(null);
@@ -319,6 +325,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               id: t.id,
               restaurant_id: restaurant.id,
               table_number: t.table_number,
+              display_name: t.display_name ?? null,
             })),
             { onConflict: 'id' },
           );
@@ -408,8 +415,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const y    = snap(Math.max(0, e.clientY - rect.top));
 
     if (mode === 'addTable') {
-      placeTable(x, y);
-      setMode('select');
+      placeTable(x, y); // placeTable already calls setMode('select')
     } else if (mode === 'addLabel') {
       placeLabel(x, y);
       setMode('select');
@@ -419,10 +425,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   function placeTable(x: number, y: number) {
     const existingNumbers = plan.tables.map(t => t.table_number);
     const nextNum = existingNumbers.length === 0 ? 1 : Math.max(...existingNumbers) + 1;
+    const name = pendingDisplayName.trim() || null;
+
+    // Duplicate display_name check
+    if (name && plan.tables.some(t => t.display_name?.trim() === name)) {
+      toast.error(`Name "${name}" is already used on the canvas`);
+      return;
+    }
 
     const ft: FloorTable = {
       id: crypto.randomUUID(),
       table_number: nextNum,
+      display_name: name,
       x, y,
       shape: pendingShape,
       capacity: pendingCapacity,
@@ -430,6 +444,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
     updatePlan(prev => ({ ...prev, tables: [...prev.tables, ft] }));
     setEditSelectedId(ft.id);
+    setPendingDisplayName('');
+    setMode('select');
   }
 
   function placeLabel(x: number, y: number) {
@@ -452,16 +468,15 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     }));
   }
 
-  function commitTableNumber(tableId: string, newNumber: number, oldNumber: number) {
-    if (newNumber === oldNumber) return;
-    // Duplicate number check against canvas state only
-    if (plan.tables.some(t => t.id !== tableId && t.table_number === newNumber)) {
-      toast.error(`Table #${newNumber} already exists on the canvas`);
+  function commitDisplayName(tableId: string, newName: string) {
+    const trimmed = newName.trim();
+    if (trimmed && plan.tables.some(t => t.id !== tableId && t.display_name?.trim() === trimmed)) {
+      toast.error(`Name "${trimmed}" is already used on the canvas`);
       return;
     }
     updatePlan(prev => ({
       ...prev,
-      tables: prev.tables.map(t => t.id === tableId ? { ...t, table_number: newNumber } : t),
+      tables: prev.tables.map(t => t.id === tableId ? { ...t, display_name: trimmed || null } : t),
     }));
   }
 
@@ -615,7 +630,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         <Button
           size="sm"
           variant={mode === 'addTable' ? 'default' : 'outline'}
-          onClick={() => { setMode(m => m === 'addTable' ? 'select' : 'addTable'); setEditSelectedId(null); }}
+          onClick={() => { setMode(m => m === 'addTable' ? 'select' : 'addTable'); setEditSelectedId(null); setPendingDisplayName(''); }}
         >
           <Plus className="w-4 h-4 mr-1.5" />
           Add Table
@@ -697,6 +712,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       {/* ── Add-table config bar ── */}
       {mode === 'addTable' && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5 bg-blue-50 border-b flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-blue-700 font-medium">Name:</span>
+            <input
+              type="text"
+              value={pendingDisplayName}
+              onChange={e => setPendingDisplayName(e.target.value)}
+              placeholder="e.g. L1, VIP, P3"
+              maxLength={12}
+              className="w-28 text-xs border border-blue-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-blue-400"
+            />
+          </div>
+          <div className="h-4 w-px bg-blue-200" />
           <div className="flex items-center gap-2">
             <span className="text-xs text-blue-700 font-medium">Shape:</span>
             {(['round', 'square'] as FloorShape[]).map(s => (
@@ -797,7 +824,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               table={editSelectedTable}
               onCapacityChange={c => changeCapacity(editSelectedTable.id, c)}
               onShapeChange={s => changeShape(editSelectedTable.id, s)}
-              onNumberCommit={(n) => commitTableNumber(editSelectedTable.id, n, editSelectedTable.table_number)}
+              onDisplayNameCommit={(name) => commitDisplayName(editSelectedTable.id, name)}
               onDelete={() => { removeTable(editSelectedTable.id); setEditSelectedId(null); }}
               onViewStatus={() => setSheetTableId(editSelectedTable.id)}
             />
@@ -894,7 +921,7 @@ interface FloatingToolbarProps {
   table: FloorTable;
   onCapacityChange: (c: FloorCapacity) => void;
   onShapeChange: (s: FloorShape) => void;
-  onNumberCommit: (n: number) => void;
+  onDisplayNameCommit: (name: string) => void;
   onDelete: () => void;
   onViewStatus: () => void;
 }
@@ -903,25 +930,23 @@ function FloatingToolbar({
   table,
   onCapacityChange,
   onShapeChange,
-  onNumberCommit,
+  onDisplayNameCommit,
   onDelete,
   onViewStatus,
 }: FloatingToolbarProps) {
-  const [numVal, setNumVal] = useState(String(table.table_number));
+  const [nameVal, setNameVal] = useState(table.display_name ?? '');
 
-  // Keep local input in sync when the table number changes externally
+  // Keep local input in sync when display_name changes externally
   useEffect(() => {
-    setNumVal(String(table.table_number));
-  }, [table.table_number]);
+    setNameVal(table.display_name ?? '');
+  }, [table.display_name]);
 
   const { w, h } = tableSize(table.capacity);
   // Show above by default; flip below if table is near the top
   const showBelow = table.y < 90;
 
-  function commitNum() {
-    const n = parseInt(numVal, 10);
-    if (isNaN(n) || n < 1) { setNumVal(String(table.table_number)); return; }
-    onNumberCommit(n);
+  function commitName() {
+    onDisplayNameCommit(nameVal);
   }
 
   return (
@@ -940,16 +965,17 @@ function FloatingToolbar({
     >
       <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl shadow-xl px-2 py-1.5 text-xs whitespace-nowrap">
 
-        {/* Table number input */}
+        {/* Display name input */}
         <input
-          type="number"
-          min={1}
-          value={numVal}
-          onChange={e => setNumVal(e.target.value)}
-          onBlur={commitNum}
-          onKeyDown={e => { if (e.key === 'Enter') { commitNum(); (e.target as HTMLInputElement).blur(); } }}
-          className="w-10 text-center border border-gray-200 rounded-md text-xs py-0.5 font-mono [appearance:textfield] focus:outline-none focus:border-blue-400"
-          title="Table number"
+          type="text"
+          maxLength={12}
+          value={nameVal}
+          onChange={e => setNameVal(e.target.value)}
+          onBlur={commitName}
+          onKeyDown={e => { if (e.key === 'Enter') { commitName(); (e.target as HTMLInputElement).blur(); } }}
+          placeholder={`#${table.table_number}`}
+          className="w-16 text-center border border-gray-200 rounded-md text-xs py-0.5 font-mono focus:outline-none focus:border-blue-400"
+          title="Table name (e.g. L1, VIP)"
         />
 
         <div className="w-px h-4 bg-gray-200 mx-0.5" />
@@ -1051,10 +1077,10 @@ function TableDetailSheet({
               className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0"
               style={{ background: colors.bg, color: colors.text }}
             >
-              #{table.table_number}
+              {tableLabel(table)}
             </div>
             <div className="flex-1 min-w-0">
-              <SheetTitle>Table {table.table_number}</SheetTitle>
+              <SheetTitle>Table {tableLabel(table)}</SheetTitle>
               <SheetDescription>{table.capacity} seats · {table.shape}</SheetDescription>
             </div>
             <span
@@ -1384,7 +1410,7 @@ function TableElement({
         transition: isDragging ? 'none' : 'box-shadow 0.15s, background 0.25s, border-color 0.25s',
       }}>
         <span style={{ fontWeight: 700, fontSize: 13, color: text, lineHeight: 1 }}>
-          #{table.table_number}
+          {tableLabel(table)}
         </span>
         <span style={{ fontSize: 11, color: sub, marginTop: 3 }}>
           {table.capacity}p

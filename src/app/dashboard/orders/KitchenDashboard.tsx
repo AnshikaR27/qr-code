@@ -291,7 +291,7 @@ function OrderCard({ order, onAdvance, onCancel, onReprint, isUpdating }: OrderC
       <div className="px-4 py-2 border-b bg-gray-50">
         <p className="text-sm font-medium">
           {order.order_type === 'dine_in'
-            ? order.table ? `🪑 Table ${order.table.table_number}` : '🪑 Dine In'
+            ? order.table ? `🪑 Table ${order.table.display_name?.trim() || order.table.table_number}` : '🪑 Dine In'
             : `🛍️ Parcel${order.customer_name ? ` — ${order.customer_name}` : ''}`}
         </p>
         {order.customer_phone && (

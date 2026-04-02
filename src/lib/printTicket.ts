@@ -31,8 +31,11 @@ function buildTicketHtml(
     day: '2-digit', month: '2-digit', year: 'numeric',
   });
 
+  const tableDisplay = order.table
+    ? (order.table.display_name?.trim() || String(order.table.table_number))
+    : null;
   const tableInfo = order.order_type === 'dine_in'
-    ? (order.table ? `TABLE: ${order.table.table_number}` : 'DINE-IN')
+    ? (tableDisplay ? `TABLE: ${tableDisplay}` : 'DINE-IN')
     : `PARCEL${order.customer_name ? ` \u2014 ${order.customer_name.toUpperCase()}` : ''}`;
 
   const kotStr = String(kotNumber).padStart(3, '0');

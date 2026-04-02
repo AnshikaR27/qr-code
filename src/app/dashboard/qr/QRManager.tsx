@@ -87,14 +87,18 @@ export default function QRManager({ restaurant, initialTables }: Props) {
     }
   }
 
+  function tLabel(table: QRTable) {
+    return table.display_name?.trim() || `#${table.table_number}`;
+  }
+
   async function deleteTable(table: QRTable) {
-    if (!confirm(`Delete QR for Table ${table.table_number}?`)) return;
+    if (!confirm(`Delete QR for Table ${tLabel(table)}?`)) return;
     try {
       const supabase = createClient();
       const { error } = await supabase.from('tables').delete().eq('id', table.id);
       if (error) throw error;
       setTables((prev) => prev.filter((t) => t.id !== table.id));
-      toast.success(`Table ${table.table_number} deleted`);
+      toast.success(`Table ${tLabel(table)} deleted`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete table');
     }
@@ -104,7 +108,7 @@ export default function QRManager({ restaurant, initialTables }: Props) {
     if (!table.qrDataUrl) return;
     const a = document.createElement('a');
     a.href = table.qrDataUrl;
-    a.download = `${restaurant.slug}-table-${table.table_number}.png`;
+    a.download = `${restaurant.slug}-table-${tLabel(table)}.png`;
     a.click();
   }
 
@@ -147,7 +151,7 @@ export default function QRManager({ restaurant, initialTables }: Props) {
 
         // Table number
         pdf.setFontSize(12);
-        pdf.text(`Table ${table.table_number}`, x + qrSize / 2, y + qrSize + 12, {
+        pdf.text(`Table ${tLabel(table)}`, x + qrSize / 2, y + qrSize + 12, {
           align: 'center',
         });
       }
@@ -239,7 +243,7 @@ export default function QRManager({ restaurant, initialTables }: Props) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={table.qrDataUrl}
-                    alt={`Table ${table.table_number} QR`}
+                    alt={`Table ${tLabel(table)} QR`}
                     className="w-full h-full object-contain p-1"
                   />
                 ) : (
@@ -250,7 +254,7 @@ export default function QRManager({ restaurant, initialTables }: Props) {
               {/* Label */}
               <div className="text-center">
                 <p className="font-semibold text-sm">{restaurant.name}</p>
-                <p className="text-xs text-muted-foreground">Table {table.table_number}</p>
+                <p className="text-xs text-muted-foreground">Table {tLabel(table)}</p>
               </div>
 
               {/* Actions */}
