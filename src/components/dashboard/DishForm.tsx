@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Upload, X, Leaf, FlameKindling } from 'lucide-react';
+import { Loader2, Upload, X, Leaf, FlameKindling, RefreshCw } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -132,7 +132,11 @@ export default function DishForm({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isAiDesc, setIsAiDesc] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const descriptionManuallyEdited = useRef(false);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Shared upload logic used by both the file picker and clipboard paste
   const uploadFile = useCallback(async (file: File) => {
@@ -160,6 +164,54 @@ export default function DishForm({
       setUploading(false);
     }
   }, []);
+
+  // Reset AI state when dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      descriptionManuallyEdited.current = !!editProduct?.description;
+      setIsAiDesc(false);
+    }
+  }, [open, editProduct]);
+
+  // AI description generation
+  const generateDescription = useCallback(async (force = false) => {
+    if (descriptionManuallyEdited.current && !force) return;
+    const name = form.name.trim();
+    if (name.length < 2) return;
+    const categoryName = categories.find((c) => c.id === form.category_id)?.name;
+    setIsGenerating(true);
+    try {
+      const res = await fetch('/api/generate-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dishName: name, categoryName }),
+      });
+      if (!res.ok) return;
+      const data = await res.json() as { description?: string };
+      if (data.description) {
+        setForm((prev) => ({ ...prev, description: data.description! }));
+        setIsAiDesc(true);
+        descriptionManuallyEdited.current = false;
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [form.name, form.category_id, categories]);
+
+  // Debounced auto-generate on dish name change (new dishes only)
+  useEffect(() => {
+    if (editProduct) return; // don't auto-generate in edit mode
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      generateDescription();
+    }, 800);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.name]);
 
   // Listen for Ctrl+V paste when the dialog is open
   useEffect(() => {
@@ -353,14 +405,46 @@ export default function DishForm({
 
           {/* Description */}
           <div className="space-y-1">
-            <Label htmlFor="dish-desc">Description</Label>
-            <Textarea
-              id="dish-desc"
-              value={form.description}
-              onChange={(e) => set('description', e.target.value)}
-              placeholder="Short description (optional)"
-              rows={2}
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="dish-desc">Description</Label>
+              <div className="flex items-center gap-2">
+                {isAiDesc && !isGenerating && (
+                  <span className="text-xs text-violet-600 font-medium">✨ AI generated</span>
+                )}
+                {(form.name.trim().length >= 2) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      descriptionManuallyEdited.current = false;
+                      generateDescription(true);
+                    }}
+                    disabled={isGenerating}
+                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-gray-100 transition-colors disabled:opacity-40"
+                    title="Regenerate description"
+                  >
+                    <RefreshCw className={cn('w-3.5 h-3.5', isGenerating && 'animate-spin')} />
+                  </button>
+                )}
+              </div>
+            </div>
+            {isGenerating ? (
+              <div className="h-16 rounded-md border bg-gray-50 flex items-center px-3 gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground flex-shrink-0" />
+                <span className="text-sm text-muted-foreground">Generating description…</span>
+              </div>
+            ) : (
+              <Textarea
+                id="dish-desc"
+                value={form.description}
+                onChange={(e) => {
+                  descriptionManuallyEdited.current = true;
+                  setIsAiDesc(false);
+                  set('description', e.target.value);
+                }}
+                placeholder="Short description (optional)"
+                rows={2}
+              />
+            )}
           </div>
 
           {/* Veg / Jain toggles */}

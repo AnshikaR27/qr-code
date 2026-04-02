@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { toast } from 'sonner';
-import { Loader2, Download, Trash2, QrCode, Plus } from 'lucide-react';
+import { Loader2, Download, Trash2, QrCode, Plus, Pencil, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -110,6 +110,24 @@ export default function QRManager({ restaurant, initialTables }: Props) {
     a.href = table.qrDataUrl;
     a.download = `${restaurant.slug}-table-${tLabel(table)}.png`;
     a.click();
+  }
+
+  async function renameTable(table: QRTable, newName: string) {
+    const trimmed = newName.trim();
+    if (trimmed === (table.display_name?.trim() ?? '')) return; // no change
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('tables')
+        .update({ display_name: trimmed || null })
+        .eq('id', table.id);
+      if (error) throw error;
+      setTables((prev) =>
+        prev.map((t) => t.id === table.id ? { ...t, display_name: trimmed || null } : t)
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to rename table');
+    }
   }
 
   async function downloadAll() {
@@ -252,10 +270,11 @@ export default function QRManager({ restaurant, initialTables }: Props) {
               </div>
 
               {/* Label */}
-              <div className="text-center">
-                <p className="font-semibold text-sm">{restaurant.name}</p>
-                <p className="text-xs text-muted-foreground">Table {tLabel(table)}</p>
-              </div>
+              <TableLabel
+                table={table}
+                restaurantName={restaurant.name}
+                onRename={(name) => renameTable(table, name)}
+              />
 
               {/* Actions */}
               <div className="flex gap-2 w-full">
@@ -281,6 +300,71 @@ export default function QRManager({ restaurant, initialTables }: Props) {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Inline editable table label ───────────────────────────────────────────────
+
+interface TableLabelProps {
+  table: QRTable;
+  restaurantName: string;
+  onRename: (name: string) => void;
+}
+
+function TableLabel({ table, restaurantName, onRename }: TableLabelProps) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(table.display_name?.trim() ?? '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync if parent updates display_name (e.g. after save)
+  useEffect(() => {
+    if (!editing) setValue(table.display_name?.trim() ?? '');
+  }, [table.display_name, editing]);
+
+  function startEdit() {
+    setValue(table.display_name?.trim() ?? '');
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  }
+
+  function commit() {
+    setEditing(false);
+    onRename(value);
+  }
+
+  const label = table.display_name?.trim() || `#${table.table_number}`;
+
+  return (
+    <div className="text-center w-full">
+      <p className="font-semibold text-sm">{restaurantName}</p>
+      {editing ? (
+        <div className="flex items-center justify-center gap-1 mt-0.5">
+          <span className="text-xs text-muted-foreground">Table</span>
+          <input
+            ref={inputRef}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+            placeholder={`#${table.table_number}`}
+            className="w-16 text-xs text-center border rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <button type="button" onClick={commit} className="text-green-600">
+            <Check className="w-3 h-3" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={startEdit}
+          className="flex items-center justify-center gap-1 mx-auto mt-0.5 group"
+          title="Click to rename"
+        >
+          <span className="text-xs text-muted-foreground">Table {label}</span>
+          <Pencil className="w-2.5 h-2.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+        </button>
       )}
     </div>
   );

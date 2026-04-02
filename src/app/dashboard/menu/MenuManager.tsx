@@ -13,6 +13,8 @@ import {
   EyeOff,
   Flame,
   Scan,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -155,6 +157,45 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
     }
   }
 
+  // ── Batch AI describe ──────────────────────────────────────────────
+  const [autoDescProgress, setAutoDescProgress] = useState<{ current: number; total: number } | null>(null);
+
+  async function autoDescribeAll() {
+    const undescribed = products.filter((p) => !p.description?.trim() && p.name.trim().length >= 2);
+    if (undescribed.length === 0) {
+      toast.info('All dishes already have descriptions');
+      return;
+    }
+    setAutoDescProgress({ current: 0, total: undescribed.length });
+    let succeeded = 0;
+    for (let i = 0; i < undescribed.length; i++) {
+      const product = undescribed[i];
+      setAutoDescProgress({ current: i + 1, total: undescribed.length });
+      try {
+        const categoryName = categories.find((c) => c.id === product.category_id)?.name;
+        const res = await fetch('/api/generate-description', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dishName: product.name, categoryName }),
+        });
+        if (res.ok) {
+          const data = await res.json() as { description?: string };
+          if (data.description) {
+            const supabase = createClient();
+            await supabase.from('products').update({ description: data.description }).eq('id', product.id);
+            setProducts((prev) =>
+              prev.map((p) => p.id === product.id ? { ...p, description: data.description ?? null } : p)
+            );
+            succeeded++;
+          }
+        }
+      } catch { /* skip */ }
+      if (i < undescribed.length - 1) await new Promise((r) => setTimeout(r, 300));
+    }
+    setAutoDescProgress(null);
+    toast.success(`Generated ${succeeded} of ${undescribed.length} descriptions`);
+  }
+
   // ── Grouping ───────────────────────────────────────────────────────
   const categorisedProducts = categories.map((cat) => ({
     category: cat,
@@ -180,6 +221,25 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
               <Scan className="w-4 h-4 mr-2" />
               AI Scanner
             </Link>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={autoDescribeAll}
+            disabled={!!autoDescProgress}
+            title="Auto-generate descriptions for dishes that don't have one"
+          >
+            {autoDescProgress ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {autoDescProgress.current}/{autoDescProgress.total}
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Auto-describe
+              </>
+            )}
           </Button>
           <Button variant="outline" size="sm" onClick={openAddCategory}>
             <Plus className="w-4 h-4 mr-2" />
