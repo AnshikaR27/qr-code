@@ -46,6 +46,7 @@ import type {
   FloorTable,
   Order,
   OrderNote,
+  OrderStatus,
   Restaurant,
   WaiterCall,
 } from '@/types';
@@ -69,6 +70,18 @@ function tableSize(capacity: FloorCapacity) {
 }
 
 // ─── Live status ──────────────────────────────────────────────────────────────
+
+const ORDER_STATUS_FLOW: Partial<Record<OrderStatus, OrderStatus>> = {
+  placed:    'preparing',
+  preparing: 'ready',
+  ready:     'delivered',
+};
+
+const ORDER_ACTION_LABELS: Partial<Record<OrderStatus, string>> = {
+  placed:    'Start Preparing',
+  preparing: 'Mark Ready',
+  ready:     'Mark Delivered',
+};
 
 type TableLiveStatus = 'available' | 'occupied' | 'ready' | 'needs_attention';
 
@@ -202,7 +215,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const [{ data: orders }, { data: calls }] = await Promise.all([
       supabase
         .from('orders')
-        .select('*, items:order_items(*), table:tables(id, table_number), internal_notes')
+        .select('*, items:order_items(*), table:tables(id, table_number)')
         .eq('restaurant_id', restaurant.id)
         .in('status', ['placed', 'preparing', 'ready']),
       supabase
@@ -369,6 +382,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     } finally {
       setAcknowledging(false);
     }
+  }
+
+  async function advanceOrderStatus(orderId: string, currentStatus: OrderStatus) {
+    const nextStatus = ORDER_STATUS_FLOW[currentStatus];
+    if (!nextStatus) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: nextStatus })
+      .eq('id', orderId);
+    if (error) { toast.error('Failed to update order'); return; }
+    fetchLiveData();
   }
 
   // ── Canvas click ──────────────────────────────────────────────────────────
@@ -572,6 +597,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           acknowledging={acknowledging}
           markingAvailable={markingAvailable}
           onRefresh={fetchLiveData}
+          onAdvanceStatus={advanceOrderStatus}
         />
       </div>
     );
@@ -856,6 +882,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         acknowledging={acknowledging}
         markingAvailable={markingAvailable}
         onRefresh={fetchLiveData}
+        onAdvanceStatus={advanceOrderStatus}
       />
     </div>
   );
@@ -993,6 +1020,7 @@ interface TableDetailSheetProps {
   acknowledging: boolean;
   markingAvailable: boolean;
   onRefresh: () => void;
+  onAdvanceStatus: (orderId: string, currentStatus: OrderStatus) => Promise<void>;
 }
 
 function TableDetailSheet({
@@ -1004,6 +1032,7 @@ function TableDetailSheet({
   acknowledging,
   markingAvailable,
   onRefresh,
+  onAdvanceStatus,
 }: TableDetailSheetProps) {
   const open = !!table && !!statusInfo;
   if (!open) return <Sheet open={false} onOpenChange={o => { if (!o) onClose(); }} />;
@@ -1063,7 +1092,9 @@ function TableDetailSheet({
             <div>
               <p className="text-sm font-semibold mb-3">Active Orders ({statusInfo.orders.length})</p>
               <div className="space-y-3">
-                {statusInfo.orders.map(order => <OrderCard key={order.id} order={order} onRefresh={onRefresh} />)}
+                {statusInfo.orders.map(order => (
+                  <OrderCard key={order.id} order={order} onRefresh={onRefresh} onAdvanceStatus={onAdvanceStatus} />
+                ))}
               </div>
             </div>
           ) : (
@@ -1106,10 +1137,30 @@ const ORDER_STATUS_STYLE: Record<string, { bg: string; text: string; border: str
   cancelled: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5', label: 'Cancelled' },
 };
 
-function OrderCard({ order, onRefresh }: { order: Order; onRefresh: () => void }) {
+function OrderCard({
+  order,
+  onRefresh,
+  onAdvanceStatus,
+}: {
+  order: Order;
+  onRefresh: () => void;
+  onAdvanceStatus: (orderId: string, currentStatus: OrderStatus) => Promise<void>;
+}) {
   const st = ORDER_STATUS_STYLE[order.status] ?? ORDER_STATUS_STYLE.placed;
   const [noteText, setNoteText]   = useState('');
   const [saving, setSaving]       = useState(false);
+  const [advancing, setAdvancing] = useState(false);
+
+  const nextActionLabel = ORDER_ACTION_LABELS[order.status];
+
+  async function handleAdvance() {
+    setAdvancing(true);
+    try {
+      await onAdvanceStatus(order.id, order.status);
+    } finally {
+      setAdvancing(false);
+    }
+  }
 
   async function addNote() {
     const text = noteText.trim();
@@ -1165,11 +1216,22 @@ function OrderCard({ order, onRefresh }: { order: Order; onRefresh: () => void }
         <ul className="space-y-1 pt-2 border-t">
           {order.items.map(item => (
             <li key={item.id} className="flex justify-between gap-2 text-xs text-muted-foreground">
-              <span>{item.quantity}× {item.name}</span>
+              <span>{item.quantity}× {item.name}{item.notes ? <span className="italic ml-1">({item.notes})</span> : null}</span>
               <span className="flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
             </li>
           ))}
         </ul>
+      )}
+
+      {nextActionLabel && (
+        <button
+          onClick={handleAdvance}
+          disabled={advancing}
+          className="w-full mt-1 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+        >
+          {advancing ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+          {nextActionLabel}
+        </button>
       )}
 
       {/* Internal notes */}

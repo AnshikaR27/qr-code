@@ -142,13 +142,13 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = orders.filter((o) => {
-    if (filter === 'active')    return o.status === 'placed' || o.status === 'preparing';
+    if (filter === 'active')    return o.status === 'placed' || o.status === 'preparing' || o.status === 'ready';
     if (filter === 'completed') return o.status === 'delivered' || o.status === 'cancelled';
     return true;
   });
 
   const activeCount = orders.filter(
-    (o) => o.status === 'placed' || o.status === 'preparing',
+    (o) => o.status === 'placed' || o.status === 'preparing' || o.status === 'ready',
   ).length;
 
   return (
