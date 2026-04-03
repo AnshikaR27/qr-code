@@ -15,6 +15,7 @@ import { slugify } from '@/lib/utils';
 export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [uiTheme, setUiTheme] = useState<'classic' | 'sunday'>('classic');
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -71,6 +72,7 @@ export default function RegisterPage() {
       slug,
       phone: form.phone,
       city: form.city,
+      ui_theme: uiTheme,
     });
 
     if (restaurantError) {
@@ -161,6 +163,92 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 required
               />
+            </div>
+
+            {/* Menu style picker */}
+            <div className="space-y-2">
+              <Label>Menu style</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Classic */}
+                <button
+                  type="button"
+                  onClick={() => setUiTheme('classic')}
+                  className="relative rounded-xl border-2 p-3 text-left transition-colors"
+                  style={{
+                    borderColor: uiTheme === 'classic' ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+                    backgroundColor: uiTheme === 'classic' ? 'hsl(var(--primary) / 0.06)' : 'transparent',
+                  }}
+                >
+                  {/* Mini preview — Classic: pill tabs + card rows */}
+                  <div className="mb-2 rounded-md overflow-hidden border border-border bg-muted/40 h-20 flex flex-col gap-1 p-1.5">
+                    {/* Pill tabs */}
+                    <div className="flex gap-1">
+                      <div className="h-3 w-10 rounded-full bg-foreground/70" />
+                      <div className="h-3 w-8 rounded-full bg-muted-foreground/30" />
+                      <div className="h-3 w-8 rounded-full bg-muted-foreground/30" />
+                    </div>
+                    {/* Cards */}
+                    {[1, 2].map((n) => (
+                      <div key={n} className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-1">
+                        <div className="h-5 w-5 rounded bg-muted-foreground/20 flex-shrink-0" />
+                        <div className="flex-1 space-y-0.5">
+                          <div className="h-1.5 w-10 rounded bg-foreground/60" />
+                          <div className="h-1 w-7 rounded bg-muted-foreground/40" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs font-700 text-foreground font-semibold">Classic</p>
+                  <p className="text-xs text-muted-foreground">Card-based menu</p>
+                  {uiTheme === 'classic' && (
+                    <span className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                  )}
+                </button>
+
+                {/* Sunday / Minimal */}
+                <button
+                  type="button"
+                  onClick={() => setUiTheme('sunday')}
+                  className="relative rounded-xl border-2 p-3 text-left transition-colors"
+                  style={{
+                    borderColor: uiTheme === 'sunday' ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+                    backgroundColor: uiTheme === 'sunday' ? 'hsl(var(--primary) / 0.06)' : 'transparent',
+                  }}
+                >
+                  {/* Mini preview — Minimal: underline tabs + list rows */}
+                  <div className="mb-2 rounded-md overflow-hidden border border-border bg-muted/40 h-20 flex flex-col p-1.5">
+                    {/* Underline tabs */}
+                    <div className="flex gap-2 border-b border-border pb-1 mb-1">
+                      <div className="h-2 w-8 rounded-sm bg-foreground/70 border-b-2 border-foreground/70" />
+                      <div className="h-2 w-6 rounded-sm bg-muted-foreground/30" />
+                    </div>
+                    {/* List rows: text left, image right */}
+                    {[1, 2].map((n) => (
+                      <div key={n} className="flex items-center justify-between border-b border-border py-1 last:border-0">
+                        <div className="space-y-0.5">
+                          <div className="h-1.5 w-10 rounded bg-foreground/60" />
+                          <div className="h-1 w-7 rounded bg-muted-foreground/40" />
+                        </div>
+                        <div className="h-5 w-5 rounded bg-muted-foreground/25 flex-shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">Minimal</p>
+                  <p className="text-xs text-muted-foreground">Clean list layout</p>
+                  {uiTheme === 'sunday' && (
+                    <span className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">You can change this later in settings.</p>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>

@@ -99,6 +99,7 @@ export interface Restaurant {
   floor_plan: FloorPlan | null;
   billing_config: BillingConfig | null;
   printer_config: PrinterConfig | null;
+  ui_theme: 'classic' | 'sunday';
   created_at: string;
   updated_at: string;
 }

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import CustomerMenu from '../CustomerMenu';
+import CustomerMenuV2 from '../CustomerMenuV2';
 import type { Category, Product, Restaurant } from '@/types';
 
 interface Props {
@@ -36,11 +37,26 @@ export default async function MenuPage({ params, searchParams }: Props) {
       .order('sort_order', { ascending: true }),
   ]);
 
+  const r = restaurant as Restaurant;
+  const cats = (categories ?? []) as Category[];
+  const prods = (products ?? []) as Product[];
+
+  if (r.ui_theme === 'sunday') {
+    return (
+      <CustomerMenuV2
+        restaurant={r}
+        categories={cats}
+        products={prods}
+        tableId={tableId}
+      />
+    );
+  }
+
   return (
     <CustomerMenu
-      restaurant={restaurant as Restaurant}
-      categories={(categories ?? []) as Category[]}
-      products={(products ?? []) as Product[]}
+      restaurant={r}
+      categories={cats}
+      products={prods}
       tableId={tableId}
     />
   );
