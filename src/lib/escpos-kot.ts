@@ -17,6 +17,7 @@ export function buildKOTTicket(
   kotNumber: number,
   selectedCategories: string[],
   paperWidth: '80mm' | '58mm' = '80mm',
+  totalCategoriesInOrder?: number, // when routing splits across printers, pass the full order cat count
 ): Uint8Array {
   const lineWidth = paperWidth === '58mm' ? 32 : 42;
   const allItems = order.items ?? [];
@@ -25,7 +26,9 @@ export function buildKOTTicket(
   );
 
   const allCats = Array.from(new Set(allItems.map((i) => i.category_name ?? 'Uncategorized')));
-  const isStation = selectedCategories.length < allCats.length;
+  // isStation = this ticket is a SUBSET of the full order (show station header)
+  const totalCats = totalCategoriesInOrder ?? allCats.length;
+  const isStation = selectedCategories.length < totalCats;
 
   // Group items by category
   const groups = new Map<string, typeof filtered>();

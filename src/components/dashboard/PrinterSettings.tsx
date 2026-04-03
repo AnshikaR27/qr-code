@@ -383,12 +383,15 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
             <p className="text-xs text-muted-foreground mt-0.5">Route each menu category&apos;s KOT to a specific printer</p>
           </div>
           <div className="space-y-2">
-            {categories.map((cat) => (
-              <div key={cat.id} className="flex items-center justify-between gap-3">
+            {/* Deduplicate by name — routing key is category name to match order_items.category_name */}
+            {categories
+              .filter((cat, idx, arr) => arr.findIndex((c) => c.name === cat.name) === idx)
+              .map((cat) => (
+              <div key={cat.name} className="flex items-center justify-between gap-3">
                 <span className="text-sm flex-1 truncate">{cat.name}</span>
                 <select
-                  value={config.station_routing[cat.id] ?? ''}
-                  onChange={(e) => setConf('station_routing', { ...config.station_routing, [cat.id]: e.target.value })}
+                  value={config.station_routing[cat.name] ?? ''}
+                  onChange={(e) => setConf('station_routing', { ...config.station_routing, [cat.name]: e.target.value })}
                   className="text-sm rounded-md border border-input bg-background px-2 py-1 w-48"
                 >
                   <option value="">Default (first printer)</option>
