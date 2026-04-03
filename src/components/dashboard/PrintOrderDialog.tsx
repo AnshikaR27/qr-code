@@ -77,48 +77,54 @@ function PrintDialogInner({
       const kot = await getKotNumber();
 
       if (printerConfig && printerConfig.printers.length > 0) {
-        // routing is keyed by category NAME (matches order_items.category_name)
-        const routingMap = printerConfig.station_routing ?? {};
-        const defaultPrinterId = printerConfig.printers[0].id;
-
-        // Group categories by their assigned printer → ONE ticket per printer
-        const printerGroups = new Map<string, string[]>(); // printerId → categoryNames[]
-        for (const cat of selectedCategories) {
-          const pid = routingMap[cat] || defaultPrinterId;
-          if (!printerGroups.has(pid)) printerGroups.set(pid, []);
-          printerGroups.get(pid)!.push(cat);
-        }
-
-        const totalCatsInOrder = categoriesInOrder.length;
         const { printerService } = await import('@/lib/printer-service');
         const { buildKOTTicket } = await import('@/lib/escpos-kot');
+        const copies = printerConfig.copies_kot ?? 1;
 
-        await Promise.all(
-          Array.from(printerGroups.entries()).map(async ([pid, cats]) => {
-            const printer = printerConfig.printers.find((p) => p.id === pid);
-            if (!printer) return;
+        if (printerConfig.kot_printer_mode !== 'station_routing') {
+          // ── Single-printer mode: one combined ticket ────────────────────────
+          const pid = printerConfig.kot_printer_mode;
+          const printer = printerConfig.printers.find((p) => p.id === pid) ?? printerConfig.printers[0];
+          if (printer.type === 'browser') {
+            printKitchenTicket(order, kot, restaurantName, selectedCategories);
+          } else {
+            const data = buildKOTTicket(order, restaurantName, kot, selectedCategories, printer.paper_width);
+            for (let i = 0; i < copies; i++) {
+              const result = await printerService.print(printer, data);
+              if (!result.success) toast.error(`${printer.name}: ${result.error ?? 'Print failed'}`);
+            }
+          }
+        } else {
+          // ── Station routing: group categories by printer, one ticket per printer
+          const routingMap = printerConfig.station_routing ?? {};
+          const defaultPrinterId = printerConfig.printers[0].id;
+          const printerGroups = new Map<string, string[]>(); // printerId → categoryNames[]
 
-            // Pass all selected cats for this printer; buildKOTTicket shows
-            // station header automatically when cats.length < total order cats
-            for (let copy = 0; copy < (printerConfig.copies ?? 1); copy++) {
+          for (const cat of selectedCategories) {
+            const pid = routingMap[cat] || defaultPrinterId;
+            if (!printerGroups.has(pid)) printerGroups.set(pid, []);
+            printerGroups.get(pid)!.push(cat);
+          }
+
+          const totalCatsInOrder = categoriesInOrder.length;
+          await Promise.all(
+            Array.from(printerGroups.entries()).map(async ([pid, cats]) => {
+              const printer = printerConfig.printers.find((p) => p.id === pid);
+              if (!printer) return;
               if (printer.type === 'browser') {
                 printKitchenTicket(order, kot, restaurantName, cats);
-                continue;
+                return;
               }
-              const data = buildKOTTicket(
-                order, restaurantName, kot, cats,
-                printer.paper_width,
-                totalCatsInOrder,
-              );
-              const result = await printerService.print(printer, data);
-              if (!result.success) {
-                toast.error(`${printer.name}: ${result.error ?? 'Print failed'}`);
+              const data = buildKOTTicket(order, restaurantName, kot, cats, printer.paper_width, totalCatsInOrder);
+              for (let i = 0; i < copies; i++) {
+                const result = await printerService.print(printer, data);
+                if (!result.success) toast.error(`${printer.name}: ${result.error ?? 'Print failed'}`);
               }
-            }
-          })
-        );
+            })
+          );
+        }
       } else {
-        // No printer configured — use browser fallback
+        // No printer configured — browser fallback
         printKitchenTicket(order, kot, restaurantName, selectedCategories);
       }
 

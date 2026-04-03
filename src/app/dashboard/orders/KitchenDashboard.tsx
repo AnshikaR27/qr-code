@@ -151,13 +151,21 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
     const { buildBillReceipt } = await import('@/lib/escpos-bill');
 
-    if (printerConf && printerConf.default_bill_printer) {
-      const printer = printerConf.printers.find((p) => p.id === printerConf.default_bill_printer);
+    if (printerConf && printerConf.bill_printer) {
+      const printer = printerConf.printers.find((p) => p.id === printerConf.bill_printer);
       if (printer && printer.type !== 'browser') {
         const { printerService } = await import('@/lib/printer-service');
-        const data = buildBillReceipt(order, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width);
+        const copies = printerConf.copies_bill ?? 1;
+        const data = buildBillReceipt(order, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width, false);
         const result = await printerService.print(printer, data);
-        if (result.success) { toast.success('Bill printed'); return; }
+        if (result.success) {
+          if (copies === 2) {
+            const dup = buildBillReceipt(order, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width, true);
+            await printerService.print(printer, dup);
+          }
+          toast.success('Bill printed');
+          return;
+        }
         if (result.error !== 'Use browser fallback') {
           toast.error(result.error ?? 'Print failed');
           return;

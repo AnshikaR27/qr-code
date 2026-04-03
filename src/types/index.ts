@@ -14,11 +14,15 @@ export interface PrinterDevice {
 
 export interface PrinterConfig {
   printers: PrinterDevice[];
-  default_bill_printer: string | null;
-  station_routing: Record<string, string>; // category_id → printer id
+  /** 'station_routing' = split by category rules; any other string = a specific printer UUID */
+  kot_printer_mode: 'station_routing' | string;
+  kot_default_printer: string | null;   // used when kot_printer_mode !== 'station_routing'
+  bill_printer: string | null;
+  station_routing: Record<string, string>; // category_name → printer id
   auto_print_kot: boolean;
   auto_print_bill: boolean;
-  copies: 1 | 2;
+  copies_kot: 1 | 2;
+  copies_bill: 1 | 2;
 }
 
 // ─── Billing ──────────────────────────────────────────────────────────────────

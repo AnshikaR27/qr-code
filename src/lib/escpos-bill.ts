@@ -18,6 +18,7 @@ export function buildBillReceipt(
   restaurantPhone: string | null,
   config: BillingConfig,
   paperWidth: '80mm' | '58mm' = '80mm',
+  duplicate = false,
 ): Uint8Array {
   const lineWidth = paperWidth === '58mm' ? 32 : 42;
   const bill = computeBill(order.items ?? [], config);
@@ -32,6 +33,15 @@ export function buildBillReceipt(
 
   const p = new ESCPOSBuilder();
   p.initialize();
+
+  // ── Duplicate header ──
+  if (duplicate) {
+    p.alignCenter()
+      .bold(true)
+      .text('-- DUPLICATE --')
+      .newLine()
+      .bold(false);
+  }
 
   // ── Restaurant header ──
   p.alignCenter()
