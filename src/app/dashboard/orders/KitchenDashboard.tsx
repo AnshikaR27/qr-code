@@ -140,15 +140,34 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
     }
   }
 
-  function handlePrintBill(order: Order) {
+  async function handlePrintBill(order: Order) {
     const config = restaurant.billing_config;
+    const printerConf = restaurant.printer_config;
+
     if (!config?.gstin && !config?.legal_name) {
       toast.error('Set up Tax & Billing in Settings first');
       return;
     }
-    import('@/lib/billing').then(({ printCustomerBill }) => {
-      printCustomerBill(order, restaurant, config!);
-    });
+
+    const { buildBillReceipt } = await import('@/lib/escpos-bill');
+
+    if (printerConf && printerConf.default_bill_printer) {
+      const printer = printerConf.printers.find((p) => p.id === printerConf.default_bill_printer);
+      if (printer && printer.type !== 'browser') {
+        const { printerService } = await import('@/lib/printer-service');
+        const data = buildBillReceipt(order, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width);
+        const result = await printerService.print(printer, data);
+        if (result.success) { toast.success('Bill printed'); return; }
+        if (result.error !== 'Use browser fallback') {
+          toast.error(result.error ?? 'Print failed');
+          return;
+        }
+      }
+    }
+
+    // Browser fallback
+    const { printCustomerBill } = await import('@/lib/billing');
+    printCustomerBill(order, restaurant, config!);
   }
 
   // ── Filtering ──────────────────────────────────────────────────────────────
@@ -244,6 +263,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
         mode={printMode}
         onConfirm={handlePrintConfirm}
         onClose={() => setPrintOrder(null)}
+        printerConfig={restaurant.printer_config}
       />
     </div>
   );

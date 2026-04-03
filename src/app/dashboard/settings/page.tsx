@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import SettingsClient from './SettingsClient';
-import type { Restaurant } from '@/types';
+import type { Category, Restaurant } from '@/types';
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -17,5 +17,16 @@ export default async function SettingsPage() {
 
   if (!restaurant) redirect('/register');
 
-  return <SettingsClient restaurant={restaurant as Restaurant} />;
+  const { data: categories } = await supabase
+    .from('categories')
+    .select('id, name, name_hindi, sort_order, restaurant_id')
+    .eq('restaurant_id', restaurant.id)
+    .order('sort_order', { ascending: true });
+
+  return (
+    <SettingsClient
+      restaurant={restaurant as Restaurant}
+      categories={(categories ?? []) as Category[]}
+    />
+  );
 }

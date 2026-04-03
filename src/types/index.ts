@@ -1,3 +1,26 @@
+// ─── Printer ──────────────────────────────────────────────────────────────────
+
+export type PrinterConnectionType = 'usb' | 'network' | 'browser';
+
+export interface PrinterDevice {
+  id: string;
+  name: string;
+  type: PrinterConnectionType;
+  ip?: string;
+  port?: number;
+  paper_width: '80mm' | '58mm';
+  auto_cut: boolean;
+}
+
+export interface PrinterConfig {
+  printers: PrinterDevice[];
+  default_bill_printer: string | null;
+  station_routing: Record<string, string>; // category_id → printer id
+  auto_print_kot: boolean;
+  auto_print_bill: boolean;
+  copies: 1 | 2;
+}
+
 // ─── Billing ──────────────────────────────────────────────────────────────────
 
 export type TaxCategory = 'food' | 'packaged' | 'beverage_aerated';
@@ -71,6 +94,7 @@ export interface Restaurant {
   design_tokens: Record<string, string> | null;
   floor_plan: FloorPlan | null;
   billing_config: BillingConfig | null;
+  printer_config: PrinterConfig | null;
   created_at: string;
   updated_at: string;
 }

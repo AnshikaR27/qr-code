@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Printer } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { printKitchenTicket } from '@/lib/printTicket';
-import type { Order } from '@/types';
+import type { Order, PrinterConfig } from '@/types';
 
 // ─── Inner content — keyed by order.id so state resets per order ──────────────
 
@@ -23,6 +24,7 @@ interface InnerProps {
   mode: 'accept' | 'reprint';
   onConfirm: (order: Order) => void;
   onClose: () => void;
+  printerConfig?: PrinterConfig | null;
 }
 
 function PrintDialogInner({
@@ -32,6 +34,7 @@ function PrintDialogInner({
   mode,
   onConfirm,
   onClose,
+  printerConfig,
 }: InnerProps) {
   const items = order.items ?? [];
 
@@ -72,7 +75,56 @@ function PrintDialogInner({
     setPrinting(true);
     try {
       const kot = await getKotNumber();
-      printKitchenTicket(order, kot, restaurantName, categories);
+
+      if (printerConfig && printerConfig.printers.length > 0) {
+        // Station routing: group categories by their assigned printer
+        const routingMap = printerConfig.station_routing ?? {};
+        const printerGroups = new Map<string, string[]>(); // printerId → categories
+
+        for (const cat of categories) {
+          // Find which category object matches by name (routing is by category id,
+          // but order_items only have category_name)
+          const assignedPrinterId = Object.entries(routingMap).find(([, pid]) => {
+            // best effort match — if no routing, use first printer
+            return pid;
+          })?.[1] ?? printerConfig.printers[0]?.id;
+
+          if (assignedPrinterId) {
+            if (!printerGroups.has(assignedPrinterId)) printerGroups.set(assignedPrinterId, []);
+            printerGroups.get(assignedPrinterId)!.push(cat);
+          }
+        }
+
+        // If routing isn't set up, fall back to all to first printer
+        if (printerGroups.size === 0) {
+          const pid = printerConfig.printers[0].id;
+          printerGroups.set(pid, categories);
+        }
+
+        const { printerService } = await import('@/lib/printer-service');
+        const { buildKOTTicket } = await import('@/lib/escpos-kot');
+
+        await Promise.all(
+          Array.from(printerGroups.entries()).map(async ([pid, cats]) => {
+            const printer = printerConfig.printers.find((p) => p.id === pid);
+            if (!printer) return;
+
+            for (let copy = 0; copy < (printerConfig.copies ?? 1); copy++) {
+              const data = buildKOTTicket(order, restaurantName, kot, cats, printer.paper_width);
+              const result = await printerService.print(printer, data);
+              if (!result.success && result.error !== 'Use browser fallback') {
+                toast.error(`${printer.name}: ${result.error}`);
+              } else if (result.error === 'Use browser fallback') {
+                printKitchenTicket(order, kot, restaurantName, cats);
+              }
+            }
+          })
+        );
+      } else {
+        // No printer configured — use browser fallback
+        printKitchenTicket(order, kot, restaurantName, categories);
+      }
+
       onConfirm(order);
     } finally {
       setPrinting(false);
@@ -174,6 +226,7 @@ interface Props {
   mode: 'accept' | 'reprint';
   onConfirm: (order: Order) => void;
   onClose: () => void;
+  printerConfig?: PrinterConfig | null;
 }
 
 export default function PrintOrderDialog(props: Props) {

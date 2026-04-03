@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -11,6 +12,7 @@ import {
   LayoutGrid,
   Settings,
   LogOut,
+  Printer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -78,8 +80,9 @@ export default function Sidebar({ restaurant }: SidebarProps) {
         })}
       </nav>
 
-      {/* Logout */}
-      <div className="p-4 border-t">
+      {/* Printer status + Logout */}
+      <div className="p-4 border-t space-y-1">
+        <PrinterStatusDot config={restaurant.printer_config} />
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
@@ -89,5 +92,54 @@ export default function Sidebar({ restaurant }: SidebarProps) {
         </button>
       </div>
     </aside>
+  );
+}
+
+function PrinterStatusDot({ config }: { config: Restaurant['printer_config'] }) {
+  const [connected, setConnected] = useState(0);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    if (!config || config.printers.length === 0) { setTotal(0); return; }
+    const usbPrinters = config.printers.filter((p) => p.type === 'usb');
+    const networkPrinters = config.printers.filter((p) => p.type === 'network');
+    setTotal(config.printers.filter((p) => p.type !== 'browser').length);
+
+    const count = networkPrinters.length; // assume network printers "connected" (checked at print time)
+
+    if (usbPrinters.length === 0) {
+      setConnected(count);
+      return;
+    }
+
+    // Try to check USB connections
+    import('@/lib/printer-service').then(({ printerService }) => {
+      const usbCount = usbPrinters.filter((p) => printerService.isUSBConnected(p.id)).length;
+      setConnected(count + usbCount);
+    }).catch(() => setConnected(count));
+  }, [config]);
+
+  if (!config || config.printers.length === 0) return null;
+
+  const allConnected = total > 0 && connected >= total;
+  const noneConnected = connected === 0;
+
+  return (
+    <Link
+      href="/dashboard/settings"
+      className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+      title={`${connected}/${total} printers`}
+    >
+      <div className="relative flex-shrink-0">
+        <Printer className="w-4 h-4" />
+        <span className={cn(
+          'absolute -top-1 -right-1 w-2 h-2 rounded-full border border-white',
+          allConnected ? 'bg-green-500' : noneConnected ? 'bg-red-500' : 'bg-amber-400'
+        )} />
+      </div>
+      <span className="text-xs">
+        {connected}/{total} printer{total !== 1 ? 's' : ''}
+      </span>
+    </Link>
   );
 }

@@ -16,10 +16,12 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { INDIAN_STATES } from '@/lib/constants';
-import type { BillingConfig, Restaurant } from '@/types';
+import PrinterSettings from '@/components/dashboard/PrinterSettings';
+import type { BillingConfig, Category, Restaurant } from '@/types';
 
 interface Props {
   restaurant: Restaurant;
+  categories: Category[];
 }
 
 interface FormState {
@@ -65,7 +67,7 @@ function toBillingForm(r: Restaurant): BillingConfig {
   };
 }
 
-export default function SettingsClient({ restaurant }: Props) {
+export default function SettingsClient({ restaurant, categories }: Props) {
   const [form, setForm] = useState<FormState>(toForm(restaurant));
   const [billing, setBilling] = useState<BillingConfig>(() => toBillingForm(restaurant));
   const [billingErrors, setBillingErrors] = useState<Record<string, string>>({});
@@ -539,6 +541,11 @@ export default function SettingsClient({ restaurant }: Props) {
               </div>
             </Field>
           )}
+        </Section>
+
+        {/* ── Printers ── */}
+        <Section title="Printers">
+          <PrinterSettings restaurant={restaurant} categories={categories} />
         </Section>
 
         {/* Save button */}
