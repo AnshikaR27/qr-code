@@ -19,7 +19,7 @@ interface QRTable extends Table {
   qrDataUrl?: string;
 }
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').trim().replace(/\/+$/, '');
 
 export default function QRManager({ restaurant, initialTables }: Props) {
   const [tables, setTables] = useState<QRTable[]>(initialTables);
