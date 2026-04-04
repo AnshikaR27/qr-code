@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Cormorant_Garamond, Playfair_Display } from 'next/font/google';
+import { Inter, Cormorant_Garamond, Playfair_Display, DM_Sans } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import PostHogProvider from '@/components/PostHogProvider';
 import * as Sentry from '@sentry/nextjs';
@@ -15,6 +15,11 @@ const playfair = Playfair_Display({
   subsets: ['latin'],
   weight: ['600', '700', '800'],
   variable: '--font-display',
+});
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-body',
 });
 
 export const viewport: Viewport = {
@@ -35,7 +40,7 @@ export function generateMetadata(): Metadata {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${cormorant.variable} ${playfair.variable}`}>
+    <html lang="en" className={`${inter.variable} ${cormorant.variable} ${playfair.variable} ${dmSans.variable}`}>
       <body className="font-sans antialiased">
         <PostHogProvider>
           {children}

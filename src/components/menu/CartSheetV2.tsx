@@ -22,11 +22,10 @@ export default function CartSheetV2({
   onClose,
   restaurant,
   tableId,
-  tokens,
   products = [],
 }: Props) {
   const router = useRouter();
-  const { items, updateQuantity, removeItem, getTotal } = useCart();
+  const { items, updateQuantity, getTotal } = useCart();
   const total = getTotal();
   const [noteOpen, setNoteOpen] = useState(false);
   const [orderNote, setOrderNote] = useState('');
@@ -79,249 +78,83 @@ export default function CartSheetV2({
 
   return (
     <>
-      <style>{`
-        @keyframes cartSlideUpV2 {
-          from { transform: translateY(100%); }
-          to   { transform: translateY(0); }
-        }
-      `}</style>
-
+      {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 70,
-          backgroundColor: 'rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(6px)',
-          WebkitBackdropFilter: 'blur(6px)',
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'center',
-        }}
+        className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-end justify-center"
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          style={{
-            width: '100%',
-            maxWidth: 420,
-            maxHeight: '82vh',
-            backgroundColor: tokens.cardBg,
-            borderRadius: '20px 20px 0 0',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            boxShadow: '0 -4px 40px rgba(0,0,0,0.2)',
-            animation: 'cartSlideUpV2 0.35s cubic-bezier(0.32, 0.72, 0, 1) both',
-          }}
+          className="w-full max-w-[480px] max-h-[82vh] bg-white rounded-t-2xl flex flex-col overflow-hidden shadow-[0_-4px_40px_rgba(0,0,0,0.2)] sunday-slide-up"
         >
-          {/* ── Header ── */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '18px 20px 14px',
-              flexShrink: 0,
-              borderBottom: `1px solid ${tokens.border}`,
-            }}
-          >
-            <div style={{ width: 32 }} />
-            <span
-              style={{
-                fontFamily: tokens.fontBody,
-                fontSize: 16,
-                fontWeight: 700,
-                color: tokens.text,
-              }}
-            >
-              Basket
-            </span>
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pt-5 pb-3.5 shrink-0 border-b border-gray-100">
+            <div className="w-8" />
+            <span className="font-body text-base font-bold text-[#1A1A1A]">Basket</span>
             <button
               onClick={onClose}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                border: 'none',
-                backgroundColor: `${tokens.text}12`,
-                color: tokens.text,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className="w-8 h-8 rounded-full border-none bg-gray-100 text-[#1A1A1A] cursor-pointer flex items-center justify-center"
             >
               <X size={16} strokeWidth={2.5} />
             </button>
           </div>
 
-          {/* ── Empty state ── */}
+          {/* Empty state */}
           {items.length === 0 ? (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 12,
-                padding: '0 32px',
-              }}
-            >
-              <div style={{ fontSize: 40 }}>🛒</div>
-              <p
-                style={{
-                  fontFamily: tokens.fontBody,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: tokens.text,
-                  margin: 0,
-                  textAlign: 'center',
-                }}
-              >
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8">
+              <div className="text-[40px]">🛒</div>
+              <p className="font-body text-base font-bold text-[#1A1A1A] m-0 text-center">
                 Your basket is empty
               </p>
-              <p
-                style={{
-                  fontFamily: tokens.fontBody,
-                  fontSize: 13,
-                  color: tokens.textMuted,
-                  margin: 0,
-                  textAlign: 'center',
-                }}
-              >
+              <p className="font-body text-[13px] text-[#666] m-0 text-center">
                 Add some dishes to get started
               </p>
             </div>
           ) : (
             <>
-              {/* ── Items list ── */}
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '8px 0',
-                }}
-              >
+              {/* Items list */}
+              <div className="flex-1 overflow-y-auto py-2">
                 {items.map((item) => {
                   const imgUrl = getProductImage(item.product_id);
                   return (
                     <div
                       key={item.product_id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: '12px 20px',
-                        borderBottom: `1px solid ${tokens.border}`,
-                      }}
+                      className="flex items-center gap-3 px-5 py-3 border-b border-gray-50"
                     >
                       {/* Thumbnail */}
-                      <div
-                        style={{
-                          width: 52,
-                          height: 52,
-                          borderRadius: 8,
-                          overflow: 'hidden',
-                          flexShrink: 0,
-                          backgroundColor: imgUrl ? undefined : `${tokens.primary}18`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
+                      <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[#F5F5F0] flex items-center justify-center">
                         {imgUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={imgUrl}
-                            alt={item.name}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
+                          <img src={imgUrl} alt={item.name} className="w-full h-full object-cover" />
                         ) : (
-                          <span style={{ fontSize: 20 }}>🍽️</span>
+                          <span className="text-xl">🍽️</span>
                         )}
                       </div>
 
                       {/* Name + price */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontFamily: tokens.fontBody,
-                            fontSize: 14,
-                            fontWeight: 700,
-                            color: tokens.text,
-                            overflow: 'hidden',
-                            whiteSpace: 'nowrap',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
+                      <div className="flex-1 min-w-0">
+                        <div className="font-body text-sm font-bold text-[#1A1A1A] truncate">
                           {item.name}
                         </div>
-                        <div
-                          style={{
-                            fontFamily: tokens.fontBody,
-                            fontSize: 13,
-                            color: tokens.textMuted,
-                            marginTop: 2,
-                          }}
-                        >
+                        <div className="font-body text-[13px] text-[#666] mt-0.5">
                           {formatPrice(item.price)}
                         </div>
                       </div>
 
                       {/* Qty stepper */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          flexShrink: 0,
-                        }}
-                      >
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: '50%',
-                            border: `1.5px solid ${tokens.border}`,
-                            backgroundColor: 'transparent',
-                            color: tokens.text,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
+                          className="w-7 h-7 rounded-full border border-gray-200 bg-transparent text-[#1A1A1A] cursor-pointer flex items-center justify-center"
                         >
                           <Minus size={11} strokeWidth={2.5} />
                         </button>
-                        <span
-                          style={{
-                            fontFamily: tokens.fontBody,
-                            fontSize: 15,
-                            fontWeight: 700,
-                            color: tokens.text,
-                            minWidth: 18,
-                            textAlign: 'center',
-                          }}
-                        >
+                        <span className="font-body text-[15px] font-bold text-[#1A1A1A] min-w-[18px] text-center">
                           {item.quantity}
                         </span>
                         <button
                           onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: '50%',
-                            border: `1.5px solid ${tokens.border}`,
-                            backgroundColor: 'transparent',
-                            color: tokens.text,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
+                          className="w-7 h-7 rounded-full border border-gray-200 bg-transparent text-[#1A1A1A] cursor-pointer flex items-center justify-center"
                         >
                           <Plus size={11} strokeWidth={2.5} />
                         </button>
@@ -330,169 +163,58 @@ export default function CartSheetV2({
                   );
                 })}
 
-                {/* Add more button */}
-                <div style={{ padding: '12px 20px 4px', display: 'flex', justifyContent: 'flex-end' }}>
+                {/* Add more */}
+                <div className="px-5 pt-3 pb-1 flex justify-end">
                   <button
                     onClick={onClose}
-                    style={{
-                      padding: '8px 18px',
-                      borderRadius: 999,
-                      border: `1.5px solid ${tokens.border}`,
-                      backgroundColor: 'transparent',
-                      color: tokens.text,
-                      fontFamily: tokens.fontBody,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
+                    className="font-body text-sm font-semibold text-[#1A1A1A] bg-transparent border-none cursor-pointer underline underline-offset-2"
                   >
                     Add more
                   </button>
                 </div>
 
                 {/* Order note */}
-                <div style={{ padding: '8px 20px 12px' }}>
+                <div className="px-5 py-2">
                   {!noteOpen ? (
                     <button
                       onClick={() => setNoteOpen(true)}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '14px 16px',
-                        borderRadius: 12,
-                        border: 'none',
-                        backgroundColor: tokens.surfaceLow,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
+                      className="w-full flex items-center justify-between px-4 py-3.5 rounded-lg border-none bg-[#F5F5F0] cursor-pointer text-left"
                     >
                       <div>
-                        <div
-                          style={{
-                            fontFamily: tokens.fontBody,
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: tokens.text,
-                          }}
-                        >
+                        <div className="font-body text-[13px] font-semibold text-[#1A1A1A]">
                           Add an order note
                         </div>
-                        {!orderNote && (
-                          <div
-                            style={{
-                              fontFamily: tokens.fontBody,
-                              fontSize: 12,
-                              color: tokens.textMuted,
-                              marginTop: 2,
-                            }}
-                          >
-                            Utensils, special requests…
-                          </div>
-                        )}
-                        {orderNote && (
-                          <div
-                            style={{
-                              fontFamily: tokens.fontBody,
-                              fontSize: 12,
-                              color: tokens.textMuted,
-                              marginTop: 2,
-                              fontStyle: 'italic',
-                            }}
-                          >
-                            {orderNote}
-                          </div>
-                        )}
+                        <div className="font-body text-xs text-[#666] mt-0.5">
+                          {orderNote || 'Utensils, special requests...'}
+                        </div>
                       </div>
-                      <span style={{ color: tokens.textMuted, fontSize: 20, lineHeight: 1 }}>+</span>
+                      <span className="text-[#666] text-xl leading-none">+</span>
                     </button>
                   ) : (
-                    <div
-                      style={{
-                        borderRadius: 12,
-                        border: `1.5px solid ${tokens.primary}`,
-                        overflow: 'hidden',
-                        backgroundColor: tokens.surfaceLow,
-                      }}
-                    >
+                    <div className="rounded-lg border border-[#1A1A1A] overflow-hidden bg-[#F5F5F0]">
                       <textarea
                         autoFocus
                         value={orderNote}
                         onChange={(e) => setOrderNote(e.target.value)}
                         onBlur={() => setNoteOpen(false)}
-                        placeholder="Utensils, special requests…"
+                        placeholder="Utensils, special requests..."
                         rows={3}
-                        style={{
-                          width: '100%',
-                          padding: '12px 14px',
-                          border: 'none',
-                          background: 'transparent',
-                          color: tokens.text,
-                          fontFamily: tokens.fontBody,
-                          fontSize: 13,
-                          resize: 'none',
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                        }}
+                        className="w-full p-3 border-none bg-transparent text-[#1A1A1A] font-body text-[13px] resize-none outline-none"
                       />
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* ── Footer ── */}
-              <div
-                style={{
-                  flexShrink: 0,
-                  padding: '14px 20px 28px',
-                  borderTop: `1px solid ${tokens.border}`,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 14,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: tokens.fontBody,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: tokens.text,
-                    }}
-                  >
-                    Subtotal
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: tokens.fontBody,
-                      fontSize: 15,
-                      fontWeight: 700,
-                      color: tokens.text,
-                    }}
-                  >
-                    {formatPrice(total)}
-                  </span>
+              {/* Footer */}
+              <div className="shrink-0 px-5 pt-3.5 pb-7 border-t border-gray-100">
+                <div className="flex justify-between items-center mb-3.5">
+                  <span className="font-body text-[15px] font-semibold text-[#1A1A1A]">Subtotal</span>
+                  <span className="font-body text-[15px] font-bold text-[#1A1A1A]">{formatPrice(total)}</span>
                 </div>
-
                 <button
                   onClick={handlePlaceOrder}
-                  style={{
-                    width: '100%',
-                    padding: '16px 0',
-                    borderRadius: 999,
-                    backgroundColor: tokens.text,
-                    color: tokens.cardBg,
-                    fontFamily: tokens.fontBody,
-                    fontSize: 16,
-                    fontWeight: 700,
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
+                  className="w-full py-4 rounded-full bg-[#1A1A1A] text-white font-body text-base font-bold border-none cursor-pointer"
                 >
                   Order
                 </button>

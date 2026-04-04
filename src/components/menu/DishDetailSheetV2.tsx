@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { ChevronLeft, Utensils } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import PairingSuggestions from './PairingSuggestions';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
@@ -13,14 +14,15 @@ interface Props {
   isBestseller?: boolean;
   lang?: 'en' | 'hi';
   onClose: () => void;
+  allProducts?: Product[];
 }
 
 export default function DishDetailSheetV2({
   product,
-  tokens,
   isBestseller,
   lang = 'en',
   onClose,
+  allProducts = [],
 }: Props) {
   const { items, addItem, updateQuantity, updateNotes } = useCart();
   const reduced = useReducedMotion();
@@ -32,7 +34,7 @@ export default function DishDetailSheetV2({
   const [dragY, setDragY] = useState(0);
   const isDragging = useRef(false);
 
-  // Parallax scroll on hero image
+  // Parallax
   const scrollRef = useRef<HTMLDivElement>(null);
   const [imgOffset, setImgOffset] = useState(0);
 
@@ -45,21 +47,13 @@ export default function DishDetailSheetV2({
     touchStartY.current = e.touches[0].clientY;
     isDragging.current = false;
   }
-
   function handleHandleTouchMove(e: React.TouchEvent) {
     const dy = e.touches[0].clientY - touchStartY.current;
-    if (dy > 0) {
-      isDragging.current = true;
-      setDragY(dy);
-    }
+    if (dy > 0) { isDragging.current = true; setDragY(dy); }
   }
-
   function handleHandleTouchEnd() {
-    if (dragY > 80) {
-      onClose();
-    } else {
-      setDragY(0);
-    }
+    if (dragY > 80) onClose();
+    else setDragY(0);
     isDragging.current = false;
   }
 
@@ -78,13 +72,21 @@ export default function DishDetailSheetV2({
     return () => { document.body.style.overflow = ''; };
   }, [product]);
 
+  // Pairing suggestions - items from a different category
+  const suggestions = useMemo(() => {
+    if (!product?.category_id) return [];
+    return allProducts
+      .filter((p) => p.category_id !== product.category_id && p.is_available && p.image_url)
+      .sort((a, b) => b.order_count - a.order_count)
+      .slice(0, 6);
+  }, [product?.category_id, allProducts]);
+
   if (!product) return null;
 
   const dish = product;
   const cartItem = items.find((i) => i.product_id === dish.id);
   const cartQty = cartItem?.quantity ?? 0;
   const primaryName = (lang === 'hi' && dish.name_hindi) ? dish.name_hindi : dish.name;
-  const vegColor = dish.is_veg ? tokens.veg : tokens.nonveg;
 
   function handleAddToOrder() {
     if (cartQty === 0) {
@@ -101,41 +103,21 @@ export default function DishDetailSheetV2({
 
   return (
     <>
-      <style>{`
-        @keyframes sheetUpV2 {
-          from { transform: translateY(100%); }
-          to   { transform: translateY(0); }
-        }
-        .notes-input-v2::placeholder { opacity: 0.5; }
-      `}</style>
-
       {/* Overlay */}
       <div
         onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 100,
-          backgroundColor: `rgba(0,0,0,${Math.max(0.2, 0.5 - dragY / 400)})`,
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'center',
-        }}
+        className="fixed inset-0 z-[100] flex items-end justify-center"
+        style={{ backgroundColor: `rgba(0,0,0,${Math.max(0.2, 0.5 - dragY / 400)})` }}
       >
         <div
           ref={scrollRef}
           onClick={(e) => e.stopPropagation()}
           onScroll={handleSheetScroll}
+          className={`w-full max-w-[480px] bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto shadow-[0_-4px_32px_rgba(0,0,0,0.15)] relative ${
+            reduced ? '' : 'sunday-slide-up'
+          }`}
           style={{
-            width: '100%',
-            maxWidth: 420,
-            backgroundColor: tokens.cardBg,
-            borderRadius: '20px 20px 0 0',
-            maxHeight: '90vh',
             overflowY: dragY > 0 ? 'hidden' : 'auto',
-            boxShadow: '0 -4px 32px rgba(0,0,0,0.15)',
-            animation: reduced ? 'none' : 'sheetUpV2 0.4s cubic-bezier(0.32, 0.72, 0, 1) both',
-            position: 'relative',
             transform: sheetTransform,
             opacity: sheetOpacity,
             transition: dragY > 0 ? 'none' : 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
@@ -143,343 +125,131 @@ export default function DishDetailSheetV2({
         >
           {/* Drag handle */}
           <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              zIndex: 10,
-              display: 'flex',
-              justifyContent: 'center',
-              padding: '10px 0 4px',
-              touchAction: 'none',
-              cursor: 'grab',
-            }}
+            className="absolute top-0 left-0 right-0 z-10 flex justify-center pt-2.5 pb-1 touch-none cursor-grab"
             onTouchStart={handleHandleTouchStart}
             onTouchMove={handleHandleTouchMove}
             onTouchEnd={handleHandleTouchEnd}
           >
-            <div
-              style={{
-                width: 36,
-                height: 4,
-                borderRadius: 2,
-                backgroundColor: dish.image_url ? 'rgba(255,255,255,0.5)' : tokens.border,
-              }}
-            />
+            <div className={`w-9 h-1 rounded-full ${dish.image_url ? 'bg-white/50' : 'bg-gray-300'}`} />
           </div>
 
-          {/* Back / close button */}
+          {/* Back button */}
           <button
             onClick={onClose}
-            style={{
-              position: 'absolute',
-              top: 10,
-              left: 12,
-              zIndex: 11,
-              width: 36,
-              height: 36,
-              borderRadius: '50%',
-              border: 'none',
-              backgroundColor: dish.image_url ? 'rgba(255,255,255,0.9)' : `${tokens.text}12`,
-              color: tokens.text,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: dish.image_url ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
-            }}
+            className={`absolute top-3 left-3 z-[11] w-9 h-9 rounded-full flex items-center justify-center ${
+              dish.image_url
+                ? 'bg-[#1A1A1A] text-white shadow-md'
+                : 'bg-gray-100 text-[#1A1A1A]'
+            }`}
           >
             <ChevronLeft size={18} strokeWidth={2.5} />
           </button>
 
-          {/* Hero image — full-width, no padding */}
-          {dish.image_url && (
-            <div
-              style={{
-                width: '100%',
-                aspectRatio: '4/3',
-                overflow: 'hidden',
-                position: 'relative',
-              }}
-            >
+          {/* Hero image */}
+          {dish.image_url ? (
+            <div className="w-full aspect-[4/5] overflow-hidden relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={dish.image_url}
                 alt={dish.name}
+                className="w-full h-[115%] -mt-[7.5%] object-cover block will-change-transform"
                 style={{
-                  width: '100%',
-                  height: '115%',
-                  marginTop: '-7.5%',
-                  objectFit: 'cover',
                   transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
-                  willChange: 'transform',
                   transition: 'none',
-                  display: 'block',
                 }}
               />
+            </div>
+          ) : (
+            <div className="w-full aspect-[4/3] bg-[#F5F5F0] flex items-center justify-center">
+              <Utensils size={48} color="#ccc" strokeWidth={1} />
             </div>
           )}
 
           {/* Content */}
-          <div style={{ padding: dish.image_url ? '18px 20px 36px' : '48px 20px 36px' }}>
-
+          <div className={`${dish.image_url ? 'pt-5' : 'pt-12'} px-5 pb-36`}>
             {/* Orderable badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  backgroundColor: vegColor,
-                  flexShrink: 0,
-                  display: 'inline-block',
-                }}
-              />
-              <span
-                style={{
-                  fontFamily: tokens.fontBody,
-                  fontSize: 12,
-                  color: tokens.textMuted,
-                  fontWeight: 500,
-                }}
-              >
-                {dish.is_available ? (dish.is_veg ? 'Veg' : 'Non-veg') : 'Sold out'}
+            <div className="flex items-center gap-1.5 mb-3">
+              <span className="w-2 h-2 rounded-full bg-green-600 shrink-0" />
+              <span className="font-body text-xs text-[#666] font-medium">
+                {dish.is_available ? 'Orderable' : 'Sold out'}
               </span>
               {isBestseller && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: tokens.badgeText,
-                    backgroundColor: tokens.badgeBg,
-                    borderRadius: 4,
-                    padding: '2px 6px',
-                  }}
-                >
-                  🔥 Popular
+                <span className="font-body text-[10px] font-bold text-[#666] bg-[#F5F5F0] rounded px-1.5 py-0.5">
+                  Popular
                 </span>
               )}
               {dish.is_jain && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: tokens.primary,
-                    backgroundColor: tokens.surfaceLow,
-                    borderRadius: 4,
-                    padding: '2px 6px',
-                  }}
-                >
-                  JAIN
+                <span className="font-body text-[10px] font-bold text-[#666] bg-[#F5F5F0] rounded px-1.5 py-0.5">
+                  Jain
                 </span>
               )}
             </div>
 
             {/* Dish name */}
-            <div
-              style={{
-                fontFamily: tokens.fontBody,
-                fontSize: 24,
-                fontWeight: 800,
-                color: tokens.text,
-                lineHeight: 1.2,
-                marginBottom: 8,
-              }}
-            >
+            <h2 className="font-display text-2xl font-bold text-[#1A1A1A] leading-tight mb-2">
               {primaryName}
-              {dish.spice_level > 0 && (
-                <span style={{ marginLeft: 8, fontSize: 18 }}>
-                  {'🌶️'.repeat(dish.spice_level)}
-                </span>
-              )}
-            </div>
+            </h2>
 
             {/* Description */}
             {dish.description && (
-              <div
-                style={{
-                  fontFamily: tokens.fontBody,
-                  fontSize: 14,
-                  color: tokens.textMuted,
-                  lineHeight: 1.65,
-                  marginBottom: 14,
-                }}
-              >
+              <p className="font-body text-sm text-[#666] leading-relaxed mb-4">
                 {dish.description}
-              </div>
+              </p>
             )}
 
             {/* Price */}
-            <div
-              style={{
-                fontFamily: tokens.fontBody,
-                fontSize: 22,
-                fontWeight: 800,
-                color: tokens.text,
-                marginBottom: 20,
-              }}
-            >
+            <p className="font-body text-lg font-semibold text-[#1A1A1A] mb-5">
               ₹{dish.price}
-            </div>
+            </p>
 
             {/* Allergens */}
             {dish.allergens && dish.allergens.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <span
-                  style={{
-                    fontFamily: tokens.fontBody,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: tokens.textMuted,
-                    backgroundColor: tokens.surfaceLow,
-                    borderRadius: 50,
-                    padding: '3px 10px',
-                  }}
-                >
-                  Contains:{' '}
-                  {dish.allergens
-                    .map((a) => a.charAt(0).toUpperCase() + a.slice(1))
-                    .join(', ')}
+              <div className="mb-4">
+                <span className="font-body text-[11px] font-semibold text-[#666] bg-[#F5F5F0] rounded-full px-3 py-1">
+                  Contains: {dish.allergens.map((a) => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}
                 </span>
               </div>
             )}
 
-            {/* Special instructions */}
-            {dish.is_available && (
-              <div style={{ marginBottom: 24 }}>
-                <div
-                  style={{
-                    fontFamily: tokens.fontBody,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: tokens.textMuted,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    marginBottom: 8,
-                  }}
-                >
-                  Special instructions
-                </div>
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. less spicy, no onion…"
-                  className="notes-input-v2"
-                  style={{
-                    width: '100%',
-                    padding: '11px 14px',
-                    borderRadius: 10,
-                    border: `1px solid ${tokens.border}`,
-                    backgroundColor: tokens.bg,
-                    color: tokens.text,
-                    fontFamily: tokens.fontBody,
-                    fontSize: 13,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  } as React.CSSProperties}
-                />
-              </div>
-            )}
+            {/* Pairing suggestions */}
+            <PairingSuggestions suggestions={suggestions} />
+          </div>
 
-            {/* Action row */}
-            {dish.is_available ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {/* Qty stepper */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    border: `1.5px solid ${tokens.border}`,
-                    borderRadius: 999,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <button
-                    onClick={() => setLocalQty((q) => Math.max(1, q - 1))}
-                    style={{
-                      width: 44,
-                      height: 50,
-                      background: 'transparent',
-                      border: 'none',
-                      color: tokens.text,
-                      fontSize: 20,
-                      fontWeight: 300,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    −
-                  </button>
-                  <span
-                    style={{
-                      width: 32,
-                      textAlign: 'center',
-                      fontFamily: tokens.fontBody,
-                      fontSize: 16,
-                      fontWeight: 700,
-                      color: tokens.text,
-                    }}
-                  >
-                    {localQty}
-                  </span>
-                  <button
-                    onClick={() => setLocalQty((q) => q + 1)}
-                    style={{
-                      width: 44,
-                      height: 50,
-                      background: 'transparent',
-                      border: 'none',
-                      color: tokens.text,
-                      fontSize: 20,
-                      fontWeight: 300,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    +
-                  </button>
-                </div>
-
-                {/* Add to order button */}
+          {/* Bottom add bar - fixed */}
+          {dish.is_available ? (
+            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-gray-100 px-5 py-4 flex items-center gap-3 z-[101]">
+              {/* Qty stepper */}
+              <div className="flex items-center border border-gray-200 rounded-full overflow-hidden">
                 <button
-                  onClick={handleAddToOrder}
-                  style={{
-                    flex: 1,
-                    padding: '16px 0',
-                    borderRadius: 999,
-                    backgroundColor: tokens.text,
-                    color: tokens.cardBg,
-                    fontFamily: tokens.fontBody,
-                    fontSize: 15,
-                    fontWeight: 700,
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
+                  onClick={() => setLocalQty((q) => Math.max(1, q - 1))}
+                  className="w-11 h-12 bg-transparent border-none text-[#1A1A1A] text-xl font-light cursor-pointer flex items-center justify-center"
                 >
-                  Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{dish.price * localQty}
+                  −
+                </button>
+                <span className="w-8 text-center font-body text-base font-bold text-[#1A1A1A]">
+                  {localQty}
+                </span>
+                <button
+                  onClick={() => setLocalQty((q) => q + 1)}
+                  className="w-11 h-12 bg-transparent border-none text-[#1A1A1A] text-xl font-light cursor-pointer flex items-center justify-center"
+                >
+                  +
                 </button>
               </div>
-            ) : (
-              <div
-                style={{
-                  textAlign: 'center',
-                  color: tokens.error,
-                  fontFamily: tokens.fontBody,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  padding: '14px 0',
-                }}
+
+              {/* Add button */}
+              <button
+                onClick={handleAddToOrder}
+                className="flex-1 py-4 rounded-full bg-[#1A1A1A] text-white font-body text-[15px] font-bold border-none cursor-pointer"
               >
-                Sold out
-              </div>
-            )}
-          </div>
+                Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{dish.price * localQty}
+              </button>
+            </div>
+          ) : (
+            <div className="text-center text-red-500 font-body text-sm font-bold py-4">
+              Sold out
+            </div>
+          )}
         </div>
       </div>
     </>

@@ -6,18 +6,23 @@ import { toast } from 'sonner';
 import { formatPrice } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
+import WelcomeScreenV2 from '@/components/menu/WelcomeScreenV2';
 import MenuNavbarV2 from '@/components/menu/MenuNavbarV2';
 import CategoryTabsV2 from '@/components/menu/CategoryTabsV2';
 import DishCardV2 from '@/components/menu/DishCardV2';
 import DishDetailSheetV2 from '@/components/menu/DishDetailSheetV2';
 import CartBarV2 from '@/components/menu/CartBarV2';
 import CartSheetV2 from '@/components/menu/CartSheetV2';
+import PayViewV2 from '@/components/menu/PayViewV2';
+import SplitBillSheet from '@/components/menu/SplitBillSheet';
 import CallWaiterButton from '@/components/menu/CallWaiterButton';
 import { useCart } from '@/hooks/useCart';
 import type { CartItem, Category, Product, Restaurant } from '@/types';
 
 type ActiveFilter = 'all' | 'veg' | 'non_veg' | 'bestseller';
 type Lang = 'en' | 'hi';
+type View = 'welcome' | 'menu' | 'pay';
+type BottomTab = 'order' | 'pay';
 
 interface Props {
   restaurant: Restaurant;
@@ -26,34 +31,52 @@ interface Props {
   tableId: string | null;
 }
 
+/* ── Custom Toast Component ─────────────────────────────────────────── */
+function SundayToast({
+  message,
+  onClose,
+}: {
+  message: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in">
+      <div className="bg-[#1A1A1A] text-white font-body text-sm font-medium px-4 py-3 rounded-xl flex items-center justify-between shadow-lg">
+        <span>{message}</span>
+        <button onClick={onClose} className="ml-3 text-white/60 bg-transparent border-none cursor-pointer">
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function CustomerMenuV2({ restaurant, categories, products, tableId }: Props) {
   const tokens = useMemo(
     () => buildMenuTokens(restaurant.design_tokens),
     [restaurant.design_tokens]
   );
 
-  useEffect(() => {
-    document.documentElement.style.setProperty('--toast-success', tokens.success);
-    document.documentElement.style.setProperty('--toast-error', tokens.error);
-    document.documentElement.style.setProperty('--text-muted-placeholder', tokens.textMuted);
-    return () => {
-      document.documentElement.style.removeProperty('--toast-success');
-      document.documentElement.style.removeProperty('--toast-error');
-      document.documentElement.style.removeProperty('--text-muted-placeholder');
-    };
-  }, [tokens.success, tokens.error, tokens.textMuted]);
-
   const reduced = useReducedMotion();
+  const [view, setView] = useState<View>('welcome');
+  const [bottomTab, setBottomTab] = useState<BottomTab>('order');
   const [activeTab, setActiveTab] = useState(categories[0]?.id ?? '');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('all');
   const [selectedDish, setSelectedDish] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
+  const [splitBillOpen, setSplitBillOpen] = useState(false);
   const [jumpTarget, setJumpTarget] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>('en');
 
   const { items: cartItems, addItem, clearCart, getTotal, getItemCount } = useCart();
 
   const [zoomedImage, setZoomedImage] = useState<{ url: string; name: string } | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Repeat last order
   const [repeatOrder, setRepeatOrder] = useState<{ items: Omit<CartItem, 'name_hindi'>[]; total: number } | null>(null);
@@ -61,7 +84,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Scroll state
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -93,14 +116,18 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     } catch { /* ignore */ }
   }, [restaurant.slug]);
 
-  // Combo suggestion toast
+  // Show custom toast when item added
   const prevCartRef = useRef<CartItem[]>([]);
   useEffect(() => {
     const prev = prevCartRef.current;
     const newlyAdded = cartItems.filter((item) => !prev.find((p) => p.product_id === item.product_id));
     if (newlyAdded.length > 0) {
-      for (const added of newlyAdded) {
-        const product = products.find((p) => p.id === added.product_id);
+      const added = newlyAdded[0];
+      setToastMessage(`1 ${added.name} has been added`);
+
+      // Combo suggestion
+      for (const item of newlyAdded) {
+        const product = products.find((p) => p.id === item.product_id);
         if (!product?.category_id) continue;
         const cat = categories.find((c) => c.id === product.category_id);
         if (!cat) continue;
@@ -113,7 +140,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
         const drinks = products.filter((p) => p.category_id === drinkCat.id && p.is_available);
         if (drinks.length === 0) continue;
         const suggestion = drinks[Math.floor(Math.random() * drinks.length)];
-        toast(`🥤 Pair it with a drink?`, {
+        toast(`Pair it with a drink?`, {
           description: `${suggestion.name} · ₹${suggestion.price}`,
           action: { label: 'Add', onClick: () => addItem(suggestion) },
           duration: 7000,
@@ -155,11 +182,11 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Section refs for scroll/IntersectionObserver
+  // Section refs for IntersectionObserver
   const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
-    if (categories.length === 0) return;
+    if (categories.length === 0 || view !== 'menu') return;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -174,7 +201,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     const refs = sectionRefs.current;
     refs.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [categories]);
+  }, [categories, view]);
 
   const scrollToCategory = useCallback(
     (id: string) => {
@@ -184,7 +211,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
       }
       const el = sectionRefs.current.get(id);
       if (el) {
-        // navbar ~56px + tabs ~40px = ~100px offset
         const offset = 110;
         const y = el.getBoundingClientRect().top + window.scrollY - offset;
         window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
@@ -193,6 +219,13 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     },
     [reduced]
   );
+
+  function handleCategoryFromWelcome(categoryId: string) {
+    setView('menu');
+    setActiveTab(categoryId);
+    // Wait for menu to render, then scroll
+    setTimeout(() => scrollToCategory(categoryId), 100);
+  }
 
   function getFilteredProducts(categoryId: string): Product[] {
     let ps = products.filter((p) => p.category_id === categoryId);
@@ -219,339 +252,330 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     : true;
 
   const FILTER_OPTIONS: { v: ActiveFilter; label: string }[] = [
-    { v: 'all', label: 'All' },
     { v: 'veg', label: 'Veg' },
     { v: 'non_veg', label: 'Non-Veg' },
     { v: 'bestseller', label: 'Popular' },
   ];
 
+  // Get current active category name for navbar
+  const activeCategoryName = categories.find((c) => c.id === activeTab)?.name;
+
   return (
-    <div
-      style={{
-        maxWidth: 420,
-        margin: '0 auto',
-        minHeight: '100vh',
-        backgroundColor: tokens.bg,
-        position: 'relative',
-      }}
-    >
+    <div className="max-w-[480px] mx-auto min-h-screen bg-white relative">
       <style>{`* { -webkit-tap-highlight-color: transparent; }`}</style>
 
-      {/* ── Sticky header ── */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
-        <MenuNavbarV2
-          restaurant={restaurant}
-          tokens={tokens}
-          itemCount={itemCount}
-          onCartOpen={() => setCartOpen(true)}
-          lang={lang}
-          onLangToggle={() => setLang((l) => (l === 'en' ? 'hi' : 'en'))}
-          isScrolled={isScrolled}
-        />
-        <CategoryTabsV2
-          categories={categories}
-          activeTab={activeTab}
-          tokens={tokens}
-          onSelect={scrollToCategory}
-          lang={lang}
-        />
-
-        {/* Search + filter row */}
-        <div
-          style={{
-            backgroundColor: tokens.navBg,
-            padding: '8px 16px 10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            borderBottom: `1px solid ${tokens.border}`,
-          }}
-        >
-          {/* Search */}
-          <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-            <svg
-              width="13" height="13" viewBox="0 0 24 24" fill="none"
-              stroke={tokens.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              placeholder={searchFocused ? '' : 'Search dishes…'}
-              style={{
-                width: '100%',
-                padding: '8px 28px 8px 30px',
-                borderRadius: 8,
-                border: `1px solid ${tokens.border}`,
-                backgroundColor: tokens.cardBg,
-                color: tokens.text,
-                fontFamily: tokens.fontBody,
-                fontSize: 13,
-                outline: 'none',
-                boxSizing: 'border-box',
-              } as React.CSSProperties}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                style={{
-                  position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  padding: 2, display: 'flex', alignItems: 'center', color: tokens.textMuted,
-                }}
-              >
-                <X size={12} strokeWidth={2.5} />
-              </button>
-            )}
-          </div>
-
-          {/* Filter chips */}
-          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-            {FILTER_OPTIONS.slice(1).map(({ v, label }) => {
-              const active = activeFilter === v;
-              return (
-                <button
-                  key={v}
-                  onClick={() => setActiveFilter(active ? 'all' : v)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 6,
-                    border: `1px solid ${active ? tokens.primary : tokens.border}`,
-                    backgroundColor: active ? tokens.primary : 'transparent',
-                    color: active ? '#fff' : tokens.textMuted,
-                    fontFamily: tokens.fontBody,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    transition: 'background 0.12s ease, color 0.12s ease',
-                  }}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Scrolling content ── */}
-      <div style={{ paddingBottom: itemCount > 0 ? 100 : 40 }}>
-
-        {/* Repeat last order banner */}
-        {showRepeat && repeatOrder && (
-          <div
-            style={{
-              margin: '12px 16px 0',
-              padding: '12px 14px',
-              backgroundColor: tokens.cardBg,
-              borderRadius: 12,
-              border: `1px solid ${tokens.border}`,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            <RotateCcw size={17} color={tokens.primary} strokeWidth={2} style={{ flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontFamily: tokens.fontBody, fontSize: 13, fontWeight: 700, color: tokens.text, margin: 0 }}>
-                Repeat last order?
-              </p>
-              <p style={{ fontFamily: tokens.fontBody, fontSize: 11, color: tokens.textMuted, margin: '2px 0 0' }}>
-                {repeatOrder.items.length} item{repeatOrder.items.length !== 1 ? 's' : ''} · {formatPrice(repeatOrder.total)}
-              </p>
-            </div>
-            <button
-              onClick={handleRepeatOrder}
-              style={{
-                padding: '7px 12px',
-                borderRadius: 999,
-                border: 'none',
-                backgroundColor: tokens.primary,
-                color: '#fff',
-                fontFamily: tokens.fontBody,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
-            >
-              Repeat
-            </button>
-            <button
-              onClick={() => setShowRepeat(false)}
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: tokens.textMuted, padding: 4, flexShrink: 0 }}
-            >
-              <X size={14} strokeWidth={2.5} />
-            </button>
-          </div>
-        )}
-
-        {isFiltering && !hasAnyResults && (
-          <div style={{ padding: '48px 16px', textAlign: 'center', fontFamily: tokens.fontBody, fontSize: 14, color: tokens.textMuted }}>
-            No items found
-          </div>
-        )}
-
-        {categories.map((cat) => {
-          const filtered = getFilteredProducts(cat.id);
-          if (filtered.length === 0 && isFiltering) return null;
-
-          return (
-            <div
-              key={cat.id}
-              ref={(el) => {
-                if (el) sectionRefs.current.set(cat.id, el);
-                else sectionRefs.current.delete(cat.id);
-              }}
-              data-category-id={cat.id}
-            >
-              {/* Section heading */}
-              <div
-                style={{
-                  padding: '28px 16px 10px',
-                  borderBottom: `1px solid ${tokens.border}`,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: tokens.fontBody,
-                    fontSize: 20,
-                    fontWeight: 800,
-                    color: tokens.text,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name}
-                </div>
-                {cat.name_hindi && lang === 'en' && (
-                  <div style={{ fontFamily: tokens.fontBody, fontSize: 12, color: tokens.textMuted, marginTop: 2 }}>
-                    {cat.name_hindi}
-                  </div>
-                )}
-              </div>
-
-              {filtered.length === 0 ? (
-                <div style={{ padding: '16px', fontFamily: tokens.fontBody, fontSize: 13, color: tokens.textMuted }}>
-                  No dishes in this category
-                </div>
-              ) : (
-                filtered.map((dish, i) => (
-                  <DishCardV2
-                    key={dish.id}
-                    dish={dish}
-                    tokens={tokens}
-                    index={i}
-                    isBestseller={topDishIds.has(dish.id)}
-                    lang={lang}
-                    onTap={() => setSelectedDish(dish)}
-                    onLongPressImage={
-                      dish.image_url
-                        ? (url, name) => setZoomedImage({ url, name })
-                        : undefined
-                    }
-                  />
-                ))
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Call waiter */}
-      <CallWaiterButton
-        restaurantId={restaurant.id}
-        tableId={tableId}
-        tokens={tokens}
-        cartVisible={itemCount > 0}
-      />
-
-      {/* Back to top */}
-      {showBackToTop && (
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
-          style={{
-            position: 'fixed',
-            bottom: itemCount > 0 ? 80 : 24,
-            right: 16,
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            backgroundColor: tokens.text,
-            color: tokens.cardBg,
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
-            zIndex: 47,
-          }}
-          aria-label="Back to top"
-        >
-          <ChevronUp size={18} strokeWidth={2.5} />
-        </button>
+      {/* ── Bottom Tab: Pay ── */}
+      {bottomTab === 'pay' && (
+        <>
+          <PayViewV2
+            restaurant={restaurant}
+            tableDisplayName={tableId}
+            onSplitBill={() => setSplitBillOpen(true)}
+          />
+          <SplitBillSheet
+            open={splitBillOpen}
+            onClose={() => setSplitBillOpen(false)}
+          />
+        </>
       )}
 
-      {/* Cart bar */}
-      <CartBarV2
-        tokens={tokens}
-        itemCount={itemCount}
-        total={total}
-        onOpen={() => setCartOpen(true)}
-      />
+      {/* ── Bottom Tab: Order ── */}
+      {bottomTab === 'order' && (
+        <>
+          {/* Welcome screen */}
+          {view === 'welcome' && (
+            <WelcomeScreenV2
+              restaurant={restaurant}
+              categories={categories}
+              products={products}
+              onCategorySelect={handleCategoryFromWelcome}
+            />
+          )}
 
-      {/* Dish detail sheet */}
-      <DishDetailSheetV2
-        product={selectedDish}
-        tokens={tokens}
-        isBestseller={selectedDish ? topDishIds.has(selectedDish.id) : false}
-        lang={lang}
-        onClose={() => setSelectedDish(null)}
-      />
+          {/* Menu screen */}
+          {view === 'menu' && (
+            <>
+              {/* Sticky header */}
+              <div className="sticky top-0 z-30">
+                <MenuNavbarV2
+                  restaurant={restaurant}
+                  tokens={tokens}
+                  itemCount={itemCount}
+                  onCartOpen={() => setCartOpen(true)}
+                  lang={lang}
+                  onLangToggle={() => setLang((l) => (l === 'en' ? 'hi' : 'en'))}
+                  isScrolled={isScrolled}
+                  onSearch={() => setSearchOpen(!searchOpen)}
+                  currentCategory={isScrolled ? activeCategoryName : undefined}
+                />
+                <CategoryTabsV2
+                  categories={categories}
+                  activeTab={activeTab}
+                  tokens={tokens}
+                  onSelect={scrollToCategory}
+                  lang={lang}
+                />
 
-      {/* Cart sheet */}
-      <CartSheetV2
-        open={cartOpen}
-        onClose={() => setCartOpen(false)}
-        restaurant={restaurant}
-        tableId={tableId}
-        tokens={tokens}
-        products={products}
-      />
+                {/* Search + filter row */}
+                <div className="bg-white px-4 py-2 flex items-center gap-2 border-b border-gray-50">
+                  {/* Search */}
+                  <div className="relative flex-1 min-w-0">
+                    <svg
+                      width="13" height="13" viewBox="0 0 24 24" fill="none"
+                      stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search dishes..."
+                      className="w-full py-2 pl-8 pr-7 rounded-lg border border-gray-100 bg-white text-[#1A1A1A] font-body text-[13px] outline-none"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5 text-[#999]"
+                      >
+                        <X size={12} strokeWidth={2.5} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter chips */}
+                  <div className="flex gap-1 shrink-0">
+                    {FILTER_OPTIONS.map(({ v, label }) => {
+                      const active = activeFilter === v;
+                      return (
+                        <button
+                          key={v}
+                          onClick={() => setActiveFilter(active ? 'all' : v)}
+                          className={`px-2.5 py-1.5 rounded-md font-body text-[11px] font-semibold whitespace-nowrap transition-colors duration-100 border ${
+                            active
+                              ? 'border-[#1A1A1A] bg-[#1A1A1A] text-white'
+                              : 'border-gray-200 bg-transparent text-[#999]'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Scrolling content */}
+              <div className={`${itemCount > 0 ? 'pb-[100px]' : 'pb-10'}`}>
+                {/* Repeat order banner */}
+                {showRepeat && repeatOrder && (
+                  <div className="mx-4 mt-3 p-3 bg-white rounded-xl border border-gray-100 flex items-center gap-2.5">
+                    <RotateCcw size={17} color="#1A1A1A" strokeWidth={2} className="shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-body text-[13px] font-bold text-[#1A1A1A] m-0">
+                        Repeat last order?
+                      </p>
+                      <p className="font-body text-[11px] text-[#666] mt-0.5 m-0">
+                        {repeatOrder.items.length} item{repeatOrder.items.length !== 1 ? 's' : ''} · {formatPrice(repeatOrder.total)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleRepeatOrder}
+                      className="px-3 py-1.5 rounded-full border-none bg-[#1A1A1A] text-white font-body text-xs font-bold cursor-pointer shrink-0"
+                    >
+                      Repeat
+                    </button>
+                    <button
+                      onClick={() => setShowRepeat(false)}
+                      className="bg-transparent border-none cursor-pointer text-[#999] p-1 shrink-0"
+                    >
+                      <X size={14} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                )}
+
+                {isFiltering && !hasAnyResults && (
+                  <div className="py-12 px-4 text-center font-body text-sm text-[#666]">
+                    No items found
+                  </div>
+                )}
+
+                {categories.map((cat) => {
+                  const filtered = getFilteredProducts(cat.id);
+                  if (filtered.length === 0 && isFiltering) return null;
+
+                  return (
+                    <div
+                      key={cat.id}
+                      ref={(el) => {
+                        if (el) sectionRefs.current.set(cat.id, el);
+                        else sectionRefs.current.delete(cat.id);
+                      }}
+                      data-category-id={cat.id}
+                    >
+                      {/* Section heading */}
+                      <div className="pt-6 pb-2.5 px-4">
+                        <h2 className="font-body text-xl font-semibold text-[#1A1A1A] leading-tight">
+                          {lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name}
+                        </h2>
+                        {cat.name_hindi && lang === 'en' && (
+                          <p className="font-body text-xs text-[#999] mt-0.5">
+                            {cat.name_hindi}
+                          </p>
+                        )}
+                      </div>
+
+                      {filtered.length === 0 ? (
+                        <div className="px-4 py-4 font-body text-[13px] text-[#999]">
+                          No dishes in this category
+                        </div>
+                      ) : (
+                        filtered.map((dish, i) => (
+                          <DishCardV2
+                            key={dish.id}
+                            dish={dish}
+                            tokens={tokens}
+                            index={i}
+                            isBestseller={topDishIds.has(dish.id)}
+                            lang={lang}
+                            onTap={() => setSelectedDish(dish)}
+                            onLongPressImage={
+                              dish.image_url
+                                ? (url, name) => setZoomedImage({ url, name })
+                                : undefined
+                            }
+                          />
+                        ))
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Call waiter */}
+              <CallWaiterButton
+                restaurantId={restaurant.id}
+                tableId={tableId}
+                tokens={tokens}
+                cartVisible={itemCount > 0}
+              />
+
+              {/* Back to top */}
+              {showBackToTop && (
+                <button
+                  onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
+                  className={`fixed ${itemCount > 0 ? 'bottom-20' : 'bottom-6'} right-4 w-10 h-10 rounded-full bg-[#1A1A1A] text-white border-none cursor-pointer flex items-center justify-center shadow-lg z-[47]`}
+                  aria-label="Back to top"
+                >
+                  <ChevronUp size={18} strokeWidth={2.5} />
+                </button>
+              )}
+
+              {/* Cart bar */}
+              <CartBarV2
+                tokens={tokens}
+                itemCount={itemCount}
+                total={total}
+                onOpen={() => setCartOpen(true)}
+              />
+
+              {/* Dish detail sheet */}
+              <DishDetailSheetV2
+                product={selectedDish}
+                tokens={tokens}
+                isBestseller={selectedDish ? topDishIds.has(selectedDish.id) : false}
+                lang={lang}
+                onClose={() => setSelectedDish(null)}
+                allProducts={products}
+              />
+
+              {/* Cart sheet */}
+              <CartSheetV2
+                open={cartOpen}
+                onClose={() => setCartOpen(false)}
+                restaurant={restaurant}
+                tableId={tableId}
+                tokens={tokens}
+                products={products}
+              />
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Custom Toast ── */}
+      {toastMessage && (
+        <SundayToast
+          message={toastMessage}
+          onClose={() => setToastMessage(null)}
+        />
+      )}
+
+      {/* ── Bottom Navigation ── */}
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-[55] bg-[#1A1A1A] rounded-t-2xl">
+        {/* Cart bar integrated at top */}
+        {bottomTab === 'order' && itemCount > 0 && view === 'welcome' && (
+          <button
+            onClick={() => { setView('menu'); setCartOpen(true); }}
+            className="w-full flex justify-between items-center px-5 py-3.5 bg-transparent border-none cursor-pointer border-b border-white/10"
+          >
+            <span className="font-body text-[15px] font-semibold text-white">
+              View your order
+            </span>
+            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center font-body text-xs font-black text-[#1A1A1A]">
+              {itemCount}
+            </div>
+          </button>
+        )}
+
+        {/* Tab buttons */}
+        <div className="flex">
+          <button
+            onClick={() => { setBottomTab('order'); if (view === 'pay') setView('welcome'); }}
+            className={`flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer ${
+              bottomTab === 'order' ? 'text-white' : 'text-white/40'
+            }`}
+          >
+            {/* Menu/chat icon */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span className="font-body text-[11px] font-semibold">Order</span>
+          </button>
+          <button
+            onClick={() => setBottomTab('pay')}
+            className={`flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer ${
+              bottomTab === 'pay' ? 'text-white' : 'text-white/40'
+            }`}
+          >
+            {/* Card icon */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+              <line x1="1" y1="10" x2="23" y2="10" />
+            </svg>
+            <span className="font-body text-[11px] font-semibold">Pay</span>
+          </button>
+        </div>
+      </div>
 
       {/* Long press image zoom overlay */}
       {zoomedImage && (
         <div
           onClick={() => setZoomedImage(null)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            backgroundColor: 'rgba(0,0,0,0.92)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
-          }}
+          className="fixed inset-0 z-[9999] bg-black/92 flex flex-col items-center justify-center gap-3"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={zoomedImage.url}
             alt={zoomedImage.name}
-            style={{ maxWidth: '94%', maxHeight: '78vh', objectFit: 'contain', borderRadius: 12 }}
+            className="max-w-[94%] max-h-[78vh] object-contain rounded-xl"
           />
-          <p style={{ color: 'rgba(255,255,255,0.75)', fontFamily: tokens.fontBody, fontSize: 14, fontWeight: 600, margin: 0 }}>
+          <p className="text-white/75 font-body text-sm font-semibold m-0">
             {zoomedImage.name}
           </p>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: tokens.fontBody, fontSize: 12, margin: 0 }}>
+          <p className="text-white/40 font-body text-xs m-0">
             Tap anywhere to close
           </p>
         </div>

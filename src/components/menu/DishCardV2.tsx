@@ -19,7 +19,6 @@ interface Props {
 
 export default function DishCardV2({
   dish,
-  tokens,
   index,
   isBestseller,
   lang = 'en',
@@ -66,7 +65,6 @@ export default function DishCardV2({
   const cartItem = items.find((i) => i.product_id === dish.id);
   const qty = cartItem?.quantity ?? 0;
   const primaryName = (lang === 'hi' && dish.name_hindi) ? dish.name_hindi : dish.name;
-  const vegColor = dish.is_veg ? tokens.veg : tokens.nonveg;
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
@@ -98,157 +96,65 @@ export default function DishCardV2({
     >
       <div
         onClick={dish.is_available ? onTap : undefined}
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 14,
-          padding: '16px 16px 18px',
-          cursor: dish.is_available ? 'pointer' : 'default',
-          borderBottom: `1px solid ${tokens.border}`,
-          backgroundColor: tokens.cardBg,
-        }}
+        className={`flex items-start gap-4 py-5 px-4 ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
       >
-        {/* Left: text content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Veg/non-veg + badges row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                backgroundColor: vegColor,
-                flexShrink: 0,
-                display: 'inline-block',
-              }}
-            />
-            <span
-              style={{
-                fontFamily: tokens.fontBody,
-                fontSize: 11,
-                color: tokens.textMuted,
-                fontWeight: 500,
-              }}
-            >
-              {dish.is_available ? (dish.is_veg ? 'Veg' : 'Non-veg') : 'Sold out'}
+        {/* Left: text content (70%) */}
+        <div className="flex-1 min-w-0">
+          {/* Orderable badge */}
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="w-[7px] h-[7px] rounded-full bg-green-600 shrink-0 inline-block" />
+            <span className="font-body text-xs text-[#666]">
+              {dish.is_available ? 'Orderable' : 'Sold out'}
             </span>
-            {isBestseller && (
-              <span
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  color: tokens.badgeText,
-                  backgroundColor: tokens.badgeBg,
-                  borderRadius: 3,
-                  padding: '1px 5px',
-                  marginLeft: 2,
-                }}
-              >
-                🔥 Popular
-              </span>
-            )}
-            {dish.is_jain && (
-              <span
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  color: tokens.primary,
-                  backgroundColor: tokens.surfaceLow,
-                  borderRadius: 3,
-                  padding: '1px 5px',
-                }}
-              >
-                JAIN
-              </span>
-            )}
           </div>
 
           {/* Dish name */}
-          <div
-            style={{
-              fontFamily: tokens.fontBody,
-              fontSize: 16,
-              fontWeight: 700,
-              color: tokens.text,
-              lineHeight: 1.3,
-              marginBottom: 4,
-              overflow: 'hidden',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-            } as React.CSSProperties}
-          >
+          <h3 className="font-body text-base font-semibold text-[#1A1A1A] leading-tight mb-1 line-clamp-2">
             {primaryName}
-          </div>
+          </h3>
 
           {/* Price */}
           {dish.is_available ? (
-            <div
-              style={{
-                fontFamily: tokens.fontBody,
-                fontSize: 14,
-                fontWeight: 700,
-                color: tokens.text,
-                marginBottom: 5,
-              }}
-            >
+            <p className="font-body text-[15px] font-medium text-[#1A1A1A] mb-1.5">
               ₹{dish.price}
-              {dish.spice_level > 0 && (
-                <span style={{ marginLeft: 4, fontSize: 12 }}>
-                  {'🌶️'.repeat(dish.spice_level)}
-                </span>
-              )}
-            </div>
+            </p>
           ) : (
-            <div
-              style={{
-                fontFamily: tokens.fontBody,
-                fontSize: 13,
-                fontWeight: 700,
-                color: tokens.error,
-                marginBottom: 5,
-              }}
-            >
+            <p className="font-body text-[13px] font-bold text-red-500 mb-1.5">
               Sold out
-            </div>
+            </p>
           )}
 
           {/* Description */}
           {dish.description && (
-            <div
-              style={{
-                fontFamily: tokens.fontBody,
-                fontSize: 12,
-                fontWeight: 400,
-                color: tokens.textMuted,
-                lineHeight: 1.55,
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-              } as React.CSSProperties}
-            >
+            <p className="font-body text-[13px] text-[#888] leading-relaxed line-clamp-2">
               {dish.description}
-            </div>
+            </p>
           )}
+
+          {/* Tags */}
+          <div className="flex items-center gap-1.5 mt-2">
+            {dish.is_veg && (
+              <span className="font-body text-[11px] font-medium text-[#666] bg-[#F5F5F0] rounded-full px-2.5 py-0.5">
+                Veg
+              </span>
+            )}
+            {isBestseller && (
+              <span className="font-body text-[11px] font-medium text-[#666] bg-[#F5F5F0] rounded-full px-2.5 py-0.5">
+                Popular
+              </span>
+            )}
+            {dish.is_jain && (
+              <span className="font-body text-[11px] font-medium text-[#666] bg-[#F5F5F0] rounded-full px-2.5 py-0.5">
+                Jain
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Right: image + add/stepper */}
-        <div style={{ position: 'relative', flexShrink: 0, marginTop: 2 }}>
-          {/* Image */}
+        {/* Right: image + add button (30%) */}
+        <div className="relative shrink-0 mt-0.5">
           <div
-            style={{
-              width: 88,
-              height: 88,
-              borderRadius: 10,
-              overflow: 'hidden',
-              backgroundColor: dish.image_url ? undefined : `${tokens.primary}18`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              userSelect: 'none',
-              WebkitUserSelect: 'none',
-            }}
+            className="w-[100px] h-[100px] rounded-lg overflow-hidden bg-[#F5F5F0] flex items-center justify-center select-none"
             onTouchStart={(e) => { e.stopPropagation(); startLongPress(); }}
             onTouchEnd={(e) => { e.stopPropagation(); cancelLongPress(); }}
             onTouchMove={cancelLongPress}
@@ -263,107 +169,40 @@ export default function DishCardV2({
                 src={dish.image_url}
                 alt={dish.name}
                 draggable={false}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: 'block',
-                  pointerEvents: 'none',
-                }}
+                className="w-full h-full object-cover block pointer-events-none"
               />
             ) : (
-              <Utensils size={24} color={tokens.primary} strokeWidth={1.5} />
+              <Utensils size={24} color="#999" strokeWidth={1.5} />
             )}
           </div>
 
-          {/* + button or qty stepper, overlaid at bottom-right of image */}
+          {/* + button or qty stepper */}
           {dish.is_available && (
             <div
-              style={{ position: 'absolute', bottom: -10, right: -6 }}
+              className="absolute -bottom-2.5 -right-1.5"
               onClick={(e) => e.stopPropagation()}
             >
               {qty === 0 ? (
                 <button
                   onClick={handleAdd}
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: '50%',
-                    backgroundColor: tokens.primary,
-                    color: '#fff',
-                    border: `2px solid ${tokens.cardBg}`,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 18,
-                    lineHeight: 1,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
-                  }}
+                  className="w-8 h-8 rounded-full bg-[#1A1A1A] text-white border-2 border-white cursor-pointer flex items-center justify-center text-lg leading-none shadow-md active:sunday-btn-pulse"
                 >
                   +
                 </button>
               ) : (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    backgroundColor: tokens.cardBg,
-                    borderRadius: 20,
-                    border: `1.5px solid ${tokens.primary}`,
-                    padding: '2px 3px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  }}
-                >
+                <div className="flex items-center bg-white rounded-full border border-[#1A1A1A] px-1 py-0.5 shadow-md">
                   <button
                     onClick={handleDecrease}
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: 'transparent',
-                      color: tokens.primary,
-                      fontSize: 16,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      lineHeight: 1,
-                    }}
+                    className="w-6 h-6 rounded-full bg-transparent border-none text-[#1A1A1A] text-base font-semibold cursor-pointer flex items-center justify-center leading-none"
                   >
                     −
                   </button>
-                  <span
-                    style={{
-                      fontFamily: tokens.fontBody,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: tokens.text,
-                      minWidth: 16,
-                      textAlign: 'center',
-                    }}
-                  >
+                  <span className="font-body text-[13px] font-bold text-[#1A1A1A] min-w-[16px] text-center">
                     {qty}
                   </span>
                   <button
                     onClick={handleIncrease}
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: 'transparent',
-                      color: tokens.primary,
-                      fontSize: 16,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      lineHeight: 1,
-                    }}
+                    className="w-6 h-6 rounded-full bg-transparent border-none text-[#1A1A1A] text-base font-semibold cursor-pointer flex items-center justify-center leading-none"
                   >
                     +
                   </button>

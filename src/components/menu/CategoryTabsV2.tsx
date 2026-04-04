@@ -15,13 +15,11 @@ interface Props {
 export default function CategoryTabsV2({
   categories,
   activeTab,
-  tokens,
   onSelect,
   lang = 'en',
 }: Props) {
   const activeRef = useRef<HTMLButtonElement>(null);
 
-  // Keep active tab scrolled into view
   useEffect(() => {
     activeRef.current?.scrollIntoView({
       behavior: 'smooth',
@@ -31,18 +29,8 @@ export default function CategoryTabsV2({
   }, [activeTab]);
 
   return (
-    <div
-      style={{
-        backgroundColor: tokens.navBg,
-        display: 'flex',
-        overflowX: 'auto',
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
-        borderBottom: `1px solid ${tokens.border}`,
-      } as React.CSSProperties}
-    >
-      <style>{`.cat-tabs-v2::-webkit-scrollbar { display: none; }`}</style>
-      <div className="cat-tabs-v2" style={{ display: 'flex', overflowX: 'auto', padding: '0 12px', scrollbarWidth: 'none', width: '100%' }}>
+    <div className="bg-white border-b border-gray-100">
+      <div className="flex overflow-x-auto scrollbar-hide px-4">
         {categories.map((cat) => {
           const active = cat.id === activeTab;
           const label = (lang === 'hi' && cat.name_hindi) ? cat.name_hindi : cat.name;
@@ -51,22 +39,11 @@ export default function CategoryTabsV2({
               key={cat.id}
               ref={active ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
-              style={{
-                flexShrink: 0,
-                padding: '12px 12px 10px',
-                border: 'none',
-                borderBottom: active
-                  ? `2px solid ${tokens.text}`
-                  : '2px solid transparent',
-                background: 'transparent',
-                cursor: 'pointer',
-                fontFamily: tokens.fontBody,
-                fontSize: 13,
-                fontWeight: active ? 700 : 500,
-                color: active ? tokens.text : tokens.textMuted,
-                whiteSpace: 'nowrap',
-                transition: 'color 0.15s ease, border-color 0.15s ease',
-              }}
+              className={`shrink-0 px-3 py-3 border-b-2 bg-transparent font-body text-[13px] whitespace-nowrap transition-colors duration-150 ${
+                active
+                  ? 'border-[#1A1A1A] text-[#1A1A1A] font-bold'
+                  : 'border-transparent text-[#999] font-medium'
+              }`}
             >
               {label}
             </button>

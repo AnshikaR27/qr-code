@@ -1,37 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Search } from 'lucide-react';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Restaurant } from '@/types';
-
-function parseMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return (h || 0) * 60 + (m || 0);
-}
-
-function formatTime12(t: string): string {
-  const [h, m] = t.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const hour = h % 12 || 12;
-  return `${hour}${m > 0 ? ':' + m.toString().padStart(2, '0') : ''} ${ampm}`;
-}
-
-function getHoursStatus(opening: string, closing: string): { open: boolean; label: string } {
-  const now = new Date();
-  const total = now.getHours() * 60 + now.getMinutes();
-  const openMin = parseMinutes(opening);
-  const closeMin = parseMinutes(closing);
-  let open: boolean;
-  if (closeMin > openMin) {
-    open = total >= openMin && total < closeMin;
-  } else {
-    open = total >= openMin || total < closeMin;
-  }
-  const label = open
-    ? `Open · Closes ${formatTime12(closing)}`
-    : `Closed · Opens ${formatTime12(opening)}`;
-  return { open, label };
-}
 
 interface Props {
   restaurant: Restaurant;
@@ -41,16 +13,17 @@ interface Props {
   lang?: 'en' | 'hi';
   onLangToggle?: () => void;
   isScrolled?: boolean;
+  onSearch?: () => void;
+  currentCategory?: string;
 }
 
 export default function MenuNavbarV2({
   restaurant,
-  tokens,
   itemCount,
   onCartOpen,
-  lang = 'en',
-  onLangToggle,
   isScrolled = false,
+  onSearch,
+  currentCategory,
 }: Props) {
   const prevCountRef = useRef(itemCount);
   const [animKey, setAnimKey] = useState(0);
@@ -63,175 +36,42 @@ export default function MenuNavbarV2({
     prevCountRef.current = itemCount;
   }, [itemCount]);
 
-  const { open, label: hoursLabel } = getHoursStatus(
-    restaurant.opening_time,
-    restaurant.closing_time
-  );
-
   return (
-    <>
-      <style>{`
-        @keyframes bagPulseV2 {
-          0%   { transform: scale(1); }
-          50%  { transform: scale(1.18); }
-          100% { transform: scale(1); }
-        }
-      `}</style>
-
-      <div
-        style={{
-          backgroundColor: `${tokens.navBg}ee`,
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          padding: isScrolled ? '10px 16px' : '16px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          transition: 'padding 0.2s ease',
-          borderBottom: isScrolled ? `1px solid ${tokens.border}` : 'none',
-        }}
+    <div className={`bg-white/95 backdrop-blur-md transition-all duration-200 ${isScrolled ? 'py-2.5 border-b border-gray-100' : 'py-4'} px-4 flex items-center`}>
+      {/* Left: back arrow */}
+      <button
+        onClick={() => window.history.back()}
+        className="w-10 h-10 flex items-center justify-center shrink-0"
+        aria-label="Go back"
       >
-        {/* Left: language toggle */}
-        <div style={{ width: 42, flexShrink: 0 }}>
-          {onLangToggle && (
-            <button
-              onClick={onLangToggle}
-              style={{
-                padding: '4px 7px',
-                borderRadius: 6,
-                border: `1px solid ${tokens.border}`,
-                backgroundColor: 'transparent',
-                color: tokens.textMuted,
-                fontFamily: tokens.fontBody,
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {lang === 'en' ? 'हिं' : 'EN'}
-            </button>
-          )}
-        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5" />
+          <path d="M12 19l-7-7 7-7" />
+        </svg>
+      </button>
 
-        {/* Center: restaurant name + status */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div
-            style={{
-              fontFamily: tokens.fontBody,
-              fontSize: isScrolled ? 16 : 20,
-              fontWeight: 700,
-              color: tokens.text,
-              lineHeight: 1.1,
-              transition: 'font-size 0.2s ease',
-            }}
-          >
+      {/* Center: category name or restaurant name */}
+      <div className="flex-1 flex flex-col items-center min-w-0">
+        {currentCategory ? (
+          <button className="flex items-center gap-1 font-body text-base font-semibold text-[#1A1A1A]">
+            <span className="truncate">{currentCategory}</span>
+            <ChevronDown size={16} strokeWidth={2} />
+          </button>
+        ) : (
+          <span className={`font-display font-bold text-[#1A1A1A] transition-all duration-200 ${isScrolled ? 'text-lg' : 'text-2xl'}`}>
             {restaurant.name}
-          </div>
-          {!isScrolled && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-              {restaurant.city && (
-                <span
-                  style={{
-                    fontFamily: tokens.fontBody,
-                    fontSize: 10,
-                    fontWeight: 500,
-                    color: tokens.textMuted,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.14em',
-                  }}
-                >
-                  {restaurant.city}
-                </span>
-              )}
-              {restaurant.city && (
-                <span style={{ color: tokens.border, fontSize: 9 }}>·</span>
-              )}
-              <span
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 3,
-                  fontFamily: tokens.fontBody,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: open ? tokens.success : tokens.error,
-                }}
-              >
-                <span
-                  style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: '50%',
-                    backgroundColor: open ? tokens.success : tokens.error,
-                    flexShrink: 0,
-                  }}
-                />
-                {hoursLabel}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Right: cart count button */}
-        <button
-          key={animKey}
-          onClick={onCartOpen}
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: '50%',
-            backgroundColor: tokens.text,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            border: 'none',
-            cursor: 'pointer',
-            flexShrink: 0,
-            animation: 'bagPulseV2 0.3s ease',
-          }}
-        >
-          {/* Shopping bag icon (inline SVG for cleanliness) */}
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={tokens.cardBg}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <path d="M16 10a4 4 0 0 1-8 0" />
-          </svg>
-          {itemCount > 0 && (
-            <span
-              style={{
-                position: 'absolute',
-                top: -3,
-                right: -3,
-                backgroundColor: tokens.primary,
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 900,
-                width: 17,
-                height: 17,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontFamily: tokens.fontBody,
-                lineHeight: 1,
-                border: `2px solid ${tokens.navBg}`,
-              }}
-            >
-              {itemCount}
-            </span>
-          )}
-        </button>
+          </span>
+        )}
       </div>
-    </>
+
+      {/* Right: search/filter icon */}
+      <button
+        onClick={onSearch ?? onCartOpen}
+        className="w-10 h-10 flex items-center justify-center shrink-0"
+        aria-label="Search"
+      >
+        <Search size={20} strokeWidth={2} color="#1A1A1A" />
+      </button>
+    </div>
   );
 }
