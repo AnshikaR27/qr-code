@@ -72,7 +72,7 @@ export default function DishDetailSheetV2({
     return () => { document.body.style.overflow = ''; };
   }, [product]);
 
-  // Pairing suggestions - items from a different category
+  // Pairing suggestions — different category
   const suggestions = useMemo(() => {
     if (!product?.category_id) return [];
     return allProducts
@@ -113,10 +113,11 @@ export default function DishDetailSheetV2({
           ref={scrollRef}
           onClick={(e) => e.stopPropagation()}
           onScroll={handleSheetScroll}
-          className={`w-full max-w-[480px] bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto shadow-[0_-4px_32px_rgba(0,0,0,0.15)] relative ${
+          className={`w-full max-w-[480px] rounded-t-2xl max-h-[90vh] overflow-y-auto shadow-[0_-4px_32px_rgba(0,0,0,0.15)] relative ${
             reduced ? '' : 'sunday-slide-up'
           }`}
           style={{
+            backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
             overflowY: dragY > 0 ? 'hidden' : 'auto',
             transform: sheetTransform,
             opacity: sheetOpacity,
@@ -130,18 +131,20 @@ export default function DishDetailSheetV2({
             onTouchMove={handleHandleTouchMove}
             onTouchEnd={handleHandleTouchEnd}
           >
-            <div className={`w-9 h-1 rounded-full ${dish.image_url ? 'bg-white/50' : 'bg-gray-300'}`} />
+            <div
+              className="w-9 h-1 rounded-full"
+              style={{ backgroundColor: dish.image_url ? 'rgba(255,255,255,0.5)' : 'var(--sunday-border, #E8D5B0)' }}
+            />
           </div>
 
           {/* Back button */}
           <button
             onClick={onClose}
-            className={`absolute top-3 left-3 z-[11] w-9 h-9 rounded-full flex items-center justify-center ${
-              dish.image_url
-                ? 'text-white shadow-md'
-                : 'bg-gray-100 text-[#1A1A1A]'
-            }`}
-            style={dish.image_url ? { backgroundColor: 'var(--sunday-accent, #1A1A1A)' } : undefined}
+            className="absolute top-3 left-3 z-[11] w-9 h-9 rounded-full flex items-center justify-center text-white shadow-md"
+            style={dish.image_url
+              ? { background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }
+              : { backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text, #1c1c17)' }
+            }
           >
             <ChevronLeft size={18} strokeWidth={2.5} />
           </button>
@@ -161,8 +164,11 @@ export default function DishDetailSheetV2({
               />
             </div>
           ) : (
-            <div className="w-full aspect-[4/3] bg-[#F5F5F0] flex items-center justify-center">
-              <Utensils size={48} color="#ccc" strokeWidth={1} />
+            <div
+              className="w-full aspect-[4/3] flex items-center justify-center"
+              style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
+            >
+              <Utensils size={48} strokeWidth={1} style={{ color: 'var(--sunday-border, #E8D5B0)' }} />
             </div>
           )}
 
@@ -170,43 +176,52 @@ export default function DishDetailSheetV2({
           <div className={`${dish.image_url ? 'pt-5' : 'pt-12'} px-5 pb-36`}>
             {/* Orderable badge */}
             <div className="flex items-center gap-1.5 mb-3">
-              <span className="w-2 h-2 rounded-full bg-green-600 shrink-0" />
-              <span className="font-body text-xs text-[#666] font-medium">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dish.is_available ? '#0F8A00' : '#E23744' }} />
+              <span className="font-body text-xs font-medium" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                 {dish.is_available ? 'Orderable' : 'Sold out'}
               </span>
               {isBestseller && (
-                <span className="font-body text-[10px] font-bold text-[#666] bg-[#F5F5F0] rounded px-1.5 py-0.5">
+                <span
+                  className="font-body text-[10px] font-bold rounded px-1.5 py-0.5"
+                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                >
                   Popular
                 </span>
               )}
               {dish.is_jain && (
-                <span className="font-body text-[10px] font-bold text-[#666] bg-[#F5F5F0] rounded px-1.5 py-0.5">
+                <span
+                  className="font-body text-[10px] font-bold rounded px-1.5 py-0.5"
+                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                >
                   Jain
                 </span>
               )}
             </div>
 
             {/* Dish name */}
-            <h2 className="font-display text-2xl font-bold text-[#1A1A1A] leading-tight mb-2">
+            <h2 className="font-display text-2xl font-bold leading-tight mb-2" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
               {primaryName}
             </h2>
 
             {/* Description */}
             {dish.description && (
-              <p className="font-body text-sm text-[#666] leading-relaxed mb-4">
+              <p className="font-body text-sm leading-relaxed mb-4" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                 {dish.description}
               </p>
             )}
 
             {/* Price */}
-            <p className="font-body text-lg font-semibold text-[#1A1A1A] mb-5">
+            <p className="font-body text-lg font-semibold mb-5" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
               ₹{dish.price}
             </p>
 
             {/* Allergens */}
             {dish.allergens && dish.allergens.length > 0 && (
               <div className="mb-4">
-                <span className="font-body text-[11px] font-semibold text-[#666] bg-[#F5F5F0] rounded-full px-3 py-1">
+                <span
+                  className="font-body text-[11px] font-semibold rounded-full px-3 py-1"
+                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                >
                   Contains: {dish.allergens.map((a) => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}
                 </span>
               </div>
@@ -216,23 +231,34 @@ export default function DishDetailSheetV2({
             <PairingSuggestions suggestions={suggestions} />
           </div>
 
-          {/* Bottom add bar - fixed */}
+          {/* Bottom add bar */}
           {dish.is_available ? (
-            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-gray-100 px-5 py-4 flex items-center gap-3 z-[101]">
+            <div
+              className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] border-t px-5 py-4 flex items-center gap-3 z-[101]"
+              style={{
+                backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
+                borderColor: 'var(--sunday-border, #E8D5B0)',
+              }}
+            >
               {/* Qty stepper */}
-              <div className="flex items-center border border-gray-200 rounded-full overflow-hidden">
+              <div
+                className="flex items-center rounded-full overflow-hidden"
+                style={{ border: '1px solid var(--sunday-border, #E8D5B0)' }}
+              >
                 <button
                   onClick={() => setLocalQty((q) => Math.max(1, q - 1))}
-                  className="w-11 h-12 bg-transparent border-none text-[#1A1A1A] text-xl font-light cursor-pointer flex items-center justify-center"
+                  className="w-11 h-12 bg-transparent border-none text-xl font-light cursor-pointer flex items-center justify-center"
+                  style={{ color: 'var(--sunday-text, #1c1c17)' }}
                 >
                   −
                 </button>
-                <span className="w-8 text-center font-body text-base font-bold text-[#1A1A1A]">
+                <span className="w-8 text-center font-body text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                   {localQty}
                 </span>
                 <button
                   onClick={() => setLocalQty((q) => q + 1)}
-                  className="w-11 h-12 bg-transparent border-none text-[#1A1A1A] text-xl font-light cursor-pointer flex items-center justify-center"
+                  className="w-11 h-12 bg-transparent border-none text-xl font-light cursor-pointer flex items-center justify-center"
+                  style={{ color: 'var(--sunday-text, #1c1c17)' }}
                 >
                   +
                 </button>
@@ -242,13 +268,13 @@ export default function DishDetailSheetV2({
               <button
                 onClick={handleAddToOrder}
                 className="flex-1 py-4 rounded-full text-white font-body text-[15px] font-bold border-none cursor-pointer"
-                style={{ backgroundColor: 'var(--sunday-accent, #1A1A1A)' }}
+                style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
               >
                 Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{dish.price * localQty}
               </button>
             </div>
           ) : (
-            <div className="text-center text-red-500 font-body text-sm font-bold py-4">
+            <div className="text-center font-body text-sm font-bold py-4" style={{ color: '#E23744' }}>
               Sold out
             </div>
           )}

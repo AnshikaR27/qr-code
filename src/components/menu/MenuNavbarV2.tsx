@@ -37,14 +37,23 @@ export default function MenuNavbarV2({
   }, [itemCount]);
 
   return (
-    <div className={`bg-white/95 backdrop-blur-md transition-all duration-200 ${isScrolled ? 'py-2.5 border-b border-gray-100' : 'py-4'} px-4 flex items-center`}>
+    <div
+      className={`backdrop-blur-md transition-all duration-200 ${isScrolled ? 'py-2.5' : 'py-4'} px-4 flex items-center`}
+      style={{
+        backgroundColor: isScrolled
+          ? 'color-mix(in srgb, var(--sunday-nav-bg, #efebe2) 95%, transparent)'
+          : 'var(--sunday-nav-bg, #efebe2)',
+        borderBottom: isScrolled ? '1px solid var(--sunday-border, #E8D5B0)' : 'none',
+      }}
+    >
       {/* Left: back arrow */}
       <button
         onClick={() => window.history.back()}
         className="w-10 h-10 flex items-center justify-center shrink-0"
+        style={{ color: 'var(--sunday-text, #1c1c17)' }}
         aria-label="Go back"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M19 12H5" />
           <path d="M12 19l-7-7 7-7" />
         </svg>
@@ -53,24 +62,32 @@ export default function MenuNavbarV2({
       {/* Center: category name or restaurant name */}
       <div className="flex-1 flex flex-col items-center min-w-0">
         {currentCategory ? (
-          <button className="flex items-center gap-1 font-body text-base font-semibold text-[#1A1A1A]">
+          <button
+            className="flex items-center gap-1 font-body text-base font-semibold"
+            style={{ color: 'var(--sunday-text, #1c1c17)' }}
+          >
             <span className="truncate">{currentCategory}</span>
             <ChevronDown size={16} strokeWidth={2} />
           </button>
         ) : (
-          <span className={`font-display font-bold text-[#1A1A1A] transition-all duration-200 ${isScrolled ? 'text-lg' : 'text-2xl'}`}>
+          <span
+            className={`font-display font-bold transition-all duration-200 ${isScrolled ? 'text-lg' : 'text-2xl'}`}
+            style={{ color: 'var(--sunday-text, #1c1c17)' }}
+          >
             {restaurant.name}
           </span>
         )}
       </div>
 
-      {/* Right: search/filter icon */}
+      {/* Right: search icon */}
       <button
+        key={animKey}
         onClick={onSearch ?? onCartOpen}
         className="w-10 h-10 flex items-center justify-center shrink-0"
+        style={{ color: 'var(--sunday-text, #1c1c17)' }}
         aria-label="Search"
       >
-        <Search size={20} strokeWidth={2} color="#1A1A1A" />
+        <Search size={20} strokeWidth={2} color="currentColor" />
       </button>
     </div>
   );

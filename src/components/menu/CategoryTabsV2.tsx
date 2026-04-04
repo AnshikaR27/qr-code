@@ -29,7 +29,10 @@ export default function CategoryTabsV2({
   }, [activeTab]);
 
   return (
-    <div className="bg-white border-b border-gray-100">
+    <div
+      className="border-b"
+      style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'var(--sunday-border, #E8D5B0)' }}
+    >
       <div className="flex overflow-x-auto scrollbar-hide px-4">
         {categories.map((cat) => {
           const active = cat.id === activeTab;
@@ -39,12 +42,19 @@ export default function CategoryTabsV2({
               key={cat.id}
               ref={active ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
-              className={`shrink-0 px-3 py-3 border-b-2 bg-transparent font-body text-[13px] whitespace-nowrap transition-colors duration-150 ${
-                active
-                  ? 'text-[#1A1A1A] font-bold'
-                  : 'border-transparent text-[#999] font-medium'
-              }`}
-              style={active ? { borderBottomColor: 'var(--sunday-accent, #1A1A1A)' } : undefined}
+              className="shrink-0 px-3 py-3 border-b-2 bg-transparent font-body text-[13px] whitespace-nowrap transition-colors duration-150"
+              style={active
+                ? {
+                    borderBottomColor: 'var(--sunday-accent, #b12d00)',
+                    color: 'var(--sunday-text, #1c1c17)',
+                    fontWeight: 700,
+                  }
+                : {
+                    borderBottomColor: 'transparent',
+                    color: 'var(--sunday-text-muted, #7A6040)',
+                    fontWeight: 500,
+                  }
+              }
             >
               {label}
             </button>

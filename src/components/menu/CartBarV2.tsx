@@ -22,7 +22,7 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
       <button
         onClick={onOpen}
         className="pointer-events-auto w-full h-[52px] rounded-t-xl flex items-center justify-between px-5 border-none cursor-pointer"
-        style={{ backgroundColor: 'var(--sunday-accent, #1A1A1A)' }}
+        style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
       >
         <span className="font-body text-[16px] font-semibold text-white">
           View your order · {formatPrice(total)}

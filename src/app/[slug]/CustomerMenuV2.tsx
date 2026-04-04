@@ -85,18 +85,33 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
   const accentTextColor = contrastText(accentColor);
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--sunday-accent', accentColor);
-    document.documentElement.style.setProperty('--sunday-accent-text', accentTextColor);
-    document.documentElement.style.setProperty('--sunday-primary', primaryColor);
-    document.documentElement.style.setProperty('--sunday-primary-text', primaryTextColor);
+    const root = document.documentElement;
+    root.style.setProperty('--sunday-primary', primaryColor);
+    root.style.setProperty('--sunday-primary-text', primaryTextColor);
+    root.style.setProperty('--sunday-accent', accentColor);
+    root.style.setProperty('--sunday-accent-text', accentTextColor);
+    root.style.setProperty('--sunday-bg', tokens.bg);
+    root.style.setProperty('--sunday-card-bg', tokens.cardBg);
+    root.style.setProperty('--sunday-nav-bg', tokens.navBg);
+    root.style.setProperty('--sunday-surface-low', tokens.surfaceLow);
+    root.style.setProperty('--sunday-text', tokens.text);
+    root.style.setProperty('--sunday-text-muted', tokens.textMuted);
+    root.style.setProperty('--sunday-border', tokens.border);
     console.log('Setting --sunday-accent to:', accentColor); // temporary debug log
     return () => {
-      document.documentElement.style.removeProperty('--sunday-accent');
-      document.documentElement.style.removeProperty('--sunday-accent-text');
-      document.documentElement.style.removeProperty('--sunday-primary');
-      document.documentElement.style.removeProperty('--sunday-primary-text');
+      root.style.removeProperty('--sunday-primary');
+      root.style.removeProperty('--sunday-primary-text');
+      root.style.removeProperty('--sunday-accent');
+      root.style.removeProperty('--sunday-accent-text');
+      root.style.removeProperty('--sunday-bg');
+      root.style.removeProperty('--sunday-card-bg');
+      root.style.removeProperty('--sunday-nav-bg');
+      root.style.removeProperty('--sunday-surface-low');
+      root.style.removeProperty('--sunday-text');
+      root.style.removeProperty('--sunday-text-muted');
+      root.style.removeProperty('--sunday-border');
     };
-  }, [accentColor, accentTextColor, primaryColor, primaryTextColor]);
+  }, [tokens, accentColor, accentTextColor, primaryColor, primaryTextColor]);
 
   const reduced = useReducedMotion();
   const [view, setView] = useState<View>('welcome');
@@ -297,7 +312,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
   const activeCategoryName = categories.find((c) => c.id === activeTab)?.name;
 
   return (
-    <div className="max-w-[480px] mx-auto min-h-screen bg-white relative">
+    <div className="max-w-[480px] mx-auto min-h-screen relative" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       <style>{`* { -webkit-tap-highlight-color: transparent; }`}</style>
 
       {/* ── Bottom Tab: Pay ── */}
@@ -353,13 +368,17 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 />
 
                 {/* Search + filter row */}
-                <div className="bg-white px-4 py-2 flex items-center gap-2 border-b border-gray-50">
+                <div
+                  className="px-4 py-2 flex items-center gap-2 border-b"
+                  style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'var(--sunday-border, #E8D5B0)' }}
+                >
                   {/* Search */}
                   <div className="relative flex-1 min-w-0">
                     <svg
                       width="13" height="13" viewBox="0 0 24 24" fill="none"
-                      stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                       className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{ stroke: 'var(--sunday-text-muted, #7A6040)' }}
                     >
                       <circle cx="11" cy="11" r="8" />
                       <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -369,12 +388,18 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search dishes..."
-                      className="w-full py-2 pl-8 pr-7 rounded-lg border border-gray-100 bg-white text-[#1A1A1A] font-body text-[13px] outline-none"
+                      className="w-full py-2 pl-8 pr-7 rounded-lg font-body text-[13px] outline-none"
+                      style={{
+                        border: '1px solid var(--sunday-border, #E8D5B0)',
+                        backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
+                        color: 'var(--sunday-text, #1c1c17)',
+                      }}
                     />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5 text-[#999]"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5"
+                        style={{ color: 'var(--sunday-text-muted, #7A6040)' }}
                       >
                         <X size={12} strokeWidth={2.5} />
                       </button>
@@ -389,12 +414,11 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                         <button
                           key={v}
                           onClick={() => setActiveFilter(active ? 'all' : v)}
-                          className={`px-2.5 py-1.5 rounded-md font-body text-[11px] font-semibold whitespace-nowrap transition-colors duration-100 border ${
-                            active
-                              ? 'text-white'
-                              : 'border-gray-200 bg-transparent text-[#999]'
-                          }`}
-                          style={active ? { backgroundColor: accentColor, borderColor: accentColor, color: accentTextColor } : undefined}
+                          className="px-2.5 py-1.5 rounded-md font-body text-[11px] font-semibold whitespace-nowrap transition-colors duration-100 border"
+                          style={active
+                            ? { backgroundColor: accentColor, borderColor: accentColor, color: accentTextColor }
+                            : { backgroundColor: 'var(--sunday-card-bg, #FFFFFF)', borderColor: 'var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text-muted, #7A6040)' }
+                          }
                         >
                           {label}
                         </button>
@@ -408,26 +432,30 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               <div className={`${itemCount > 0 ? 'pb-[140px]' : 'pb-[88px]'}`}>
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
-                  <div className="mx-4 mt-3 p-3 bg-white rounded-xl border border-gray-100 flex items-center gap-2.5">
-                    <RotateCcw size={17} color="#1A1A1A" strokeWidth={2} className="shrink-0" />
+                  <div
+                    className="mx-4 mt-3 p-3 rounded-xl flex items-center gap-2.5"
+                    style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)', border: '1px solid var(--sunday-border, #E8D5B0)' }}
+                  >
+                    <RotateCcw size={17} strokeWidth={2} className="shrink-0" style={{ color: 'var(--sunday-primary, #361f1a)' }} />
                     <div className="flex-1 min-w-0">
-                      <p className="font-body text-[13px] font-bold text-[#1A1A1A] m-0">
+                      <p className="font-body text-[13px] font-bold m-0" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                         Repeat last order?
                       </p>
-                      <p className="font-body text-[11px] text-[#666] mt-0.5 m-0">
+                      <p className="font-body text-[11px] mt-0.5 m-0" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                         {repeatOrder.items.length} item{repeatOrder.items.length !== 1 ? 's' : ''} · {formatPrice(repeatOrder.total)}
                       </p>
                     </div>
                     <button
                       onClick={handleRepeatOrder}
-                      className="px-3 py-1.5 rounded-full border-none font-body text-xs font-bold cursor-pointer shrink-0"
-                      style={{ backgroundColor: accentColor, color: accentTextColor }}
+                      className="px-3 py-1.5 rounded-full border-none font-body text-xs font-bold cursor-pointer shrink-0 text-white"
+                      style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
                     >
                       Repeat
                     </button>
                     <button
                       onClick={() => setShowRepeat(false)}
-                      className="bg-transparent border-none cursor-pointer text-[#999] p-1 shrink-0"
+                      className="bg-transparent border-none cursor-pointer p-1 shrink-0"
+                      style={{ color: 'var(--sunday-text-muted, #7A6040)' }}
                     >
                       <X size={14} strokeWidth={2.5} />
                     </button>
@@ -435,7 +463,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 )}
 
                 {isFiltering && !hasAnyResults && (
-                  <div className="py-12 px-4 text-center font-body text-sm text-[#666]">
+                  <div className="py-12 px-4 text-center font-body text-sm" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                     No items found
                   </div>
                 )}
@@ -456,18 +484,18 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                     >
                       {/* Section heading */}
                       <div className="pt-6 pb-2.5 px-4">
-                        <h2 className="font-body text-xl font-semibold text-[#1A1A1A] leading-tight">
+                        <h2 className="font-body text-xl font-semibold leading-tight" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                           {lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name}
                         </h2>
                         {cat.name_hindi && lang === 'en' && (
-                          <p className="font-body text-xs text-[#999] mt-0.5">
+                          <p className="font-body text-xs mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                             {cat.name_hindi}
                           </p>
                         )}
                       </div>
 
                       {filtered.length === 0 ? (
-                        <div className="px-4 py-4 font-body text-[13px] text-[#999]">
+                        <div className="px-4 py-4 font-body text-[13px]" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                           No dishes in this category
                         </div>
                       ) : (

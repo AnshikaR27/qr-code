@@ -81,19 +81,30 @@ export default function CartSheetV2({
       {/* Backdrop */}
       <div
         onClick={onClose}
-        className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-end justify-center"
+        className="fixed inset-0 z-[70] backdrop-blur-sm flex items-end justify-center"
+        style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-[480px] max-h-[82vh] bg-white rounded-t-2xl flex flex-col overflow-hidden shadow-[0_-4px_40px_rgba(0,0,0,0.2)] sunday-slide-up"
+          className="w-full max-w-[480px] max-h-[82vh] rounded-t-2xl flex flex-col overflow-hidden shadow-[0_-4px_40px_rgba(0,0,0,0.2)] sunday-slide-up"
+          style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)' }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 pt-5 pb-3.5 shrink-0 border-b border-gray-100">
+          {/* Header — warm beige surface */}
+          <div
+            className="flex items-center justify-between px-5 pt-5 pb-3.5 shrink-0 border-b"
+            style={{
+              backgroundColor: 'var(--sunday-nav-bg, #efebe2)',
+              borderColor: 'var(--sunday-border, #E8D5B0)',
+            }}
+          >
             <div className="w-8" />
-            <span className="font-body text-base font-bold text-[#1A1A1A]">Basket</span>
+            <span className="font-body text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+              Basket
+            </span>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full border-none bg-gray-100 text-[#1A1A1A] cursor-pointer flex items-center justify-center"
+              className="w-8 h-8 rounded-full border-none cursor-pointer flex items-center justify-center"
+              style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text, #1c1c17)' }}
             >
               <X size={16} strokeWidth={2.5} />
             </button>
@@ -103,10 +114,10 @@ export default function CartSheetV2({
           {items.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8">
               <div className="text-[40px]">🛒</div>
-              <p className="font-body text-base font-bold text-[#1A1A1A] m-0 text-center">
+              <p className="font-body text-base font-bold m-0 text-center" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                 Your basket is empty
               </p>
-              <p className="font-body text-[13px] text-[#666] m-0 text-center">
+              <p className="font-body text-[13px] m-0 text-center" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                 Add some dishes to get started
               </p>
             </div>
@@ -119,10 +130,14 @@ export default function CartSheetV2({
                   return (
                     <div
                       key={item.product_id}
-                      className="flex items-center gap-3 px-5 py-3 border-b border-gray-50"
+                      className="flex items-center gap-3 px-5 py-3 border-b"
+                      style={{ borderColor: 'var(--sunday-border, #E8D5B0)' }}
                     >
                       {/* Thumbnail */}
-                      <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[#F5F5F0] flex items-center justify-center">
+                      <div
+                        className="w-12 h-12 rounded-lg overflow-hidden shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
+                      >
                         {imgUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={imgUrl} alt={item.name} className="w-full h-full object-cover" />
@@ -133,10 +148,10 @@ export default function CartSheetV2({
 
                       {/* Name + price */}
                       <div className="flex-1 min-w-0">
-                        <div className="font-body text-sm font-bold text-[#1A1A1A] truncate">
+                        <div className="font-body text-sm font-bold truncate" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                           {item.name}
                         </div>
-                        <div className="font-body text-[13px] text-[#666] mt-0.5">
+                        <div className="font-body text-[13px] mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                           {formatPrice(item.price)}
                         </div>
                       </div>
@@ -145,16 +160,18 @@ export default function CartSheetV2({
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                          className="w-7 h-7 rounded-full border border-gray-200 bg-transparent text-[#1A1A1A] cursor-pointer flex items-center justify-center"
+                          className="w-7 h-7 rounded-full bg-transparent cursor-pointer flex items-center justify-center"
+                          style={{ border: '1px solid var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text, #1c1c17)' }}
                         >
                           <Minus size={11} strokeWidth={2.5} />
                         </button>
-                        <span className="font-body text-[15px] font-bold text-[#1A1A1A] min-w-[18px] text-center">
+                        <span className="font-body text-[15px] font-bold min-w-[18px] text-center" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                           {item.quantity}
                         </span>
                         <button
                           onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                          className="w-7 h-7 rounded-full border border-gray-200 bg-transparent text-[#1A1A1A] cursor-pointer flex items-center justify-center"
+                          className="w-7 h-7 rounded-full bg-transparent cursor-pointer flex items-center justify-center"
+                          style={{ border: '1px solid var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text, #1c1c17)' }}
                         >
                           <Plus size={11} strokeWidth={2.5} />
                         </button>
@@ -167,7 +184,8 @@ export default function CartSheetV2({
                 <div className="px-5 pt-3 pb-1 flex justify-end">
                   <button
                     onClick={onClose}
-                    className="font-body text-sm font-semibold text-[#1A1A1A] bg-transparent border-none cursor-pointer underline underline-offset-2"
+                    className="font-body text-sm font-semibold bg-transparent border-none cursor-pointer underline underline-offset-2"
+                    style={{ color: 'var(--sunday-text, #1c1c17)' }}
                   >
                     Add more
                   </button>
@@ -178,20 +196,24 @@ export default function CartSheetV2({
                   {!noteOpen ? (
                     <button
                       onClick={() => setNoteOpen(true)}
-                      className="w-full flex items-center justify-between px-4 py-3.5 rounded-lg border-none bg-[#F5F5F0] cursor-pointer text-left"
+                      className="w-full flex items-center justify-between px-4 py-3.5 rounded-lg border-none cursor-pointer text-left"
+                      style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
                     >
                       <div>
-                        <div className="font-body text-[13px] font-semibold text-[#1A1A1A]">
+                        <div className="font-body text-[13px] font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                           Add an order note
                         </div>
-                        <div className="font-body text-xs text-[#666] mt-0.5">
+                        <div className="font-body text-xs mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                           {orderNote || 'Utensils, special requests...'}
                         </div>
                       </div>
-                      <span className="text-[#666] text-xl leading-none">+</span>
+                      <span className="text-xl leading-none" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>+</span>
                     </button>
                   ) : (
-                    <div className="rounded-lg overflow-hidden bg-[#F5F5F0]" style={{ border: '1px solid var(--sunday-accent, #1A1A1A)' }}>
+                    <div
+                      className="rounded-lg overflow-hidden"
+                      style={{ border: '1px solid var(--sunday-accent, #b12d00)', backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}
+                    >
                       <textarea
                         autoFocus
                         value={orderNote}
@@ -199,23 +221,34 @@ export default function CartSheetV2({
                         onBlur={() => setNoteOpen(false)}
                         placeholder="Utensils, special requests..."
                         rows={3}
-                        className="w-full p-3 border-none bg-transparent text-[#1A1A1A] font-body text-[13px] resize-none outline-none"
+                        className="w-full p-3 border-none bg-transparent font-body text-[13px] resize-none outline-none"
+                        style={{ color: 'var(--sunday-text, #1c1c17)' }}
                       />
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="shrink-0 px-5 pt-3.5 pb-7 border-t border-gray-100">
+              {/* Footer — slightly raised surface */}
+              <div
+                className="shrink-0 px-5 pt-3.5 pb-7 border-t"
+                style={{
+                  backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+                  borderColor: 'var(--sunday-border, #E8D5B0)',
+                }}
+              >
                 <div className="flex justify-between items-center mb-3.5">
-                  <span className="font-body text-[15px] font-semibold text-[#1A1A1A]">Subtotal</span>
-                  <span className="font-body text-[15px] font-bold text-[#1A1A1A]">{formatPrice(total)}</span>
+                  <span className="font-body text-[15px] font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                    Subtotal
+                  </span>
+                  <span className="font-body text-[15px] font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                    {formatPrice(total)}
+                  </span>
                 </div>
                 <button
                   onClick={handlePlaceOrder}
                   className="w-full py-4 rounded-full text-white font-body text-base font-bold border-none cursor-pointer"
-                  style={{ backgroundColor: 'var(--sunday-accent, #1A1A1A)' }}
+                  style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
                 >
                   Order
                 </button>
