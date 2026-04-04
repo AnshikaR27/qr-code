@@ -23,7 +23,8 @@
       "Bash(vercel --prod)",
       "Bash(npm run:*)",
       "Bash(grep:*)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git diff:*)"
     ]
   }
 }
