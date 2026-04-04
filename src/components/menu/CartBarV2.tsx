@@ -11,9 +11,9 @@ interface Props {
 export default function CartBarV2({ itemCount, total, onOpen }: Props) {
   return (
     <div
-      className="fixed w-full max-w-[480px] z-[55] pointer-events-none px-4"
+      className="fixed w-full max-w-[480px] z-40 pointer-events-none px-4"
       style={{
-        bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+        bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
         left: '50%',
         transform: `translateX(-50%) translateY(${itemCount === 0 ? '110%' : '0'})`,
         transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',

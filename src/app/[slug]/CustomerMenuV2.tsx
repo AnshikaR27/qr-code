@@ -432,7 +432,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               </div>
 
               {/* Scrolling content */}
-              <div className={`${itemCount > 0 ? 'pb-[160px]' : 'pb-[100px]'}`}>
+              <div className="pb-[160px]">
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
@@ -536,7 +536,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               {showBackToTop && (
                 <button
                   onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
-                  className={`fixed ${itemCount > 0 ? 'bottom-[128px]' : 'bottom-20'} right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[47]`}
+                  className={`fixed ${itemCount > 0 ? 'bottom-[150px]' : 'bottom-[90px]'} right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[39]`}
                   style={{ backgroundColor: accentColor, color: accentTextColor }}
                   aria-label="Back to top"
                 >
@@ -573,7 +573,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
         <SundayToast
           message={toastMessage}
           onClose={() => setToastMessage(null)}
-          bottomOffset={itemCount > 0 && bottomTab === 'order' ? 128 : 76}
+          bottomOffset={itemCount > 0 && bottomTab === 'order' ? 150 : 90}
         />
       )}
 
