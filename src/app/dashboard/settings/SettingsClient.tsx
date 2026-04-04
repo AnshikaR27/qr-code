@@ -146,9 +146,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
     }
   }
 
-  async function handleHeroUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function uploadHeroFile(file: File) {
     if (!file.type.startsWith('image/')) { toast.error('Select an image file'); return; }
     if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
 
@@ -166,6 +164,25 @@ export default function SettingsClient({ restaurant, categories }: Props) {
     } finally {
       setUploadingHero(false);
       if (heroFileRef.current) heroFileRef.current.value = '';
+    }
+  }
+
+  async function handleHeroUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadHeroFile(file);
+  }
+
+  async function handleHeroPaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) uploadHeroFile(file);
+        return;
+      }
     }
   }
 
@@ -338,7 +355,9 @@ export default function SettingsClient({ restaurant, categories }: Props) {
               <div className="flex flex-col items-center gap-2">
                 <div
                   className="w-40 h-24 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden cursor-pointer hover:bg-gray-50 transition-colors bg-gray-50"
+                  tabIndex={0}
                   onClick={() => heroFileRef.current?.click()}
+                  onPaste={handleHeroPaste}
                 >
                   {form.hero_image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -346,7 +365,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
                   ) : (
                     <div className="flex flex-col items-center gap-1 text-muted-foreground">
                       <Upload className="w-6 h-6 opacity-40" />
-                      <span className="text-xs">Hero image</span>
+                      <span className="text-xs">Click or paste</span>
                     </div>
                   )}
                 </div>
@@ -371,14 +390,6 @@ export default function SettingsClient({ restaurant, categories }: Props) {
                   )}
                 </div>
                 <input ref={heroFileRef} type="file" accept="image/*" className="hidden" onChange={handleHeroUpload} />
-              </div>
-              <div className="flex-1 flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">Or paste an image URL</Label>
-                <Input
-                  placeholder="https://example.com/image.jpg"
-                  value={form.hero_image_url}
-                  onChange={(e) => set('hero_image_url', e.target.value)}
-                />
               </div>
             </div>
 
