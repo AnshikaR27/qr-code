@@ -67,26 +67,35 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     [restaurant.design_tokens]
   );
 
-  // Set Sunday accent color CSS variable from restaurant's brand tokens
-  const accentColor = tokens.primary ?? '#1A1A1A';
-  const accentTextColor = (() => {
-    // Compute contrast text color for accent
-    const hex = accentColor.replace('#', '');
-    if (hex.length !== 6) return '#FFFFFF';
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
+  // Primary = structural color (bottom nav background)
+  // Accent = pop/CTA color (buttons, active tabs, cart bar)
+  const primaryColor = tokens.primary ?? '#1A1A1A';
+  const accentColor = tokens.accent ?? tokens.primary ?? '#1A1A1A';
+
+  function contrastText(hex: string) {
+    const h = hex.replace('#', '');
+    if (h.length !== 6) return '#FFFFFF';
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
     return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#1A1A1A' : '#FFFFFF';
-  })();
+  }
+
+  const primaryTextColor = contrastText(primaryColor);
+  const accentTextColor = contrastText(accentColor);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sunday-accent', accentColor);
     document.documentElement.style.setProperty('--sunday-accent-text', accentTextColor);
+    document.documentElement.style.setProperty('--sunday-primary', primaryColor);
+    document.documentElement.style.setProperty('--sunday-primary-text', primaryTextColor);
     return () => {
       document.documentElement.style.removeProperty('--sunday-accent');
       document.documentElement.style.removeProperty('--sunday-accent-text');
+      document.documentElement.style.removeProperty('--sunday-primary');
+      document.documentElement.style.removeProperty('--sunday-primary-text');
     };
-  }, [accentColor, accentTextColor]);
+  }, [accentColor, accentTextColor, primaryColor, primaryTextColor]);
 
   const reduced = useReducedMotion();
   const [view, setView] = useState<View>('welcome');
@@ -548,14 +557,14 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
       {/* ── Bottom Navigation ── */}
       <div
         className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-50 rounded-t-2xl"
-        style={{ backgroundColor: accentColor }}
+        style={{ backgroundColor: primaryColor }}
       >
         {/* Tab buttons */}
         <div className="flex">
           <button
             onClick={() => { setBottomTab('order'); if (view === 'pay') setView('welcome'); }}
             className="flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer"
-            style={{ color: bottomTab === 'order' ? accentTextColor : `${accentTextColor}66` }}
+            style={{ color: bottomTab === 'order' ? primaryTextColor : `${primaryTextColor}66` }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -565,7 +574,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
           <button
             onClick={() => setBottomTab('pay')}
             className="flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer"
-            style={{ color: bottomTab === 'pay' ? accentTextColor : `${accentTextColor}66` }}
+            style={{ color: bottomTab === 'pay' ? primaryTextColor : `${primaryTextColor}66` }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />

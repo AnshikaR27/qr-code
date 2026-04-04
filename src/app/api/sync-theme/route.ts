@@ -8,9 +8,12 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { projectId } = await req.json() as { projectId: string };
+    const { projectId, restaurantId } = await req.json() as { projectId: string; restaurantId: string };
     if (!projectId?.trim()) {
       return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
+    }
+    if (!restaurantId?.trim()) {
+      return NextResponse.json({ error: 'restaurantId is required' }, { status: 400 });
     }
 
     const tokens = await fetchTokensFromStitch(projectId.trim());
@@ -21,6 +24,7 @@ export async function POST(req: Request) {
         stitch_project_id: projectId.trim(),
         design_tokens: tokens,
       })
+      .eq('id', restaurantId)
       .eq('owner_id', user.id);
 
     if (error) throw error;

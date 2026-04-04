@@ -24,7 +24,8 @@
       "Bash(npm run:*)",
       "Bash(grep:*)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Skill(update-config)"
     ]
   }
 }

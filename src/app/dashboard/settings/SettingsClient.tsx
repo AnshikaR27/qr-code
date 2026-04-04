@@ -179,7 +179,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
       const res = await fetch('/api/sync-theme', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: form.stitch_project_id.trim() }),
+        body: JSON.stringify({ projectId: form.stitch_project_id.trim(), restaurantId: restaurant.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Sync failed');
