@@ -22,14 +22,14 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
       <button
         onClick={onOpen}
         className="pointer-events-auto w-full h-[52px] rounded-t-xl flex items-center justify-between px-5 border-none cursor-pointer"
-        style={{ backgroundColor: 'var(--sunday-accent)' }}
+        style={{ backgroundColor: 'var(--sunday-accent, #1A1A1A)' }}
       >
         <span className="font-body text-[16px] font-semibold text-white">
           View your order · {formatPrice(total)}
         </span>
         <div
           className="w-7 h-7 rounded-full bg-white flex items-center justify-center font-body text-xs font-black"
-          style={{ color: 'var(--sunday-accent)' }}
+          style={{ color: 'var(--sunday-accent, #1A1A1A)' }}
         >
           {itemCount}
         </div>

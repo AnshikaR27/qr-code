@@ -51,7 +51,7 @@ function SundayToast({
       className="fixed left-1/2 -translate-x-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in"
       style={{ bottom: `${bottomOffset}px` }}
     >
-      <div className="bg-[#1A1A1A] text-white font-body text-sm font-medium px-4 py-3 rounded-xl flex items-center justify-between shadow-lg">
+      <div className="text-white font-body text-sm font-medium px-4 py-3 rounded-xl flex items-center justify-between shadow-lg" style={{ backgroundColor: 'var(--sunday-primary, #1A1A1A)' }}>
         <span>{message}</span>
         <button onClick={onClose} className="ml-3 text-white/60 bg-transparent border-none cursor-pointer">
           <X size={14} />
@@ -89,6 +89,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     document.documentElement.style.setProperty('--sunday-accent-text', accentTextColor);
     document.documentElement.style.setProperty('--sunday-primary', primaryColor);
     document.documentElement.style.setProperty('--sunday-primary-text', primaryTextColor);
+    console.log('Setting --sunday-accent to:', accentColor); // temporary debug log
     return () => {
       document.documentElement.style.removeProperty('--sunday-accent');
       document.documentElement.style.removeProperty('--sunday-accent-text');
@@ -564,7 +565,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
           <button
             onClick={() => { setBottomTab('order'); if (view === 'pay') setView('welcome'); }}
             className="flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer"
-            style={{ color: bottomTab === 'order' ? primaryTextColor : `${primaryTextColor}66` }}
+            style={{ color: bottomTab === 'order' ? 'var(--sunday-accent, #E67E22)' : `${primaryTextColor}66` }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -574,7 +575,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
           <button
             onClick={() => setBottomTab('pay')}
             className="flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer"
-            style={{ color: bottomTab === 'pay' ? primaryTextColor : `${primaryTextColor}66` }}
+            style={{ color: bottomTab === 'pay' ? 'var(--sunday-accent, #E67E22)' : `${primaryTextColor}66` }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />

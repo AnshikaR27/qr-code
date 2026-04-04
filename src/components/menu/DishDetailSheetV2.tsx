@@ -138,9 +138,10 @@ export default function DishDetailSheetV2({
             onClick={onClose}
             className={`absolute top-3 left-3 z-[11] w-9 h-9 rounded-full flex items-center justify-center ${
               dish.image_url
-                ? 'bg-[#1A1A1A] text-white shadow-md'
+                ? 'text-white shadow-md'
                 : 'bg-gray-100 text-[#1A1A1A]'
             }`}
+            style={dish.image_url ? { backgroundColor: 'var(--sunday-accent, #1A1A1A)' } : undefined}
           >
             <ChevronLeft size={18} strokeWidth={2.5} />
           </button>
@@ -241,7 +242,7 @@ export default function DishDetailSheetV2({
               <button
                 onClick={handleAddToOrder}
                 className="flex-1 py-4 rounded-full text-white font-body text-[15px] font-bold border-none cursor-pointer"
-                style={{ backgroundColor: 'var(--sunday-accent)' }}
+                style={{ backgroundColor: 'var(--sunday-accent, #1A1A1A)' }}
               >
                 Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{dish.price * localQty}
               </button>

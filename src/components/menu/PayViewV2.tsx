@@ -64,7 +64,7 @@ export default function PayViewV2({
               className="w-[90px] h-[90px] rounded-full object-cover"
             />
           ) : (
-            <span className="font-display text-3xl font-bold" style={{ color: 'var(--sunday-accent)' }}>
+            <span className="font-display text-3xl font-bold" style={{ color: 'var(--sunday-accent, #1A1A1A)' }}>
               {restaurant.name.charAt(0)}
             </span>
           )}
@@ -115,7 +115,7 @@ export default function PayViewV2({
           <button
             onClick={onSplitBill}
             className="w-full py-4 rounded-full text-white font-body text-base font-bold border-none cursor-pointer flex items-center justify-center gap-2"
-            style={{ backgroundColor: 'var(--sunday-accent)' }}
+            style={{ backgroundColor: 'var(--sunday-accent, #1A1A1A)' }}
           >
             <CreditCard size={18} strokeWidth={2} />
             Pay or split bill

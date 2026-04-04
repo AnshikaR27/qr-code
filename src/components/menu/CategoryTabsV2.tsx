@@ -44,7 +44,7 @@ export default function CategoryTabsV2({
                   ? 'text-[#1A1A1A] font-bold'
                   : 'border-transparent text-[#999] font-medium'
               }`}
-              style={active ? { borderBottomColor: 'var(--sunday-accent)' } : undefined}
+              style={active ? { borderBottomColor: 'var(--sunday-accent, #1A1A1A)' } : undefined}
             >
               {label}
             </button>

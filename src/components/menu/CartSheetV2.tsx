@@ -191,7 +191,7 @@ export default function CartSheetV2({
                       <span className="text-[#666] text-xl leading-none">+</span>
                     </button>
                   ) : (
-                    <div className="rounded-lg border border-[#1A1A1A] overflow-hidden bg-[#F5F5F0]">
+                    <div className="rounded-lg overflow-hidden bg-[#F5F5F0]" style={{ border: '1px solid var(--sunday-accent, #1A1A1A)' }}>
                       <textarea
                         autoFocus
                         value={orderNote}
@@ -215,7 +215,7 @@ export default function CartSheetV2({
                 <button
                   onClick={handlePlaceOrder}
                   className="w-full py-4 rounded-full text-white font-body text-base font-bold border-none cursor-pointer"
-                  style={{ backgroundColor: 'var(--sunday-accent)' }}
+                  style={{ backgroundColor: 'var(--sunday-accent, #1A1A1A)' }}
                 >
                   Order
                 </button>
