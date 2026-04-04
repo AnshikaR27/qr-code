@@ -35,22 +35,17 @@ interface Props {
 function SundayToast({
   message,
   onClose,
-  hasCart,
 }: {
   message: string;
   onClose: () => void;
-  hasCart: boolean;
 }) {
   useEffect(() => {
     const timer = setTimeout(onClose, 2500);
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  /* cart bar sits at 76px + safe, is 52px tall → top of cart bar = 128px + safe. Toast 12px above that = 140px + safe */
-  /* no cart → just above nav (64px + safe) + 24px gap = 88px + safe */
-  const bottom = hasCart
-    ? 'calc(140px + env(safe-area-inset-bottom, 0px))'
-    : 'calc(88px + env(safe-area-inset-bottom, 0px))';
+  /* cart bar always visible at 76px + safe, 52px tall → toast 12px above = 140px + safe */
+  const bottom = 'calc(140px + env(safe-area-inset-bottom, 0px))';
 
   return (
     <div
@@ -438,8 +433,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               </div>
 
               {/* Scrolling content */}
-              {/* nav=64 + safe + cart(52+12+24)=88 or just nav+24 */}
-              <div style={{ paddingBottom: itemCount > 0 ? 'calc(152px + env(safe-area-inset-bottom, 0px))' : 'calc(88px + env(safe-area-inset-bottom, 0px))' }}>
+              <div style={{ paddingBottom: 'calc(152px + env(safe-area-inset-bottom, 0px))' }}>
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
@@ -547,7 +541,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
                   className="fixed right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[39]"
                   style={{
-                    bottom: itemCount > 0 ? 'calc(140px + env(safe-area-inset-bottom, 0px))' : 'calc(88px + env(safe-area-inset-bottom, 0px))',
+                    bottom: 'calc(140px + env(safe-area-inset-bottom, 0px))',
                     backgroundColor: accentColor,
                     color: accentTextColor,
                   }}
@@ -586,7 +580,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
         <SundayToast
           message={toastMessage}
           onClose={() => setToastMessage(null)}
-          hasCart={itemCount > 0 && bottomTab === 'order'}
         />
       )}
 
