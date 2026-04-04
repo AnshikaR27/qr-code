@@ -75,7 +75,7 @@ export default function WelcomeScreenV2({
 
       {/* Tagline */}
       {(restaurant.tagline || restaurant.city || restaurant.address) && (
-        <p className="font-body text-sm text-center mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+        <p className="font-serif text-[15px] italic text-center mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-3" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
           {restaurant.tagline
             ?? (restaurant.address
               ? `${restaurant.address}${restaurant.city ? `, ${restaurant.city}` : ''}`

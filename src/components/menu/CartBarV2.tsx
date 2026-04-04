@@ -15,7 +15,7 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
       style={{
         bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
         left: '50%',
-        transform: `translateX(-50%) translateY(${itemCount === 0 ? '110%' : '0'})`,
+        transform: 'translateX(-50%)',
         transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
       }}
     >
