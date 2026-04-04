@@ -96,8 +96,11 @@ export default function DishCardV2({
     >
       <div
         onClick={dish.is_available ? onTap : undefined}
-        className={`flex items-start gap-4 py-5 px-4 border-b ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
-        style={{ borderColor: 'var(--sunday-border, #E8D5B0)' }}
+        className={`flex items-start gap-4 p-3.5 rounded-xl ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
+        style={{
+          backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
+          boxShadow: '0 2px 12px color-mix(in srgb, var(--sunday-primary, #1A1A1A) 3%, transparent)',
+        }}
       >
         {/* Left: text content */}
         <div className="flex-1 min-w-0">

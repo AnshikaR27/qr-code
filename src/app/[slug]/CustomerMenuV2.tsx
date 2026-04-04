@@ -502,22 +502,24 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                           No dishes in this category
                         </div>
                       ) : (
-                        filtered.map((dish, i) => (
-                          <DishCardV2
-                            key={dish.id}
-                            dish={dish}
-                            tokens={tokens}
-                            index={i}
-                            isBestseller={topDishIds.has(dish.id)}
-                            lang={lang}
-                            onTap={() => setSelectedDish(dish)}
-                            onLongPressImage={
-                              dish.image_url
-                                ? (url, name) => setZoomedImage({ url, name })
-                                : undefined
-                            }
-                          />
-                        ))
+                        <div className="flex flex-col gap-5 px-4">
+                          {filtered.map((dish, i) => (
+                            <DishCardV2
+                              key={dish.id}
+                              dish={dish}
+                              tokens={tokens}
+                              index={i}
+                              isBestseller={topDishIds.has(dish.id)}
+                              lang={lang}
+                              onTap={() => setSelectedDish(dish)}
+                              onLongPressImage={
+                                dish.image_url
+                                  ? (url, name) => setZoomedImage({ url, name })
+                                  : undefined
+                              }
+                            />
+                          ))}
+                        </div>
                       )}
                     </div>
                   );
