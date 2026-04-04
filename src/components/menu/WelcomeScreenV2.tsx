@@ -84,7 +84,7 @@ export default function WelcomeScreenV2({
       )}
 
       {/* Category grid */}
-      <div className="grid grid-cols-2 gap-3 px-4 mt-8 pb-[160px]">
+      <div className="grid grid-cols-2 gap-3 px-4 mt-8" style={{ paddingBottom: 'calc(152px + env(safe-area-inset-bottom, 0px))' }}>
         {categories.map((cat) => {
           const imgUrl = getCategoryImage(cat.id, products);
           return (

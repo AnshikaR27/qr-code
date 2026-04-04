@@ -35,21 +35,27 @@ interface Props {
 function SundayToast({
   message,
   onClose,
-  bottomOffset,
+  hasCart,
 }: {
   message: string;
   onClose: () => void;
-  bottomOffset: number;
+  hasCart: boolean;
 }) {
   useEffect(() => {
     const timer = setTimeout(onClose, 2500);
     return () => clearTimeout(timer);
   }, [onClose]);
 
+  /* cart bar sits at 76px + safe, is 52px tall → top of cart bar = 128px + safe. Toast 12px above that = 140px + safe */
+  /* no cart → just above nav (64px + safe) + 24px gap = 88px + safe */
+  const bottom = hasCart
+    ? 'calc(140px + env(safe-area-inset-bottom, 0px))'
+    : 'calc(88px + env(safe-area-inset-bottom, 0px))';
+
   return (
     <div
       className="fixed left-1/2 -translate-x-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in"
-      style={{ bottom: `${bottomOffset}px` }}
+      style={{ bottom }}
     >
       <div className="text-white font-body text-sm font-medium px-4 py-3 rounded-xl flex items-center justify-between shadow-lg" style={{ backgroundColor: 'var(--sunday-primary, #1A1A1A)' }}>
         <span>{message}</span>
@@ -432,7 +438,8 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               </div>
 
               {/* Scrolling content */}
-              <div className="pb-[160px]">
+              {/* nav=64 + safe + cart(52+12+24)=88 or just nav+24 */}
+              <div style={{ paddingBottom: itemCount > 0 ? 'calc(152px + env(safe-area-inset-bottom, 0px))' : 'calc(88px + env(safe-area-inset-bottom, 0px))' }}>
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
@@ -538,8 +545,12 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               {showBackToTop && (
                 <button
                   onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
-                  className={`fixed ${itemCount > 0 ? 'bottom-[150px]' : 'bottom-[90px]'} right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[39]`}
-                  style={{ backgroundColor: accentColor, color: accentTextColor }}
+                  className="fixed right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[39]"
+                  style={{
+                    bottom: itemCount > 0 ? 'calc(140px + env(safe-area-inset-bottom, 0px))' : 'calc(88px + env(safe-area-inset-bottom, 0px))',
+                    backgroundColor: accentColor,
+                    color: accentTextColor,
+                  }}
                   aria-label="Back to top"
                 >
                   <ChevronUp size={18} strokeWidth={2.5} />
@@ -575,7 +586,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
         <SundayToast
           message={toastMessage}
           onClose={() => setToastMessage(null)}
-          bottomOffset={bottomTab === 'order' ? 148 : 90}
+          hasCart={itemCount > 0 && bottomTab === 'order'}
         />
       )}
 
