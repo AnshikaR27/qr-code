@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Restaurant } from '@/types';
 
@@ -59,24 +59,14 @@ export default function MenuNavbarV2({
         </svg>
       </button>
 
-      {/* Center: category name or restaurant name */}
+      {/* Center: restaurant name */}
       <div className="flex-1 flex flex-col items-center min-w-0">
-        {currentCategory ? (
-          <button
-            className="flex items-center gap-1 font-body text-base font-semibold"
-            style={{ color: 'var(--sunday-text, #1c1c17)' }}
-          >
-            <span className="truncate">{currentCategory}</span>
-            <ChevronDown size={16} strokeWidth={2} />
-          </button>
-        ) : (
-          <span
-            className={`font-display font-bold transition-all duration-200 ${isScrolled ? 'text-lg' : 'text-2xl'}`}
-            style={{ color: 'var(--sunday-text, #1c1c17)' }}
-          >
-            {restaurant.name}
-          </span>
-        )}
+        <span
+          className="font-display font-bold truncate transition-all duration-200 text-lg"
+          style={{ color: 'var(--sunday-text, #1c1c17)' }}
+        >
+          {restaurant.name}
+        </span>
       </div>
 
       {/* Right: search icon */}

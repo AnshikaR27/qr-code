@@ -104,35 +104,31 @@ export default function DishCardV2({
       >
         {/* Left: text content */}
         <div className="flex-1 min-w-0">
-          {/* Orderable indicator */}
-          <div className="flex items-center gap-1.5 mb-2">
-            <span
-              className="w-[7px] h-[7px] rounded-full shrink-0 inline-block"
-              style={{ backgroundColor: dish.is_available ? '#0F8A00' : '#E23744' }}
-            />
-            <span className="font-body text-xs" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
-              {dish.is_available ? 'Orderable' : 'Sold out'}
+          {/* Sold out badge — only for unavailable items */}
+          {!dish.is_available && (
+            <span className="font-body text-[11px] font-bold text-red-500 mb-1.5 block">
+              Sold out
             </span>
+          )}
+
+          {/* Dish name with veg/non-veg dot inline */}
+          <div className="flex items-center gap-2 mb-1">
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: dish.is_veg ? '#0F8A00' : '#E23744' }}
+            />
+            <h3
+              className="font-body text-base font-semibold leading-tight line-clamp-2"
+              style={{ color: 'var(--sunday-text, #1c1c17)' }}
+            >
+              {primaryName}
+            </h3>
           </div>
 
-          {/* Dish name */}
-          <h3
-            className="font-body text-base font-semibold leading-tight mb-1 line-clamp-2"
-            style={{ color: 'var(--sunday-text, #1c1c17)' }}
-          >
-            {primaryName}
-          </h3>
-
           {/* Price */}
-          {dish.is_available ? (
-            <p className="font-body text-[15px] font-medium mb-1.5" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
-              ₹{dish.price}
-            </p>
-          ) : (
-            <p className="font-body text-[13px] font-bold text-red-500 mb-1.5">
-              Sold out
-            </p>
-          )}
+          <p className="font-body text-[15px] font-medium mb-1.5" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+            ₹{dish.price}
+          </p>
 
           {/* Description */}
           {dish.description && (
@@ -141,39 +137,33 @@ export default function DishCardV2({
             </p>
           )}
 
-          {/* Tags */}
-          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-            {dish.is_veg && (
-              <span
-                className="font-body text-[11px] font-medium rounded-full px-2.5 py-0.5"
-                style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
-              >
-                Veg
-              </span>
-            )}
-            {isBestseller && (
-              <span
-                className="font-body text-[11px] font-medium rounded-full px-2.5 py-0.5"
-                style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
-              >
-                Popular
-              </span>
-            )}
-            {dish.is_jain && (
-              <span
-                className="font-body text-[11px] font-medium rounded-full px-2.5 py-0.5"
-                style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
-              >
-                Jain
-              </span>
-            )}
-          </div>
+          {/* Tags — only exceptional badges */}
+          {(isBestseller || dish.is_jain) && (
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              {isBestseller && (
+                <span
+                  className="font-body text-[11px] font-medium rounded-full px-2.5 py-0.5"
+                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                >
+                  Popular
+                </span>
+              )}
+              {dish.is_jain && (
+                <span
+                  className="font-body text-[11px] font-medium rounded-full px-2.5 py-0.5"
+                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                >
+                  Jain
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right: image + add button */}
-        <div className="relative shrink-0 mt-0.5">
+        <div className="relative shrink-0">
           <div
-            className="w-[100px] h-[100px] rounded-lg overflow-hidden flex items-center justify-center select-none"
+            className="w-[128px] h-[128px] rounded-xl overflow-hidden flex items-center justify-center select-none"
             style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
             onTouchStart={(e) => { e.stopPropagation(); startLongPress(); }}
             onTouchEnd={(e) => { e.stopPropagation(); cancelLongPress(); }}
@@ -199,16 +189,22 @@ export default function DishCardV2({
           {/* + button or qty stepper */}
           {dish.is_available && (
             <div
-              className="absolute -bottom-2.5 -right-1.5"
+              className="absolute -bottom-1.5 -right-1.5"
               onClick={(e) => e.stopPropagation()}
             >
               {qty === 0 ? (
                 <button
                   onClick={handleAdd}
-                  className="w-8 h-8 rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center text-lg leading-none shadow-md"
-                  style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
+                  className="w-11 h-11 rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))',
+                    boxShadow: '0 4px 12px color-mix(in srgb, var(--sunday-primary, #361f1a) 25%, transparent)',
+                  }}
                 >
-                  +
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
                 </button>
               ) : (
                 <div
