@@ -33,6 +33,7 @@ interface FormState {
   closing_time: string;
   logo_url: string;
   hero_image_url: string;
+  tagline: string;
   stitch_project_id: string;
 }
 
@@ -46,6 +47,7 @@ function toForm(r: Restaurant): FormState {
     closing_time: r.closing_time ?? '23:00',
     logo_url: r.logo_url ?? '',
     hero_image_url: r.hero_image_url ?? '',
+    tagline: r.tagline ?? '',
     stitch_project_id: r.stitch_project_id ?? '',
   };
 }
@@ -230,6 +232,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
           closing_time: form.closing_time,
           logo_url: form.logo_url || null,
           hero_image_url: form.hero_image_url || null,
+          tagline: form.tagline.trim() || null,
           stitch_project_id: form.stitch_project_id.trim() || null,
           billing_config: billing,
           ui_theme: uiTheme,
@@ -323,11 +326,13 @@ export default function SettingsClient({ restaurant, categories }: Props) {
           </div>
         </Section>
 
-        {/* ── Hero Image (Sunday theme) ── */}
+        {/* ── Welcome Screen (Sunday theme) ── */}
         {uiTheme === 'sunday' && (
-          <Section title="Welcome Screen Hero Image">
-            <p className="text-xs text-muted-foreground -mt-1">
-              The large image at the top of the welcome screen. Pick a beautiful food spread or restaurant photo.
+          <Section title="Welcome Screen">
+            {/* Hero image */}
+            <Label className="text-sm font-medium">Hero Image</Label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+              The large banner at the top of your welcome screen. Use a high-quality photo of your restaurant or best dishes. Recommended: 1200×800px. If not set, the first dish image is used as a fallback.
             </p>
             <div className="flex items-start gap-6">
               <div className="flex flex-col items-center gap-2">
@@ -367,8 +372,23 @@ export default function SettingsClient({ restaurant, categories }: Props) {
                 </div>
                 <input ref={heroFileRef} type="file" accept="image/*" className="hidden" onChange={handleHeroUpload} />
               </div>
-              <p className="text-sm text-muted-foreground flex-1">
-                This image appears as the full-width banner on your welcome screen. If not set, the first dish image will be used as a fallback.
+            </div>
+
+            {/* Tagline */}
+            <div className="mt-5">
+              <Field label="Tagline">
+                <Input
+                  value={form.tagline}
+                  onChange={(e) => set('tagline', e.target.value.slice(0, 100))}
+                  placeholder="e.g., In the heart of Vadodara, serving authentic Indian cuisine"
+                  maxLength={100}
+                />
+              </Field>
+              <p className="text-xs text-muted-foreground mt-1">
+                Appears below your restaurant name on the welcome screen. Max 100 characters.
+                {form.tagline.length > 0 && (
+                  <span className="ml-1 text-foreground">{form.tagline.length}/100</span>
+                )}
               </p>
             </div>
           </Section>

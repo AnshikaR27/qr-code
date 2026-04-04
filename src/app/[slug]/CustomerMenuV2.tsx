@@ -35,17 +35,22 @@ interface Props {
 function SundayToast({
   message,
   onClose,
+  bottomOffset,
 }: {
   message: string;
   onClose: () => void;
+  bottomOffset: number;
 }) {
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const timer = setTimeout(onClose, 2500);
     return () => clearTimeout(timer);
   }, [onClose]);
 
   return (
-    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in">
+    <div
+      className="fixed left-1/2 -translate-x-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in"
+      style={{ bottom: `${bottomOffset}px` }}
+    >
       <div className="bg-[#1A1A1A] text-white font-body text-sm font-medium px-4 py-3 rounded-xl flex items-center justify-between shadow-lg">
         <span>{message}</span>
         <button onClick={onClose} className="ml-3 text-white/60 bg-transparent border-none cursor-pointer">
@@ -390,7 +395,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               </div>
 
               {/* Scrolling content */}
-              <div className={`${itemCount > 0 ? 'pb-[100px]' : 'pb-10'}`}>
+              <div className={`${itemCount > 0 ? 'pb-[140px]' : 'pb-[88px]'}`}>
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div className="mx-4 mt-3 p-3 bg-white rounded-xl border border-gray-100 flex items-center gap-2.5">
@@ -437,6 +442,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                         else sectionRefs.current.delete(cat.id);
                       }}
                       data-category-id={cat.id}
+                      style={{ scrollMarginTop: '110px' }}
                     >
                       {/* Section heading */}
                       <div className="pt-6 pb-2.5 px-4">
@@ -489,21 +495,13 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               {showBackToTop && (
                 <button
                   onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
-                  className={`fixed ${itemCount > 0 ? 'bottom-20' : 'bottom-6'} right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[47]`}
+                  className={`fixed ${itemCount > 0 ? 'bottom-[128px]' : 'bottom-20'} right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[47]`}
                   style={{ backgroundColor: accentColor, color: accentTextColor }}
                   aria-label="Back to top"
                 >
                   <ChevronUp size={18} strokeWidth={2.5} />
                 </button>
               )}
-
-              {/* Cart bar */}
-              <CartBarV2
-                tokens={tokens}
-                itemCount={itemCount}
-                total={total}
-                onOpen={() => setCartOpen(true)}
-              />
 
               {/* Dish detail sheet */}
               <DishDetailSheetV2
@@ -534,33 +532,24 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
         <SundayToast
           message={toastMessage}
           onClose={() => setToastMessage(null)}
+          bottomOffset={itemCount > 0 && bottomTab === 'order' ? 128 : 76}
+        />
+      )}
+
+      {/* ── Cart Bar (above nav, order tab only) ── */}
+      {bottomTab === 'order' && (
+        <CartBarV2
+          itemCount={itemCount}
+          total={total}
+          onOpen={() => { setView('menu'); setCartOpen(true); }}
         />
       )}
 
       {/* ── Bottom Navigation ── */}
       <div
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-[55] rounded-t-2xl"
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-50 rounded-t-2xl"
         style={{ backgroundColor: accentColor }}
       >
-        {/* Cart bar integrated at top */}
-        {bottomTab === 'order' && itemCount > 0 && view === 'welcome' && (
-          <button
-            onClick={() => { setView('menu'); setCartOpen(true); }}
-            className="w-full flex justify-between items-center px-5 py-3.5 bg-transparent border-none cursor-pointer"
-            style={{ borderBottom: `1px solid ${accentTextColor}18` }}
-          >
-            <span className="font-body text-[15px] font-semibold" style={{ color: accentTextColor }}>
-              View your order
-            </span>
-            <div
-              className="w-6 h-6 rounded-full flex items-center justify-center font-body text-xs font-black"
-              style={{ backgroundColor: accentTextColor, color: accentColor }}
-            >
-              {itemCount}
-            </div>
-          </button>
-        )}
-
         {/* Tab buttons */}
         <div className="flex">
           <button

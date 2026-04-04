@@ -72,16 +72,17 @@ export default function WelcomeScreenV2({
       </h1>
 
       {/* Tagline */}
-      {(restaurant.city || restaurant.address) && (
+      {(restaurant.tagline || restaurant.city || restaurant.address) && (
         <p className="font-body text-sm text-[#666] text-center mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-2">
-          {restaurant.address
-            ? `${restaurant.address}${restaurant.city ? `, ${restaurant.city}` : ''}`
-            : `In the heart of ${restaurant.city}`}
+          {restaurant.tagline
+            ?? (restaurant.address
+              ? `${restaurant.address}${restaurant.city ? `, ${restaurant.city}` : ''}`
+              : `In the heart of ${restaurant.city}`)}
         </p>
       )}
 
       {/* Category grid — aspect 4:3 */}
-      <div className="grid grid-cols-2 gap-3 px-4 mt-8 pb-28">
+      <div className="grid grid-cols-2 gap-3 px-4 mt-8 pb-36">
         {categories.map((cat) => {
           const imgUrl = getCategoryImage(cat.id, products);
           return (
