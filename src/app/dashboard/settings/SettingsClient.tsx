@@ -372,6 +372,14 @@ export default function SettingsClient({ restaurant, categories }: Props) {
                 </div>
                 <input ref={heroFileRef} type="file" accept="image/*" className="hidden" onChange={handleHeroUpload} />
               </div>
+              <div className="flex-1 flex flex-col gap-1.5">
+                <Label className="text-xs text-muted-foreground">Or paste an image URL</Label>
+                <Input
+                  placeholder="https://example.com/image.jpg"
+                  value={form.hero_image_url}
+                  onChange={(e) => set('hero_image_url', e.target.value)}
+                />
+              </div>
             </div>
 
             {/* Tagline */}
