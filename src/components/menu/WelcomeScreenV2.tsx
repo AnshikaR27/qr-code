@@ -50,7 +50,7 @@ export default function WelcomeScreenV2({
       </div>
 
       {/* Logo circle overlapping hero */}
-      <div className="flex justify-center -mt-[55px] relative z-10">
+      <div className="flex justify-center -mt-[75px] relative z-10">
         <div className="w-[110px] h-[110px] rounded-full shadow-lg flex items-center justify-center overflow-hidden border-4 border-white"
           style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)' }}>
           {restaurant.logo_url ? (
@@ -84,7 +84,7 @@ export default function WelcomeScreenV2({
       )}
 
       {/* Category grid */}
-      <div className="grid grid-cols-2 gap-3 px-4 mt-8 pb-40">
+      <div className="grid grid-cols-2 gap-3 px-4 mt-8 pb-[160px]">
         {categories.map((cat) => {
           const imgUrl = getCategoryImage(cat.id, products);
           return (

@@ -356,8 +356,8 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   lang={lang}
                   onLangToggle={() => setLang((l) => (l === 'en' ? 'hi' : 'en'))}
                   isScrolled={isScrolled}
-                  onSearch={() => setSearchOpen(!searchOpen)}
-                  currentCategory={isScrolled ? activeCategoryName : undefined}
+                  onSearch={() => { setSearchOpen(!searchOpen); if (searchOpen) { setSearchQuery(''); setActiveFilter('all'); } }}
+                  currentCategory={activeCategoryName}
                 />
                 <CategoryTabsV2
                   categories={categories}
@@ -367,69 +367,72 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   lang={lang}
                 />
 
-                {/* Search + filter row */}
-                <div
-                  className="px-4 py-2 flex items-center gap-2 border-b"
-                  style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'var(--sunday-border, #E8D5B0)' }}
-                >
-                  {/* Search */}
-                  <div className="relative flex-1 min-w-0">
-                    <svg
-                      width="13" height="13" viewBox="0 0 24 24" fill="none"
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                      style={{ stroke: 'var(--sunday-text-muted, #7A6040)' }}
-                    >
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search dishes..."
-                      className="w-full py-2 pl-8 pr-7 rounded-lg font-body text-[13px] outline-none"
-                      style={{
-                        border: '1px solid var(--sunday-border, #E8D5B0)',
-                        backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
-                        color: 'var(--sunday-text, #1c1c17)',
-                      }}
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5"
-                        style={{ color: 'var(--sunday-text-muted, #7A6040)' }}
+                {/* Search + filter row — only visible when search icon tapped */}
+                {searchOpen && (
+                  <div
+                    className="px-4 py-2 flex items-center gap-2 border-b"
+                    style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'var(--sunday-border, #E8D5B0)' }}
+                  >
+                    {/* Search */}
+                    <div className="relative flex-1 min-w-0">
+                      <svg
+                        width="13" height="13" viewBox="0 0 24 24" fill="none"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                        style={{ stroke: 'var(--sunday-text-muted, #7A6040)' }}
                       >
-                        <X size={12} strokeWidth={2.5} />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Filter chips */}
-                  <div className="flex gap-1 shrink-0">
-                    {FILTER_OPTIONS.map(({ v, label }) => {
-                      const active = activeFilter === v;
-                      return (
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search dishes..."
+                        autoFocus
+                        className="w-full py-2 pl-8 pr-7 rounded-lg font-body text-[13px] outline-none"
+                        style={{
+                          border: '1px solid var(--sunday-border, #E8D5B0)',
+                          backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
+                          color: 'var(--sunday-text, #1c1c17)',
+                        }}
+                      />
+                      {searchQuery && (
                         <button
-                          key={v}
-                          onClick={() => setActiveFilter(active ? 'all' : v)}
-                          className="px-2.5 py-1.5 rounded-md font-body text-[11px] font-semibold whitespace-nowrap transition-colors duration-100 border"
-                          style={active
-                            ? { backgroundColor: accentColor, borderColor: accentColor, color: accentTextColor }
-                            : { backgroundColor: 'var(--sunday-card-bg, #FFFFFF)', borderColor: 'var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text-muted, #7A6040)' }
-                          }
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5"
+                          style={{ color: 'var(--sunday-text-muted, #7A6040)' }}
                         >
-                          {label}
+                          <X size={12} strokeWidth={2.5} />
                         </button>
-                      );
-                    })}
+                      )}
+                    </div>
+
+                    {/* Filter chips */}
+                    <div className="flex gap-1 shrink-0">
+                      {FILTER_OPTIONS.map(({ v, label }) => {
+                        const active = activeFilter === v;
+                        return (
+                          <button
+                            key={v}
+                            onClick={() => setActiveFilter(active ? 'all' : v)}
+                            className="px-2.5 py-1.5 rounded-md font-body text-[11px] font-semibold whitespace-nowrap transition-colors duration-100 border"
+                            style={active
+                              ? { backgroundColor: accentColor, borderColor: accentColor, color: accentTextColor }
+                              : { backgroundColor: 'var(--sunday-card-bg, #FFFFFF)', borderColor: 'var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text-muted, #7A6040)' }
+                            }
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Scrolling content */}
-              <div className={`${itemCount > 0 ? 'pb-[140px]' : 'pb-[88px]'}`}>
+              <div className={`${itemCount > 0 ? 'pb-[160px]' : 'pb-[100px]'}`}>
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
