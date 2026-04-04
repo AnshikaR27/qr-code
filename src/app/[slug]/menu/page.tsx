@@ -17,7 +17,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
 
   const { data: restaurant } = await supabase
     .from('restaurants')
-    .select('*')
+    .select('*, hero_image_url')
     .eq('slug', slug)
     .eq('is_active', true)
     .single();

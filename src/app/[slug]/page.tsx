@@ -102,18 +102,25 @@ export default async function SplashPage({ params, searchParams }: Props) {
 
   const { data: restaurant } = await supabase
     .from('restaurants')
-    .select('name, slug, logo_url, city, opening_time, closing_time, design_tokens')
+    .select('name, slug, logo_url, city, opening_time, closing_time, design_tokens, ui_theme')
     .eq('slug', slug)
     .eq('is_active', true)
     .single();
 
   if (!restaurant) notFound();
 
+  const menuHref = `/${slug}/menu${tableId ? `?table=${tableId}` : ''}`;
+
+  // Sunday theme: skip the splash entirely — go straight to the menu/welcome screen
+  if (restaurant.ui_theme === 'sunday') {
+    const { redirect } = await import('next/navigation');
+    redirect(menuHref);
+  }
+
   const tokens = buildMenuTokens(restaurant.design_tokens as Record<string, string> | null);
   const shapes = buildPattern(slug);
   const hours = getHoursStatus(restaurant.opening_time, restaurant.closing_time);
   const btnTextColor = contrastColor(tokens.accent);
-  const menuHref = `/${slug}/menu${tableId ? `?table=${tableId}` : ''}`;
 
   return (
     <div

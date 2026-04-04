@@ -41,9 +41,10 @@ export default function CategoryTabsV2({
               onClick={() => onSelect(cat.id)}
               className={`shrink-0 px-3 py-3 border-b-2 bg-transparent font-body text-[13px] whitespace-nowrap transition-colors duration-150 ${
                 active
-                  ? 'border-[#1A1A1A] text-[#1A1A1A] font-bold'
+                  ? 'text-[#1A1A1A] font-bold'
                   : 'border-transparent text-[#999] font-medium'
               }`}
+              style={active ? { borderBottomColor: 'var(--sunday-accent)' } : undefined}
             >
               {label}
             </button>

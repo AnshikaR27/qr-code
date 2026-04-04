@@ -185,12 +185,13 @@ export default function DishCardV2({
               {qty === 0 ? (
                 <button
                   onClick={handleAdd}
-                  className="w-8 h-8 rounded-full bg-[#1A1A1A] text-white border-2 border-white cursor-pointer flex items-center justify-center text-lg leading-none shadow-md active:sunday-btn-pulse"
+                  className="w-8 h-8 rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center text-lg leading-none shadow-md active:sunday-btn-pulse"
+                  style={{ backgroundColor: 'var(--sunday-accent)' }}
                 >
                   +
                 </button>
               ) : (
-                <div className="flex items-center bg-white rounded-full border border-[#1A1A1A] px-1 py-0.5 shadow-md">
+                <div className="flex items-center bg-white rounded-full px-1 py-0.5 shadow-md" style={{ borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--sunday-accent)' }}>
                   <button
                     onClick={handleDecrease}
                     className="w-6 h-6 rounded-full bg-transparent border-none text-[#1A1A1A] text-base font-semibold cursor-pointer flex items-center justify-center leading-none"

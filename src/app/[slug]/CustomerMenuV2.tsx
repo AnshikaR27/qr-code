@@ -62,6 +62,27 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     [restaurant.design_tokens]
   );
 
+  // Set Sunday accent color CSS variable from restaurant's brand tokens
+  const accentColor = tokens.primary ?? '#1A1A1A';
+  const accentTextColor = (() => {
+    // Compute contrast text color for accent
+    const hex = accentColor.replace('#', '');
+    if (hex.length !== 6) return '#FFFFFF';
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#1A1A1A' : '#FFFFFF';
+  })();
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sunday-accent', accentColor);
+    document.documentElement.style.setProperty('--sunday-accent-text', accentTextColor);
+    return () => {
+      document.documentElement.style.removeProperty('--sunday-accent');
+      document.documentElement.style.removeProperty('--sunday-accent-text');
+    };
+  }, [accentColor, accentTextColor]);
+
   const reduced = useReducedMotion();
   const [view, setView] = useState<View>('welcome');
   const [bottomTab, setBottomTab] = useState<BottomTab>('order');
@@ -355,9 +376,10 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                           onClick={() => setActiveFilter(active ? 'all' : v)}
                           className={`px-2.5 py-1.5 rounded-md font-body text-[11px] font-semibold whitespace-nowrap transition-colors duration-100 border ${
                             active
-                              ? 'border-[#1A1A1A] bg-[#1A1A1A] text-white'
+                              ? 'text-white'
                               : 'border-gray-200 bg-transparent text-[#999]'
                           }`}
+                          style={active ? { backgroundColor: accentColor, borderColor: accentColor, color: accentTextColor } : undefined}
                         >
                           {label}
                         </button>
@@ -383,7 +405,8 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                     </div>
                     <button
                       onClick={handleRepeatOrder}
-                      className="px-3 py-1.5 rounded-full border-none bg-[#1A1A1A] text-white font-body text-xs font-bold cursor-pointer shrink-0"
+                      className="px-3 py-1.5 rounded-full border-none font-body text-xs font-bold cursor-pointer shrink-0"
+                      style={{ backgroundColor: accentColor, color: accentTextColor }}
                     >
                       Repeat
                     </button>
@@ -466,7 +489,8 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               {showBackToTop && (
                 <button
                   onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
-                  className={`fixed ${itemCount > 0 ? 'bottom-20' : 'bottom-6'} right-4 w-10 h-10 rounded-full bg-[#1A1A1A] text-white border-none cursor-pointer flex items-center justify-center shadow-lg z-[47]`}
+                  className={`fixed ${itemCount > 0 ? 'bottom-20' : 'bottom-6'} right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[47]`}
+                  style={{ backgroundColor: accentColor, color: accentTextColor }}
                   aria-label="Back to top"
                 >
                   <ChevronUp size={18} strokeWidth={2.5} />
@@ -514,17 +538,24 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
       )}
 
       {/* ── Bottom Navigation ── */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-[55] bg-[#1A1A1A] rounded-t-2xl">
+      <div
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-[55] rounded-t-2xl"
+        style={{ backgroundColor: accentColor }}
+      >
         {/* Cart bar integrated at top */}
         {bottomTab === 'order' && itemCount > 0 && view === 'welcome' && (
           <button
             onClick={() => { setView('menu'); setCartOpen(true); }}
-            className="w-full flex justify-between items-center px-5 py-3.5 bg-transparent border-none cursor-pointer border-b border-white/10"
+            className="w-full flex justify-between items-center px-5 py-3.5 bg-transparent border-none cursor-pointer"
+            style={{ borderBottom: `1px solid ${accentTextColor}18` }}
           >
-            <span className="font-body text-[15px] font-semibold text-white">
+            <span className="font-body text-[15px] font-semibold" style={{ color: accentTextColor }}>
               View your order
             </span>
-            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center font-body text-xs font-black text-[#1A1A1A]">
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center font-body text-xs font-black"
+              style={{ backgroundColor: accentTextColor, color: accentColor }}
+            >
               {itemCount}
             </div>
           </button>
@@ -534,11 +565,9 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
         <div className="flex">
           <button
             onClick={() => { setBottomTab('order'); if (view === 'pay') setView('welcome'); }}
-            className={`flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer ${
-              bottomTab === 'order' ? 'text-white' : 'text-white/40'
-            }`}
+            className="flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer"
+            style={{ color: bottomTab === 'order' ? accentTextColor : `${accentTextColor}66` }}
           >
-            {/* Menu/chat icon */}
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
@@ -546,11 +575,9 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
           </button>
           <button
             onClick={() => setBottomTab('pay')}
-            className={`flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer ${
-              bottomTab === 'pay' ? 'text-white' : 'text-white/40'
-            }`}
+            className="flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer"
+            style={{ color: bottomTab === 'pay' ? accentTextColor : `${accentTextColor}66` }}
           >
-            {/* Card icon */}
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
               <line x1="1" y1="10" x2="23" y2="10" />

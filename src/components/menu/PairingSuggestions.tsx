@@ -36,7 +36,8 @@ export default function PairingSuggestions({ suggestions }: Props) {
               )}
               <button
                 onClick={() => { addItem(item); navigator.vibrate?.(50); }}
-                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#1A1A1A] text-white flex items-center justify-center text-sm shadow-md"
+                className="absolute top-2 right-2 w-7 h-7 rounded-full text-white flex items-center justify-center text-sm shadow-md"
+                style={{ backgroundColor: 'var(--sunday-accent)' }}
               >
                 +
               </button>

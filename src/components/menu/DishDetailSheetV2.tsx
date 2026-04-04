@@ -240,7 +240,8 @@ export default function DishDetailSheetV2({
               {/* Add button */}
               <button
                 onClick={handleAddToOrder}
-                className="flex-1 py-4 rounded-full bg-[#1A1A1A] text-white font-body text-[15px] font-bold border-none cursor-pointer"
+                className="flex-1 py-4 rounded-full text-white font-body text-[15px] font-bold border-none cursor-pointer"
+                style={{ backgroundColor: 'var(--sunday-accent)' }}
               >
                 Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{dish.price * localQty}
               </button>

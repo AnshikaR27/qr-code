@@ -83,14 +83,14 @@ export default function SplitBillSheet({ open, onClose }: Props) {
             <div className="space-y-3">
               <button
                 onClick={() => setMode('items')}
-                className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#1A1A1A] text-white font-body text-base font-semibold border-none cursor-pointer"
+                className="w-full flex items-center gap-3 p-4 rounded-xl text-white font-body text-base font-semibold border-none cursor-pointer" style={{ backgroundColor: 'var(--sunday-accent)' }}
               >
                 <List size={20} />
                 Pay for your items
               </button>
               <button
                 onClick={() => setMode('equal')}
-                className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#1A1A1A] text-white font-body text-base font-semibold border-none cursor-pointer"
+                className="w-full flex items-center gap-3 p-4 rounded-xl text-white font-body text-base font-semibold border-none cursor-pointer" style={{ backgroundColor: 'var(--sunday-accent)' }}
               >
                 <Users size={20} />
                 Divide the bill equally
@@ -129,9 +129,12 @@ export default function SplitBillSheet({ open, onClose }: Props) {
                         selected ? 'border-[#1A1A1A] bg-gray-50' : 'border-gray-100 bg-white'
                       } cursor-pointer text-left`}
                     >
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
-                        selected ? 'bg-[#1A1A1A] border-[#1A1A1A]' : 'border-gray-300 bg-transparent'
-                      }`}>
+                      <div
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                          selected ? '' : 'border-gray-300 bg-transparent'
+                        }`}
+                        style={selected ? { backgroundColor: 'var(--sunday-accent)', borderColor: 'var(--sunday-accent)' } : undefined}
+                      >
                         {selected && (
                           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                             <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -160,7 +163,7 @@ export default function SplitBillSheet({ open, onClose }: Props) {
                 <button
                   onClick={onClose}
                   disabled={selectedItems.size === 0}
-                  className="w-full py-4 rounded-full bg-[#1A1A1A] text-white font-body text-base font-bold border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full py-4 rounded-full text-white font-body text-base font-bold border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" style={{ backgroundColor: 'var(--sunday-accent)' }}
                 >
                   Confirm
                 </button>
@@ -171,7 +174,7 @@ export default function SplitBillSheet({ open, onClose }: Props) {
           {mode === 'equal' && (
             <div className="flex flex-col items-center pt-4">
               {/* Progress ring placeholder */}
-              <div className="w-40 h-40 rounded-full border-4 border-[#1A1A1A] flex items-center justify-center mb-8">
+              <div className="w-40 h-40 rounded-full border-4 flex items-center justify-center mb-8" style={{ borderColor: 'var(--sunday-accent)' }}>
                 <span className="font-display text-2xl font-bold text-[#1A1A1A]">
                   {formatPrice(total)}
                 </span>
@@ -234,7 +237,7 @@ export default function SplitBillSheet({ open, onClose }: Props) {
               {/* Confirm */}
               <button
                 onClick={onClose}
-                className="w-full py-4 rounded-full bg-[#1A1A1A] text-white font-body text-base font-bold border-none cursor-pointer"
+                className="w-full py-4 rounded-full text-white font-body text-base font-bold border-none cursor-pointer" style={{ backgroundColor: 'var(--sunday-accent)' }}
               >
                 Confirm
               </button>

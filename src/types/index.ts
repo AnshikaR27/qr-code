@@ -94,6 +94,7 @@ export interface Restaurant {
   closing_time: string;
   is_active: boolean;
   logo_url: string | null;
+  hero_image_url: string | null;
   stitch_project_id: string | null;
   design_tokens: Record<string, string> | null;
   floor_plan: FloorPlan | null;

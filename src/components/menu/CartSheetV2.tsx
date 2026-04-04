@@ -214,7 +214,8 @@ export default function CartSheetV2({
                 </div>
                 <button
                   onClick={handlePlaceOrder}
-                  className="w-full py-4 rounded-full bg-[#1A1A1A] text-white font-body text-base font-bold border-none cursor-pointer"
+                  className="w-full py-4 rounded-full text-white font-body text-base font-bold border-none cursor-pointer"
+                  style={{ backgroundColor: 'var(--sunday-accent)' }}
                 >
                   Order
                 </button>

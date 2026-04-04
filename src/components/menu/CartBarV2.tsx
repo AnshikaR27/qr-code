@@ -33,7 +33,8 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
 
       <button
         onClick={onOpen}
-        className="relative w-full flex justify-between items-center px-6 py-4 rounded-2xl bg-[#1A1A1A] text-white border-none cursor-pointer shadow-[0_4px_24px_rgba(0,0,0,0.2)]"
+        className="relative w-full flex justify-between items-center px-6 py-4 rounded-2xl text-white border-none cursor-pointer shadow-[0_4px_24px_rgba(0,0,0,0.2)]"
+        style={{ backgroundColor: 'var(--sunday-accent)' }}
       >
         <span className="font-body text-[15px] font-semibold">
           View your order

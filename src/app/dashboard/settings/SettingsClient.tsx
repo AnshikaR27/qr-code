@@ -32,6 +32,7 @@ interface FormState {
   opening_time: string;
   closing_time: string;
   logo_url: string;
+  hero_image_url: string;
   stitch_project_id: string;
 }
 
@@ -44,6 +45,7 @@ function toForm(r: Restaurant): FormState {
     opening_time: r.opening_time ?? '09:00',
     closing_time: r.closing_time ?? '23:00',
     logo_url: r.logo_url ?? '',
+    hero_image_url: r.hero_image_url ?? '',
     stitch_project_id: r.stitch_project_id ?? '',
   };
 }
@@ -82,6 +84,8 @@ export default function SettingsClient({ restaurant, categories }: Props) {
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+  const heroFileRef = useRef<HTMLInputElement>(null);
+  const [uploadingHero, setUploadingHero] = useState(false);
 
   function set<K extends keyof FormState>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -137,6 +141,29 @@ export default function SettingsClient({ restaurant, categories }: Props) {
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function handleHeroUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Select an image file'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+
+    setUploadingHero(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed');
+      set('hero_image_url', data.url);
+      toast.success('Hero image uploaded');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingHero(false);
+      if (heroFileRef.current) heroFileRef.current.value = '';
     }
   }
 
@@ -202,6 +229,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
           opening_time: form.opening_time,
           closing_time: form.closing_time,
           logo_url: form.logo_url || null,
+          hero_image_url: form.hero_image_url || null,
           stitch_project_id: form.stitch_project_id.trim() || null,
           billing_config: billing,
           ui_theme: uiTheme,
@@ -294,6 +322,57 @@ export default function SettingsClient({ restaurant, categories }: Props) {
             </p>
           </div>
         </Section>
+
+        {/* ── Hero Image (Sunday theme) ── */}
+        {uiTheme === 'sunday' && (
+          <Section title="Welcome Screen Hero Image">
+            <p className="text-xs text-muted-foreground -mt-1">
+              The large image at the top of the welcome screen. Pick a beautiful food spread or restaurant photo.
+            </p>
+            <div className="flex items-start gap-6">
+              <div className="flex flex-col items-center gap-2">
+                <div
+                  className="w-40 h-24 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden cursor-pointer hover:bg-gray-50 transition-colors bg-gray-50"
+                  onClick={() => heroFileRef.current?.click()}
+                >
+                  {form.hero_image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={form.hero_image_url} alt="Hero" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                      <Upload className="w-6 h-6 opacity-40" />
+                      <span className="text-xs">Hero image</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => heroFileRef.current?.click()}
+                    disabled={uploadingHero}
+                  >
+                    {uploadingHero ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}
+                    {uploadingHero ? 'Uploading…' : 'Upload'}
+                  </Button>
+                  {form.hero_image_url && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => set('hero_image_url', '')}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <input ref={heroFileRef} type="file" accept="image/*" className="hidden" onChange={handleHeroUpload} />
+              </div>
+              <p className="text-sm text-muted-foreground flex-1">
+                This image appears as the full-width banner on your welcome screen. If not set, the first dish image will be used as a fallback.
+              </p>
+            </div>
+          </Section>
+        )}
 
         {/* ── Menu Style ── */}
         <Section title="Menu Style">
