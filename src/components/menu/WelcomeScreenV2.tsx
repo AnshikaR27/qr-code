@@ -31,7 +31,7 @@ export default function WelcomeScreenV2({
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       {/* Hero image */}
-      <div className="w-full h-[40vh] relative overflow-hidden">
+      <div className="w-full h-[28vh] relative overflow-hidden">
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -70,7 +70,7 @@ export default function WelcomeScreenV2({
 
       {/* Restaurant name */}
       <h1 className="font-display text-2xl font-bold text-center mt-4" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
-        {restaurant.name}
+        Welcome to {restaurant.name}
       </h1>
 
       {/* Tagline */}
@@ -84,7 +84,7 @@ export default function WelcomeScreenV2({
       )}
 
       {/* Category grid */}
-      <div className="grid grid-cols-2 gap-3 px-4 mt-8 pb-36">
+      <div className="grid grid-cols-2 gap-3 px-4 mt-8 pb-40">
         {categories.map((cat) => {
           const imgUrl = getCategoryImage(cat.id, products);
           return (
@@ -94,7 +94,7 @@ export default function WelcomeScreenV2({
               className="text-left bg-transparent border-none cursor-pointer p-0"
             >
               <div
-                className="aspect-[4/3] rounded-xl overflow-hidden mb-2"
+                className="aspect-[3/2] rounded-xl overflow-hidden mb-2"
                 style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
               >
                 {imgUrl ? (

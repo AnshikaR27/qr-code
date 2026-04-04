@@ -11,7 +11,7 @@ interface Props {
 export default function CartBarV2({ itemCount, total, onOpen }: Props) {
   return (
     <div
-      className="fixed w-full max-w-[480px] z-40 pointer-events-none"
+      className="fixed w-full max-w-[480px] z-[55] pointer-events-none"
       style={{
         bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
         left: '50%',

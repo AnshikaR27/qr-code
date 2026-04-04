@@ -151,12 +151,12 @@ export default function DishDetailSheetV2({
 
           {/* Hero image */}
           {dish.image_url ? (
-            <div className="w-full aspect-[4/5] overflow-hidden relative">
+            <div className="w-full aspect-[16/9] overflow-hidden relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={dish.image_url}
                 alt={dish.name}
-                className="w-full h-[115%] -mt-[7.5%] object-cover block will-change-transform"
+                className="w-full h-full object-cover block will-change-transform"
                 style={{
                   transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
                   transition: 'none',
