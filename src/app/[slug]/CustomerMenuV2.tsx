@@ -573,7 +573,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
         <SundayToast
           message={toastMessage}
           onClose={() => setToastMessage(null)}
-          bottomOffset={itemCount > 0 && bottomTab === 'order' ? 150 : 90}
+          bottomOffset={bottomTab === 'order' ? 148 : 90}
         />
       )}
 
