@@ -524,13 +524,13 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 })}
               </div>
 
-              {/* Call waiter */}
-              <CallWaiterButton
+              {/* TODO: Re-enable Call Waiter — commented out to fix bottom bar overlap */}
+              {/* <CallWaiterButton
                 restaurantId={restaurant.id}
                 tableId={tableId}
                 tokens={tokens}
                 cartVisible={itemCount > 0}
-              />
+              /> */}
 
               {/* Back to top */}
               {showBackToTop && (
