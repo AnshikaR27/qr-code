@@ -13,8 +13,6 @@ import DishCardV2 from '@/components/menu/DishCardV2';
 import DishDetailSheetV2 from '@/components/menu/DishDetailSheetV2';
 import CartBarV2 from '@/components/menu/CartBarV2';
 import CartSheetV2 from '@/components/menu/CartSheetV2';
-import PayViewV2 from '@/components/menu/PayViewV2';
-import SplitBillSheet from '@/components/menu/SplitBillSheet';
 import CallWaiterButton from '@/components/menu/CallWaiterButton';
 import { useCart } from '@/hooks/useCart';
 import type { CartItem, Category, Product, Restaurant } from '@/types';
@@ -22,7 +20,6 @@ import type { CartItem, Category, Product, Restaurant } from '@/types';
 type ActiveFilter = 'all' | 'veg' | 'non_veg' | 'bestseller';
 type Lang = 'en' | 'hi';
 type View = 'welcome' | 'menu' | 'pay';
-type BottomTab = 'order' | 'pay';
 
 interface Props {
   restaurant: Restaurant;
@@ -44,8 +41,8 @@ function SundayToast({
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  /* cart bar always visible at 76px + safe, 52px tall → toast 12px above = 140px + safe */
-  const bottom = 'calc(140px + env(safe-area-inset-bottom, 0px))';
+  /* cart bar at 12px + safe, 52px tall → toast 12px above = 76px + safe */
+  const bottom = 'calc(76px + env(safe-area-inset-bottom, 0px))';
 
   return (
     <div
@@ -116,12 +113,10 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
 
   const reduced = useReducedMotion();
   const [view, setView] = useState<View>('welcome');
-  const [bottomTab, setBottomTab] = useState<BottomTab>('order');
   const [activeTab, setActiveTab] = useState(categories[0]?.id ?? '');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('all');
   const [selectedDish, setSelectedDish] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
-  const [splitBillOpen, setSplitBillOpen] = useState(false);
   const [jumpTarget, setJumpTarget] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>('en');
 
@@ -316,33 +311,15 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     <div className="max-w-[480px] mx-auto min-h-screen relative" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       <style>{`* { -webkit-tap-highlight-color: transparent; }`}</style>
 
-      {/* ── Bottom Tab: Pay ── */}
-      {bottomTab === 'pay' && (
-        <>
-          <PayViewV2
-            restaurant={restaurant}
-            tableDisplayName={tableId}
-            onSplitBill={() => setSplitBillOpen(true)}
-          />
-          <SplitBillSheet
-            open={splitBillOpen}
-            onClose={() => setSplitBillOpen(false)}
-          />
-        </>
+      {/* Welcome screen */}
+      {view === 'welcome' && (
+        <WelcomeScreenV2
+          restaurant={restaurant}
+          categories={categories}
+          products={products}
+          onCategorySelect={handleCategoryFromWelcome}
+        />
       )}
-
-      {/* ── Bottom Tab: Order ── */}
-      {bottomTab === 'order' && (
-        <>
-          {/* Welcome screen */}
-          {view === 'welcome' && (
-            <WelcomeScreenV2
-              restaurant={restaurant}
-              categories={categories}
-              products={products}
-              onCategorySelect={handleCategoryFromWelcome}
-            />
-          )}
 
           {/* Menu screen */}
           {view === 'menu' && (
@@ -433,7 +410,8 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               </div>
 
               {/* Scrolling content */}
-              <div style={{ paddingBottom: 'calc(152px + env(safe-area-inset-bottom, 0px))' }}>
+              {/* cart bar at 12px + safe, 52px tall → need 12+52+16=80px + safe */}
+              <div style={{ paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))' }}>
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
@@ -541,7 +519,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
                   className="fixed right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[39]"
                   style={{
-                    bottom: 'calc(140px + env(safe-area-inset-bottom, 0px))',
+                    bottom: 'calc(76px + env(safe-area-inset-bottom, 0px))',
                     backgroundColor: accentColor,
                     color: accentTextColor,
                   }}
@@ -572,8 +550,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               />
             </>
           )}
-        </>
-      )}
 
       {/* ── Custom Toast ── */}
       {toastMessage && (
@@ -583,45 +559,14 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
         />
       )}
 
-      {/* ── Cart Bar (above nav, order tab only) ── */}
-      {bottomTab === 'order' && (
-        <CartBarV2
-          itemCount={itemCount}
-          total={total}
-          onOpen={() => { setView('menu'); setCartOpen(true); }}
-        />
-      )}
+      {/* ── Cart Bar — always visible ── */}
+      <CartBarV2
+        itemCount={itemCount}
+        total={total}
+        onOpen={() => { setView('menu'); setCartOpen(true); }}
+      />
 
-      {/* ── Bottom Navigation ── */}
-      <div
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-50 rounded-t-2xl"
-        style={{ backgroundColor: primaryColor }}
-      >
-        {/* Tab buttons */}
-        <div className="flex">
-          <button
-            onClick={() => { setBottomTab('order'); if (view === 'pay') setView('welcome'); }}
-            className="flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer"
-            style={{ color: bottomTab === 'order' ? 'var(--sunday-accent, #E67E22)' : `${primaryTextColor}66` }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            <span className="font-body text-[11px] font-semibold">Order</span>
-          </button>
-          <button
-            onClick={() => setBottomTab('pay')}
-            className="flex-1 flex flex-col items-center gap-1 py-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-transparent border-none cursor-pointer"
-            style={{ color: bottomTab === 'pay' ? 'var(--sunday-accent, #E67E22)' : `${primaryTextColor}66` }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-              <line x1="1" y1="10" x2="23" y2="10" />
-            </svg>
-            <span className="font-body text-[11px] font-semibold">Pay</span>
-          </button>
-        </div>
-      </div>
+      {/* Bottom nav removed — cart bar is the only fixed bottom element */}
 
       {/* Long press image zoom overlay */}
       {zoomedImage && (

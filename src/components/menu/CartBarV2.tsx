@@ -15,7 +15,7 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
     <div
       className="fixed w-full max-w-[480px] z-40 pointer-events-none px-4"
       style={{
-        bottom: 'calc(76px + env(safe-area-inset-bottom, 0px))',
+        bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
         left: '50%',
         transform: 'translateX(-50%)',
       }}
