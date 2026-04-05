@@ -28,7 +28,8 @@
       "Skill(update-config)",
       "Bash(git reset:*)",
       "Bash(git push:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(curl -s \"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCs59or0-vYKrpVqjTyW7XwJ6_INme0m60\" -H \"Content-Type: application/json\" -d '{\"contents\":[{\"parts\":[{\"text\":\"Say hello\"}]}]}')"
     ]
   }
 }
