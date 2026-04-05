@@ -51,30 +51,67 @@ export async function extractMenuFromImage(
   });
 
   const text = response.choices[0]?.message?.content?.trim() ?? '';
+  console.log('[ai-scanner] Raw AI response:', text.slice(0, 500));
 
   // Strip markdown code fences if the model wraps in them
-  const json = text
+  let json = text
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim();
 
+  // If the model wrapped the array in an object, try to extract it
+  // e.g. {"dishes": [...]} or {"menu": [...]}
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
   } catch {
-    throw new Error('AI returned invalid JSON');
+    // Try to find the first JSON array in the response
+    const arrayMatch = json.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      try {
+        parsed = JSON.parse(arrayMatch[0]);
+      } catch {
+        throw new Error('AI returned invalid JSON');
+      }
+    } else {
+      throw new Error('AI returned invalid JSON');
+    }
+  }
+
+  // Unwrap if the model returned { "dishes": [...] } or similar
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const values = Object.values(parsed as Record<string, unknown>);
+    const arr = values.find((v) => Array.isArray(v));
+    if (arr) parsed = arr;
   }
 
   if (!Array.isArray(parsed)) {
     throw new Error('Expected a JSON array from AI');
   }
 
-  // Validate each item — skip malformed ones rather than failing entirely
+  // Validate each item — coerce common issues before validation
   const dishes: ScannedDish[] = [];
   for (const item of parsed) {
-    const result = scannedDishSchema.safeParse(item);
-    if (result.success) dishes.push(result.data);
+    if (!item || typeof item !== 'object') continue;
+    const raw = item as Record<string, unknown>;
+
+    // Coerce price: strip currency symbols, convert string to number
+    if (typeof raw.price === 'string') {
+      raw.price = parseFloat((raw.price as string).replace(/[₹$,\s]/g, ''));
+    }
+
+    // Coerce is_veg: accept "yes"/"no"/"true"/"false" strings
+    if (typeof raw.is_veg === 'string') {
+      raw.is_veg = /^(true|yes|veg)$/i.test(raw.is_veg as string);
+    }
+
+    const result = scannedDishSchema.safeParse(raw);
+    if (result.success) {
+      dishes.push(result.data);
+    } else {
+      console.log('[ai-scanner] Skipped invalid item:', JSON.stringify(raw).slice(0, 200), result.error.issues);
+    }
   }
 
   if (dishes.length === 0) {

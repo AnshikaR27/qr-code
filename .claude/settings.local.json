@@ -27,7 +27,8 @@
       "Bash(git diff:*)",
       "Skill(update-config)",
       "Bash(git reset:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebSearch"
     ]
   }
 }
