@@ -112,6 +112,7 @@ export interface Category {
   name: string;
   name_hindi: string | null;
   sort_order: number;
+  parent_category_id: string | null;
 }
 
 export interface Product {

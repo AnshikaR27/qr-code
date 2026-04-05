@@ -112,8 +112,28 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
         categoryMap[cat.name.toLowerCase()] = cat.id;
       }
 
-      // Collect unique new category names
-      const newCategoryNames = Array.from(
+      // Step 1: Create parent categories first (e.g. "Coffee")
+      const parentNames = Array.from(
+        new Set(
+          selected
+            .map((r) => r.parent_category)
+            .filter((p): p is string => !!p && !categoryMap[p.toLowerCase()])
+        )
+      );
+
+      if (parentNames.length > 0) {
+        const { data: newParents, error } = await supabase
+          .from('categories')
+          .insert(parentNames.map((name) => ({ restaurant_id: restaurant.id, name })))
+          .select();
+        if (error) throw error;
+        for (const cat of newParents ?? []) {
+          categoryMap[cat.name.toLowerCase()] = cat.id;
+        }
+      }
+
+      // Step 2: Create child categories with parent_category_id linked
+      const childCategoryNames = Array.from(
         new Set(
           selected
             .map((r) => r.category)
@@ -121,16 +141,19 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
         )
       );
 
-      // Insert new categories
-      if (newCategoryNames.length > 0) {
+      if (childCategoryNames.length > 0) {
+        // Find the parent_category for each child by checking the first dish that uses it
+        const childInserts = childCategoryNames.map((name) => {
+          const sampleRow = selected.find((r) => r.category === name);
+          const parentId = sampleRow?.parent_category
+            ? categoryMap[sampleRow.parent_category.toLowerCase()] ?? null
+            : null;
+          return { restaurant_id: restaurant.id, name, parent_category_id: parentId };
+        });
+
         const { data: newCats, error } = await supabase
           .from('categories')
-          .insert(
-            newCategoryNames.map((name) => ({
-              restaurant_id: restaurant.id,
-              name,
-            }))
-          )
+          .insert(childInserts)
           .select();
         if (error) throw error;
         for (const cat of newCats ?? []) {
@@ -138,7 +161,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
         }
       }
 
-      // Insert products
+      // Step 3: Insert products
       const products = selected.map((r) => ({
         restaurant_id: restaurant.id,
         name: r.name.trim(),
@@ -338,13 +361,20 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
                   placeholder="Dish name"
                 />
 
-                {/* Category */}
-                <Input
-                  value={row.category}
-                  onChange={(e) => updateRow(row._id, 'category', e.target.value)}
-                  className="h-8 text-sm"
-                  placeholder="Category"
-                />
+                {/* Category (shows parent → child if present) */}
+                <div className="flex flex-col gap-0.5">
+                  <Input
+                    value={row.category}
+                    onChange={(e) => updateRow(row._id, 'category', e.target.value)}
+                    className="h-8 text-sm"
+                    placeholder="Category"
+                  />
+                  {row.parent_category && (
+                    <span className="text-[10px] text-muted-foreground px-1 truncate">
+                      under {row.parent_category}
+                    </span>
+                  )}
+                </div>
 
                 {/* Price */}
                 <Input

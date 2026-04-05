@@ -12,10 +12,14 @@ Return a JSON array where each item has:
 - name (string, dish name in English)
 - name_hindi (string or null, name in Hindi/regional language if visible)
 - price (number, lowest price as a number — no currency symbol. If two prices like "750/800", use the lower one: 750)
-- category (string, use the section heading from the menu e.g. "Sandwiches", "Wood-Fired Pizzas", "Beverages")
+- category (string, the most specific section/sub-section heading this dish falls under, e.g. "Black & Bold", "Timeless Brews", "Wood-Fired Pizzas")
+- parent_category (string or null, if the dish's section is a sub-section of a larger section, put the larger section name here. For example if "COFFEE" is the main heading and "Black & Bold" is a sub-heading, then category="Black & Bold" and parent_category="Coffee". If there is no parent section, use null)
 - is_veg (boolean, infer from ingredients: if dish contains meat, chicken, pork, ham, lamb, fish, egg, pepperoni etc. → false. If only vegetables, cheese, paneer, mushrooms etc. → true)
 - is_jain (boolean, true ONLY if the menu explicitly says "Jain option available" or "Jain" for that dish, otherwise false)
 - description (string or null, the description text below the dish name if present)
+- is_addon (boolean, true if this item is from an "Add-ons", "Sides", "Extras", "Toppings", or "Customizations" section that is meant to complement main dishes. false for regular menu items)
+
+IMPORTANT for add-ons/sides: If the menu has a section like "Add-ons & Sides" or "Extras" that clearly belongs to a main category (e.g. appears under "Main Bowls"), set parent_category to that main category name.
 
 Return ONLY a valid JSON array. No markdown, no explanation, no code blocks.`;
 
@@ -24,9 +28,11 @@ export const scannedDishSchema = z.object({
   name_hindi: z.string().nullable().optional(),
   price: z.number().positive(),
   category: z.string().min(1),
+  parent_category: z.string().nullable().optional(),
   is_veg: z.boolean(),
   is_jain: z.boolean().optional().default(false),
   description: z.string().nullable().optional(),
+  is_addon: z.boolean().optional().default(false),
 });
 
 export type ScannedDish = z.infer<typeof scannedDishSchema>;
