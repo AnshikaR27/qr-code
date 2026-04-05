@@ -60,13 +60,20 @@ export default function CartSheetV2({
       order_type: 'dine_in',
       customer_name: null,
       customer_phone: null,
-      items: items.map((i) => ({
-        product_id: i.product_id,
-        name: i.name,
-        price: i.price,
-        quantity: i.quantity,
-        notes: orderNote.trim() || i.notes || null,
-      })),
+      items: items.map((i) => {
+        const addonTotal = i.addons.reduce((s, a) => s + a.price, 0);
+        const addonText = i.addons.length > 0
+          ? `Add-ons: ${i.addons.map((a) => `${a.name} (₹${a.price})`).join(', ')}`
+          : '';
+        const itemNotes = [orderNote.trim(), i.notes, addonText].filter(Boolean).join(' | ');
+        return {
+          product_id: i.product_id,
+          name: i.name,
+          price: i.price + addonTotal,
+          quantity: i.quantity,
+          notes: itemNotes || null,
+        };
+      }),
     }));
     onClose();
     router.push(`/${restaurant.slug}/order`);
@@ -146,13 +153,18 @@ export default function CartSheetV2({
                         )}
                       </div>
 
-                      {/* Name + price */}
+                      {/* Name + addons + price */}
                       <div className="flex-1 min-w-0">
                         <div className="font-body text-sm font-bold truncate" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                           {item.name}
                         </div>
+                        {item.addons.length > 0 && (
+                          <div className="font-body text-[11px] mt-0.5 truncate" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                            + {item.addons.map((a) => a.name).join(', ')}
+                          </div>
+                        )}
                         <div className="font-body text-[13px] mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
-                          {formatPrice(item.price)}
+                          {formatPrice(item.price + item.addons.reduce((s, a) => s + a.price, 0))}
                         </div>
                       </div>
 

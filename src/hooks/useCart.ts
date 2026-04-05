@@ -1,17 +1,17 @@
 import { create } from 'zustand';
-import type { CartItem, CartStore, Product } from '@/types';
+import type { CartAddon, CartItem, CartStore, Product } from '@/types';
 
 export const useCart = create<CartStore>((set, get) => ({
   items: [],
 
-  addItem: (product: Product) => {
+  addItem: (product: Product, addons: CartAddon[] = []) => {
     set((state) => {
       const existing = state.items.find((i) => i.product_id === product.id);
       if (existing) {
         return {
           items: state.items.map((i) =>
             i.product_id === product.id
-              ? { ...i, quantity: i.quantity + 1 }
+              ? { ...i, quantity: i.quantity + 1, addons: addons.length > 0 ? addons : i.addons }
               : i
           ),
         };
@@ -24,6 +24,7 @@ export const useCart = create<CartStore>((set, get) => ({
         quantity: 1,
         notes: '',
         is_veg: product.is_veg,
+        addons,
       };
       return { items: [...state.items, newItem] };
     });
@@ -55,10 +56,21 @@ export const useCart = create<CartStore>((set, get) => ({
     }));
   },
 
+  updateAddons: (productId: string, addons: CartAddon[]) => {
+    set((state) => ({
+      items: state.items.map((i) =>
+        i.product_id === productId ? { ...i, addons } : i
+      ),
+    }));
+  },
+
   clearCart: () => set({ items: [] }),
 
   getTotal: () => {
-    return get().items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    return get().items.reduce((sum, i) => {
+      const addonTotal = i.addons.reduce((a, addon) => a + addon.price, 0);
+      return sum + (i.price + addonTotal) * i.quantity;
+    }, 0);
   },
 
   getItemCount: () => {

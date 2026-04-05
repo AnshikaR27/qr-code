@@ -537,6 +537,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 lang={lang}
                 onClose={() => setSelectedDish(null)}
                 allProducts={products}
+                categories={categories}
               />
 
               {/* Cart sheet */}

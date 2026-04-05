@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronLeft, Utensils } from 'lucide-react';
+import { ChevronLeft, Utensils, Check } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import PairingSuggestions from './PairingSuggestions';
 import type { MenuTokens } from '@/lib/tokens';
-import type { Product } from '@/types';
+import type { Product, Category, CartAddon } from '@/types';
 
 interface Props {
   product: Product | null;
@@ -15,6 +15,7 @@ interface Props {
   lang?: 'en' | 'hi';
   onClose: () => void;
   allProducts?: Product[];
+  categories?: Category[];
 }
 
 export default function DishDetailSheetV2({
@@ -23,11 +24,13 @@ export default function DishDetailSheetV2({
   lang = 'en',
   onClose,
   allProducts = [],
+  categories = [],
 }: Props) {
-  const { items, addItem, updateQuantity, updateNotes } = useCart();
+  const { items, addItem, updateQuantity, updateNotes, updateAddons } = useCart();
   const reduced = useReducedMotion();
   const [localQty, setLocalQty] = useState(1);
   const [notes, setNotes] = useState('');
+  const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set());
 
   // Swipe-to-close
   const touchStartY = useRef(0);
@@ -57,6 +60,16 @@ export default function DishDetailSheetV2({
     isDragging.current = false;
   }
 
+  // Find add-on products for this dish's category
+  const addonProducts = useMemo(() => {
+    if (!product?.category_id || categories.length === 0) return [];
+    // Find child categories of this dish's category (add-ons, sides, extras)
+    const childCats = categories.filter((c) => c.parent_category_id === product.category_id);
+    if (childCats.length === 0) return [];
+    const childCatIds = new Set(childCats.map((c) => c.id));
+    return allProducts.filter((p) => p.category_id && childCatIds.has(p.category_id) && p.is_available);
+  }, [product?.category_id, categories, allProducts]);
+
   useEffect(() => {
     if (!product) return;
     setLocalQty(1);
@@ -64,6 +77,8 @@ export default function DishDetailSheetV2({
     setDragY(0);
     const existing = items.find((i) => i.product_id === product.id);
     setNotes(existing?.notes ?? '');
+    // Restore selected addons from cart
+    setSelectedAddons(new Set(existing?.addons.map((a) => a.product_id) ?? []));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
 
@@ -88,11 +103,37 @@ export default function DishDetailSheetV2({
   const cartQty = cartItem?.quantity ?? 0;
   const primaryName = (lang === 'hi' && dish.name_hindi) ? dish.name_hindi : dish.name;
 
+  function toggleAddon(addonProduct: Product) {
+    setSelectedAddons((prev) => {
+      const next = new Set(prev);
+      if (next.has(addonProduct.id)) {
+        next.delete(addonProduct.id);
+      } else {
+        next.add(addonProduct.id);
+      }
+      return next;
+    });
+  }
+
+  function buildAddons(): CartAddon[] {
+    return addonProducts
+      .filter((p) => selectedAddons.has(p.id))
+      .map((p) => ({ product_id: p.id, name: p.name, price: p.price }));
+  }
+
+  const addonTotal = addonProducts
+    .filter((p) => selectedAddons.has(p.id))
+    .reduce((sum, p) => sum + p.price, 0);
+
+  const itemTotal = (dish.price + addonTotal) * localQty;
+
   function handleAddToOrder() {
+    const addons = buildAddons();
     if (cartQty === 0) {
-      for (let i = 0; i < localQty; i++) addItem(dish);
+      for (let i = 0; i < localQty; i++) addItem(dish, addons);
     } else {
       updateQuantity(dish.id, cartQty + localQty);
+      updateAddons(dish.id, addons);
     }
     updateNotes(dish.id, notes.trim());
     onClose();
@@ -215,6 +256,48 @@ export default function DishDetailSheetV2({
               ₹{dish.price}
             </p>
 
+            {/* Add-ons section */}
+            {addonProducts.length > 0 && (
+              <div className="mb-5">
+                <h3 className="font-body text-sm font-bold mb-3" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                  Add-ons
+                </h3>
+                <div className="flex flex-col gap-2">
+                  {addonProducts.map((addon) => {
+                    const selected = selectedAddons.has(addon.id);
+                    return (
+                      <button
+                        key={addon.id}
+                        type="button"
+                        onClick={() => toggleAddon(addon)}
+                        className="flex items-center gap-3 px-3.5 py-3 rounded-xl border transition-colors duration-100 text-left"
+                        style={{
+                          borderColor: selected ? 'var(--sunday-accent, #b12d00)' : 'var(--sunday-border, #E8D5B0)',
+                          backgroundColor: selected ? 'var(--sunday-surface-low, #f6f2e9)' : 'transparent',
+                        }}
+                      >
+                        <div
+                          className="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0"
+                          style={{
+                            borderColor: selected ? 'var(--sunday-accent, #b12d00)' : 'var(--sunday-border, #E8D5B0)',
+                            backgroundColor: selected ? 'var(--sunday-accent, #b12d00)' : 'transparent',
+                          }}
+                        >
+                          {selected && <Check size={12} strokeWidth={3} className="text-white" />}
+                        </div>
+                        <span className="flex-1 font-body text-sm font-medium" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                          {addon.name}
+                        </span>
+                        <span className="font-body text-sm font-semibold shrink-0" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                          +₹{addon.price}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Allergens */}
             {dish.allergens && dish.allergens.length > 0 && (
               <div className="mb-4">
@@ -270,7 +353,7 @@ export default function DishDetailSheetV2({
                 className="flex-1 py-4 rounded-full text-white font-body text-[15px] font-bold border-none cursor-pointer"
                 style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
               >
-                Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{dish.price * localQty}
+                Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{itemTotal}
               </button>
             </div>
           ) : (

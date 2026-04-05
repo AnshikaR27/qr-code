@@ -175,6 +175,12 @@ export interface OrderItem {
 }
 
 // Cart (client-side only, Zustand store)
+export interface CartAddon {
+  product_id: string;
+  name: string;
+  price: number;
+}
+
 export interface CartItem {
   product_id: string;
   name: string;
@@ -183,6 +189,7 @@ export interface CartItem {
   quantity: number;
   notes: string;
   is_veg: boolean;
+  addons: CartAddon[];
 }
 
 export type WaiterCallStatus = 'pending' | 'acknowledged';
@@ -199,10 +206,11 @@ export interface WaiterCall {
 
 export interface CartStore {
   items: CartItem[];
-  addItem: (product: Product) => void;
+  addItem: (product: Product, addons?: CartAddon[]) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   updateNotes: (productId: string, notes: string) => void;
+  updateAddons: (productId: string, addons: CartAddon[]) => void;
   clearCart: () => void;
   getTotal: () => number;
   getItemCount: () => number;
