@@ -14,6 +14,12 @@ export async function POST(req: NextRequest) {
   }
 
   const formData = await req.formData();
+  const pin = (formData.get('pin') as string | null)?.trim();
+  const scanPin = process.env.SCAN_PIN;
+  if (!pin || pin !== scanPin) {
+    return NextResponse.json({ error: 'Incorrect PIN' }, { status: 403 });
+  }
+
   const file = formData.get('file') as File | null;
 
   if (!file) {

@@ -34,6 +34,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [pin, setPin] = useState('');
   const [scanning, setSaving] = useState(false);
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [saving, setSavingAll] = useState(false);
@@ -57,6 +58,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
     try {
       const fd = new FormData();
       fd.append('file', fileRef.current.files[0]);
+      if (pin) fd.append('pin', pin);
       const res = await fetch('/api/menu-scan', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Scan failed');
@@ -248,7 +250,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
               Take a clear photo of your printed menu or upload an existing image.
               The AI will extract dish names, prices, and categories automatically.
             </p>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
               <Button
                 variant="outline"
                 onClick={() => fileRef.current?.click()}
@@ -256,6 +258,13 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
                 <Upload className="w-4 h-4 mr-2" />
                 {preview ? 'Change Photo' : 'Select Photo'}
               </Button>
+              <Input
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="PIN"
+                className="h-9 w-24 text-sm"
+              />
               <Button
                 onClick={handleScan}
                 disabled={!preview || scanning}
