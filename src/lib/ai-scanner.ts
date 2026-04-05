@@ -41,7 +41,7 @@ export async function extractMenuFromImage(
   imageBase64: string,
   mimeType: string
 ): Promise<ScannedDish[]> {
-  const model = getGenAI().getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = getGenAI().getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const result = await model.generateContent([
     EXTRACTION_PROMPT,
