@@ -7,16 +7,17 @@ function getGroq() {
   return groq;
 }
 
-const EXTRACTION_PROMPT = `Extract all dishes from this restaurant menu image.
+const EXTRACTION_PROMPT = `Extract every dish from this restaurant menu image.
 Return a JSON array where each item has:
-- name (string, in English)
-- name_hindi (string, in Hindi/original language if visible, else null)
-- price (number, numeric value only, no currency symbol)
-- category (string, e.g. "Starters", "Main Course", "Beverages", "Desserts")
-- is_veg (boolean, true if marked veg or no marking visible, false if marked non-veg)
-- description (string or null)
+- name (string, dish name in English)
+- name_hindi (string or null, name in Hindi/regional language if visible)
+- price (number, lowest price as a number — no currency symbol. If two prices like "750/800", use the lower one: 750)
+- category (string, use the section heading from the menu e.g. "Sandwiches", "Wood-Fired Pizzas", "Beverages")
+- is_veg (boolean, infer from ingredients: if dish contains meat, chicken, pork, ham, lamb, fish, egg, pepperoni etc. → false. If only vegetables, cheese, paneer, mushrooms etc. → true)
+- is_jain (boolean, true ONLY if the menu explicitly says "Jain option available" or "Jain" for that dish, otherwise false)
+- description (string or null, the description text below the dish name if present)
 
-Return ONLY valid JSON. No markdown, no explanation, no code blocks.`;
+Return ONLY a valid JSON array. No markdown, no explanation, no code blocks.`;
 
 export const scannedDishSchema = z.object({
   name: z.string().min(1),
@@ -24,6 +25,7 @@ export const scannedDishSchema = z.object({
   price: z.number().positive(),
   category: z.string().min(1),
   is_veg: z.boolean(),
+  is_jain: z.boolean().optional().default(false),
   description: z.string().nullable().optional(),
 });
 

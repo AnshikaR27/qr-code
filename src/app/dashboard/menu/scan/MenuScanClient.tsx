@@ -147,7 +147,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
         price: r.price,
         category_id: categoryMap[r.category.toLowerCase()] ?? null,
         is_veg: r.is_veg,
-        is_jain: false,
+        is_jain: r.is_jain ?? false,
         spice_level: 1,
         allergens: [],
         is_available: true,

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import sharp from 'sharp';
 import { createClient } from '@/lib/supabase/server';
 import { extractMenuFromImage } from '@/lib/ai-scanner';
+
+const GROQ_SUPPORTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
 export async function POST(req: NextRequest) {
   // Auth check
@@ -26,9 +29,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const buffer = await file.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString('base64');
-    const dishes = await extractMenuFromImage(base64, file.type);
+    const rawBuffer = Buffer.from(await file.arrayBuffer());
+    let imageBuffer: Buffer = rawBuffer;
+    let mime = file.type;
+
+    // Convert unsupported formats (e.g. AVIF) to JPEG for Groq
+    if (!GROQ_SUPPORTED_TYPES.has(mime)) {
+      imageBuffer = Buffer.from(await sharp(rawBuffer).jpeg({ quality: 90 }).toBuffer());
+      mime = 'image/jpeg';
+    }
+
+    const base64 = imageBuffer.toString('base64');
+    const dishes = await extractMenuFromImage(base64, mime);
     return NextResponse.json({ dishes });
   } catch (err: unknown) {
     console.error('Menu scan error:', err);
