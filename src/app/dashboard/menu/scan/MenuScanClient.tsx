@@ -206,7 +206,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
               <div className="flex flex-col items-center gap-2 text-muted-foreground px-4 text-center">
                 <Upload className="w-8 h-8 opacity-40" />
                 <span className="text-sm">Click to upload menu photo</span>
-                <span className="text-xs">JPG, PNG, WEBP · max 10MB</span>
+                <span className="text-xs">JPG, PNG, WEBP, AVIF · max 10MB</span>
               </div>
             )}
           </div>
@@ -214,7 +214,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
           <input
             ref={fileRef}
             type="file"
-            accept="image/*"
+            accept="image/*,.avif"
             capture="environment"
             className="hidden"
             onChange={handleFileChange}
