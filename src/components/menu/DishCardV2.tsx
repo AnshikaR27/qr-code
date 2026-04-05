@@ -36,7 +36,7 @@ export default function DishCardV2({
     const el = outerRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setRevealed(true); obs.unobserve(el); } },
+      ([entry]) => { setRevealed(entry.isIntersecting); },
       { threshold: 0.1 }
     );
     obs.observe(el);
@@ -97,10 +97,17 @@ export default function DishCardV2({
     >
       <div
         onClick={dish.is_available ? onTap : undefined}
+        onMouseDown={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'; } : undefined}
+        onMouseUp={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
+        onMouseLeave={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
+        onTouchStart={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'; } : undefined}
+        onTouchEnd={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
         className={`flex items-start gap-4 p-3.5 rounded-xl ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
         style={{
           backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
           boxShadow: '0 2px 12px color-mix(in srgb, var(--sunday-primary, #1A1A1A) 3%, transparent)',
+          transition: 'transform 120ms ease',
+          willChange: 'transform',
         }}
       >
         {/* Left: text content */}

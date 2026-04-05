@@ -25,7 +25,9 @@
       "Bash(grep:*)",
       "Bash(echo \"EXIT:$?\")",
       "Bash(git diff:*)",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Bash(git reset:*)",
+      "Bash(git push:*)"
     ]
   }
 }
