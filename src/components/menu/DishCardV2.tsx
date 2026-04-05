@@ -37,13 +37,13 @@ export default function DishCardV2({
     if (!el) return;
     const obs = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) { setRevealed(true); obs.unobserve(el); } },
-      { threshold: 0.05 }
+      { threshold: 0.1 }
     );
     obs.observe(el);
     return () => obs.disconnect();
   }, [reduced]);
 
-  const staggerDelay = reduced ? 0 : Math.min(index, 5) * 40;
+  const staggerDelay = reduced ? 0 : Math.min(index, 5) * 50;
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -88,10 +88,11 @@ export default function DishCardV2({
       ref={outerRef}
       style={{
         opacity: revealed ? (dish.is_available ? 1 : 0.45) : 0,
-        transform: revealed ? 'translateY(0)' : 'translateY(10px)',
+        transform: revealed ? 'translateY(0)' : 'translateY(20px)',
         transition: reduced
           ? 'none'
-          : `opacity 300ms ease-out ${staggerDelay}ms, transform 300ms ease-out ${staggerDelay}ms`,
+          : `opacity 400ms ease-out ${staggerDelay}ms, transform 400ms ease-out ${staggerDelay}ms`,
+        willChange: 'opacity, transform',
       }}
     >
       <div
