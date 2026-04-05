@@ -157,6 +157,24 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
     }
   }
 
+  // ── Bulk delete uncategorised ───────────────────────────────────────
+  async function deleteAllUncategorised() {
+    const uncats = products.filter((p) => !p.category_id);
+    if (uncats.length === 0) return;
+    if (!confirm(`Delete all ${uncats.length} uncategorised dish${uncats.length !== 1 ? 'es' : ''}? This cannot be undone.`)) return;
+
+    try {
+      const supabase = createClient();
+      const ids = uncats.map((p) => p.id);
+      const { error } = await supabase.from('products').delete().in('id', ids);
+      if (error) throw error;
+      setProducts((prev) => prev.filter((p) => p.category_id));
+      toast.success(`${uncats.length} uncategorised dish${uncats.length !== 1 ? 'es' : ''} deleted`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete dishes');
+    }
+  }
+
   // ── Batch AI describe ──────────────────────────────────────────────
   const [autoDescProgress, setAutoDescProgress] = useState<{ current: number; total: number } | null>(null);
 
@@ -305,6 +323,7 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
             onToggleCollapse={() => toggleCollapse('__uncategorised__')}
             onEditCategory={() => {}}
             onDeleteCategory={() => {}}
+            onDeleteAll={() => deleteAllUncategorised()}
             onAddDish={() => openAddDish('')}
             onEditDish={openEditDish}
             onDeleteDish={deleteDish}
@@ -345,6 +364,7 @@ interface CategorySectionProps {
   onToggleCollapse: () => void;
   onEditCategory: () => void;
   onDeleteCategory: () => void;
+  onDeleteAll?: () => void;
   onAddDish: () => void;
   onEditDish: (p: Product) => void;
   onDeleteDish: (p: Product) => void;
@@ -358,6 +378,7 @@ function CategorySection({
   onToggleCollapse,
   onEditCategory,
   onDeleteCategory,
+  onDeleteAll,
   onAddDish,
   onEditDish,
   onDeleteDish,
@@ -390,6 +411,18 @@ function CategorySection({
         </button>
 
         <div className="flex items-center gap-1 flex-shrink-0">
+          {isUncategorised && onDeleteAll && products.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-destructive hover:text-destructive"
+              onClick={onDeleteAll}
+              title="Delete all uncategorised dishes"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Delete All
+            </Button>
+          )}
           {!isUncategorised && (
             <>
               <Button

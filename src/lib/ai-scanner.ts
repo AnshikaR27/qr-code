@@ -1,10 +1,10 @@
-import Groq from 'groq-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 
-let groq: Groq | null = null;
-function getGroq() {
-  if (!groq) groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  return groq;
+let genAI: GoogleGenerativeAI | null = null;
+function getGenAI() {
+  if (!genAI) genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+  return genAI;
 }
 
 const EXTRACTION_PROMPT = `Extract every dish from this restaurant menu image.
@@ -41,25 +41,20 @@ export async function extractMenuFromImage(
   imageBase64: string,
   mimeType: string
 ): Promise<ScannedDish[]> {
-  const response = await getGroq().chat.completions.create({
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    max_tokens: 4096,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: EXTRACTION_PROMPT },
-          {
-            type: 'image_url',
-            image_url: { url: `data:${mimeType};base64,${imageBase64}` },
-          },
-        ],
-      },
-    ],
-  });
+  const model = getGenAI().getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-  const text = response.choices[0]?.message?.content?.trim() ?? '';
-  console.log('[ai-scanner] Raw AI response:', text.slice(0, 500));
+  const result = await model.generateContent([
+    EXTRACTION_PROMPT,
+    {
+      inlineData: {
+        data: imageBase64,
+        mimeType,
+      },
+    },
+  ]);
+
+  const text = result.response.text().trim();
+  console.log('[ai-scanner] Raw Gemini response:', text.slice(0, 500));
 
   // Strip markdown code fences if the model wraps in them
   let json = text
@@ -69,7 +64,6 @@ export async function extractMenuFromImage(
     .trim();
 
   // If the model wrapped the array in an object, try to extract it
-  // e.g. {"dishes": [...]} or {"menu": [...]}
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
