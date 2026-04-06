@@ -15,6 +15,7 @@ import {
   Scan,
   Sparkles,
   Loader2,
+  Download,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -214,6 +215,41 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
     toast.success(`Generated ${succeeded} of ${undescribed.length} descriptions`);
   }
 
+  // ── Export CSV ─────────────────────────────────────────────────────
+  function exportCSV() {
+    if (products.length === 0) {
+      toast.error('No dishes to export');
+      return;
+    }
+    const catMap: Record<string, string> = {};
+    for (const c of categories) catMap[c.id] = c.name;
+
+    const headers = ['Name', 'Name (Hindi)', 'Category', 'Price', 'Veg', 'Jain', 'Available', 'Spice Level', 'Description'];
+    const csvRows = products.map((p) =>
+      [
+        p.name,
+        p.name_hindi ?? '',
+        p.category_id ? catMap[p.category_id] ?? '' : '',
+        p.price,
+        p.is_veg ? 'Yes' : 'No',
+        p.is_jain ? 'Yes' : 'No',
+        p.is_available ? 'Yes' : 'No',
+        p.spice_level,
+        p.description ?? '',
+      ]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(',')
+    );
+    const csv = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `menu-${restaurant.slug ?? 'export'}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // ── Grouping ───────────────────────────────────────────────────────
   const categorisedProducts = categories.map((cat) => ({
     category: cat,
@@ -239,6 +275,10 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
               <Scan className="w-4 h-4 mr-2" />
               AI Scanner
             </Link>
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
           </Button>
           <Button
             variant="outline"
