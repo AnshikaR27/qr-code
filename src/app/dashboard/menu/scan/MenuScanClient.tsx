@@ -327,9 +327,15 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
               New categories were created automatically where needed.
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => router.push('/dashboard/menu')}>
-            View Menu
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={exportCSV}>
+              <Download className="w-4 h-4 mr-1.5" />
+              Export CSV
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => router.push('/dashboard/menu')}>
+              View Menu
+            </Button>
+          </div>
         </div>
       )}
 
@@ -345,11 +351,6 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
                 Edit anything that looks wrong, then click Save All
               </p>
             </div>
-            <div className="flex gap-2">
-            <Button variant="outline" onClick={exportCSV}>
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </Button>
             <Button
               onClick={saveAll}
               disabled={saving || selectedCount === 0}
@@ -366,7 +367,6 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
                 </>
               )}
             </Button>
-            </div>
           </div>
 
           {/* Table header */}
