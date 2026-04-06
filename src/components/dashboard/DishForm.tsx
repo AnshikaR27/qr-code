@@ -101,7 +101,7 @@ function getInitialState(product?: Product | null): FormState {
       price: String(product.price),
       category_id: product.category_id ?? '',
       is_veg: product.is_veg,
-      is_jain: product.is_jain,
+      is_jain: product.is_jain === true || product.is_jain === 'Yes',
       spice_level: product.spice_level,
       allergens: product.allergens ?? [],
       image_url: product.image_url ?? '',

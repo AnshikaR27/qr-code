@@ -172,7 +172,8 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
         price: r.price,
         category_id: categoryMap[r.category.toLowerCase()] ?? null,
         is_veg: r.is_veg,
-        is_jain: r.is_jain ?? false,
+        is_jain: r.is_jain === 'Yes',
+        dietary_tags: r.dietary_tags?.trim() || null,
         spice_level: 1,
         allergens: [],
         is_available: true,
@@ -339,13 +340,14 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
           </div>
 
           {/* Table header */}
-          <div className="hidden sm:grid grid-cols-[auto_1fr_1fr_80px_80px_80px_40px] gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div className="hidden sm:grid grid-cols-[auto_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             <span />
             <span>Name</span>
             <span>Category</span>
             <span>Price (₹)</span>
             <span>Hindi</span>
             <span>Veg?</span>
+            <span>Dietary Tags</span>
             <span />
           </div>
 
@@ -354,7 +356,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
               <li
                 key={row._id}
                 className={cn(
-                  'grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_80px_80px_80px_40px] gap-2 px-4 py-3 items-center',
+                  'grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-3 items-center',
                   !row._selected && 'opacity-40'
                 )}
               >
@@ -422,6 +424,21 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
                   <Leaf className="w-3 h-3" />
                   {row.is_veg ? 'Veg' : 'NV'}
                 </button>
+
+                {/* Dietary Tags */}
+                <div className="flex flex-col gap-0.5">
+                  <Input
+                    value={row.dietary_tags ?? ''}
+                    onChange={(e) => updateRow(row._id, 'dietary_tags', e.target.value || null)}
+                    className="h-8 text-sm"
+                    placeholder="e.g. Vegan, Gluten Free"
+                  />
+                  {row.is_jain && row.is_jain !== 'No' && (
+                    <span className="text-[10px] text-amber-600 px-1 truncate">
+                      Jain: {row.is_jain}
+                    </span>
+                  )}
+                </div>
 
                 {/* Delete row */}
                 <button

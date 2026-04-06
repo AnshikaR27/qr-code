@@ -125,9 +125,10 @@ export interface Product {
   price: number;
   image_url: string | null;
   is_veg: boolean;
-  is_jain: boolean;
+  is_jain: boolean | string;
   spice_level: SpiceLevel;
   allergens: string[];
+  dietary_tags: string | null;
   is_available: boolean;
   sort_order: number;
   order_count: number;

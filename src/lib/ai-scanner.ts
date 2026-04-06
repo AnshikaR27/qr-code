@@ -14,10 +14,19 @@ Return a JSON array where each item has:
 - price (number, lowest price as a number — no currency symbol. If two prices like "750/800", use the lower one: 750)
 - category (string, the most specific section/sub-section heading this dish falls under, e.g. "Black & Bold", "Timeless Brews", "Wood-Fired Pizzas")
 - parent_category (string or null, if the dish's section is a sub-section of a larger section, put the larger section name here. For example if "COFFEE" is the main heading and "Black & Bold" is a sub-heading, then category="Black & Bold" and parent_category="Coffee". If there is no parent section, use null)
-- is_veg (boolean, infer from ingredients: if dish contains meat, chicken, pork, ham, lamb, fish, egg, pepperoni etc. → false. If only vegetables, cheese, paneer, mushrooms etc. → true)
-- is_jain (boolean, true ONLY if the menu explicitly says "Jain option available" or "Jain" for that dish, otherwise false)
+- is_veg (boolean — Determine this from ALL available signals:
+  1. Green dot/square symbol (●/◻) next to the item → true. Red/brown dot/square symbol → false.
+  2. Tags like "Vegan", "Vegetarian", "Eggless", "Jain" → true. Tags like "Contains Egg", "Non-Veg" → false.
+  3. Ingredient inference: chicken, prawns, bacon, lamb, pork, ham, fish, egg, pepperoni, mutton, keema, seafood → false. Only vegetables, cheese, paneer, mushrooms, tofu → true.
+  4. If a section is explicitly labeled "Non-Veg" or "Non Vegetarian", ALL items in it are false.
+  5. When in doubt and no indicators are present, infer from the dish name — e.g. "Chicken Tikka" → false, "Paneer Tikka" → true.
+  IMPORTANT: You MUST actively mark non-veg items as false. Do not default everything to true.)
+- is_jain (string — "Yes" if the menu explicitly tags the dish as "Jain". "Jain option available" if that phrase appears. "No" otherwise)
 - description (string or null, the description text below the dish name if present)
 - is_addon (boolean, true if this item is from an "Add-ons", "Sides", "Extras", "Toppings", or "Customizations" section that is meant to complement main dishes. false for regular menu items)
+- dietary_tags (string or null — extract ALL dietary/allergen tags shown for the dish. These are typically in smaller font, different color, or as a subtitle below the item name. Look for tags like: "Vegan", "Vegetarian", "Eggless", "Gluten Free", "Sugar Free", "Jain", "Jain option available", "Vegan option available", "Eggless option available", "Contains Egg", "Contains Egg & Gluten Free". Return as a comma-separated string, e.g. "Vegan, Gluten Free". If no tags are present, use null)
+
+IMPORTANT for dietary tags: Do NOT skip or ignore colored or small-font text beneath item names — these are dietary indicators, not decorative elements. Extract them exactly as shown.
 
 IMPORTANT for add-ons/sides: If the menu has a section like "Add-ons & Sides" or "Extras" that clearly belongs to a main category (e.g. appears under "Main Bowls"), set parent_category to that main category name.
 
@@ -30,9 +39,10 @@ export const scannedDishSchema = z.object({
   category: z.string().min(1),
   parent_category: z.string().nullable().optional(),
   is_veg: z.boolean(),
-  is_jain: z.boolean().optional().default(false),
+  is_jain: z.string().optional().default('No'),
   description: z.string().nullable().optional(),
   is_addon: z.boolean().optional().default(false),
+  dietary_tags: z.string().nullable().optional(),
 });
 
 export type ScannedDish = z.infer<typeof scannedDishSchema>;
@@ -106,6 +116,11 @@ export async function extractMenuFromImage(
     // Coerce is_veg: accept "yes"/"no"/"true"/"false" strings
     if (typeof raw.is_veg === 'string') {
       raw.is_veg = /^(true|yes|veg)$/i.test(raw.is_veg as string);
+    }
+
+    // Coerce is_jain: convert boolean to string
+    if (typeof raw.is_jain === 'boolean') {
+      raw.is_jain = raw.is_jain ? 'Yes' : 'No';
     }
 
     const result = scannedDishSchema.safeParse(raw);

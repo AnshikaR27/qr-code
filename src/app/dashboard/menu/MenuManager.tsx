@@ -224,7 +224,7 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
     const catMap: Record<string, string> = {};
     for (const c of categories) catMap[c.id] = c.name;
 
-    const headers = ['Name', 'Name (Hindi)', 'Category', 'Price', 'Veg', 'Jain', 'Available', 'Spice Level', 'Description'];
+    const headers = ['Name', 'Name (Hindi)', 'Category', 'Price', 'Veg', 'Jain', 'Dietary Tags', 'Available', 'Spice Level', 'Description'];
     const csvRows = products.map((p) =>
       [
         p.name,
@@ -233,6 +233,7 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
         p.price,
         p.is_veg ? 'Yes' : 'No',
         p.is_jain ? 'Yes' : 'No',
+        p.dietary_tags ?? '',
         p.is_available ? 'Yes' : 'No',
         p.spice_level,
         p.description ?? '',
