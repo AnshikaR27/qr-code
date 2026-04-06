@@ -23,6 +23,18 @@ export default function SectionHeading({ category, tokens }: Props) {
         {category.name}
       </div>
 
+      {/* Accent underline */}
+      <div
+        style={{
+          width: 32,
+          height: 3,
+          borderRadius: 2,
+          backgroundColor: tokens.accent,
+          marginTop: 8,
+          opacity: 0.6,
+        }}
+      />
+
       {/* Hindi name */}
       {category.name_hindi && (
         <div

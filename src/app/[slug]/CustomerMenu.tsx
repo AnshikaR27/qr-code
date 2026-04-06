@@ -303,8 +303,8 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         margin: '0 auto',
         minHeight: '100vh',
         backgroundColor: tokens.bg,
-        backgroundImage: `radial-gradient(circle, ${tokens.primary}0f 1px, transparent 1px)`,
-        backgroundSize: '20px 20px',
+        backgroundImage: `radial-gradient(circle at 50% 0%, ${tokens.primary}12 0%, transparent 60%), radial-gradient(circle, ${tokens.primary}0a 1px, transparent 1px)`,
+        backgroundSize: '100% 100%, 20px 20px',
         position: 'relative',
       }}
     >

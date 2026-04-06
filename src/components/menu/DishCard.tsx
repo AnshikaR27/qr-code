@@ -151,14 +151,15 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
         onTouchEnd={dish.is_available ? tapUp : undefined}
         style={{
           borderRadius: 16,
-          border: `1.5px solid ${tokens.border}`,
+          border: `1px solid ${tokens.border}`,
           backgroundColor: tokens.cardBg,
           overflow: 'hidden',
           cursor: dish.is_available ? 'pointer' : 'default',
           display: 'flex',
           flexDirection: 'row',
           minHeight: 110,
-          transition: 'transform 0.12s ease',
+          boxShadow: `0 2px 8px ${tokens.text}08, 0 1px 3px ${tokens.text}06`,
+          transition: 'transform 0.12s ease, box-shadow 0.12s ease',
           willChange: 'transform',
         }}
       >
