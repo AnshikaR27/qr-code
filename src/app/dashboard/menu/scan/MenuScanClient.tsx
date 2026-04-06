@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   Leaf,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -190,6 +191,34 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
     }
   }
 
+  function exportCSV() {
+    if (rows.length === 0) return;
+    const headers = ['Name', 'Name (Hindi)', 'Category', 'Parent Category', 'Price', 'Veg', 'Jain', 'Add-on', 'Description', 'Selected'];
+    const csvRows = rows.map((r) =>
+      [
+        r.name,
+        r.name_hindi ?? '',
+        r.category,
+        r.parent_category ?? '',
+        r.price,
+        r.is_veg ? 'Yes' : 'No',
+        r.is_jain ? 'Yes' : 'No',
+        r.is_addon ? 'Yes' : 'No',
+        r.description ?? '',
+        r._selected ? 'Yes' : 'No',
+      ].map((v) => `"${String(v).replace(/"/g, '""')}"`)
+       .join(',')
+    );
+    const csv = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `menu-scan-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const selectedCount = rows.filter((r) => r._selected).length;
 
   return (
@@ -316,6 +345,11 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
                 Edit anything that looks wrong, then click Save All
               </p>
             </div>
+            <div className="flex gap-2">
+            <Button variant="outline" onClick={exportCSV}>
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
             <Button
               onClick={saveAll}
               disabled={saving || selectedCount === 0}
@@ -332,6 +366,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
                 </>
               )}
             </Button>
+            </div>
           </div>
 
           {/* Table header */}
