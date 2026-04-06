@@ -182,6 +182,10 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
       if (prodErr) throw prodErr;
 
       setSavedCount(selected.length);
+      setRows([]);
+      setPreview(null);
+      if (fileRef.current) fileRef.current.value = '';
+      router.refresh();
       toast.success(`${selected.length} dish${selected.length !== 1 ? 'es' : ''} saved to your menu!`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to save dishes');

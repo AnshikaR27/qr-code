@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import MenuScanClient from './MenuScanClient';
 import type { Category, Restaurant } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 export default async function MenuScanPage() {
   const supabase = await createClient();
 
