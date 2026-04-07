@@ -102,19 +102,22 @@ export default function DishCardV2({
         onMouseLeave={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
         onTouchStart={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'; } : undefined}
         onTouchEnd={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
-        className={`flex items-start gap-3 min-[400px]:gap-4 p-3 min-[400px]:p-3.5 rounded-xl ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
+        className={`flex items-start gap-3 min-[400px]:gap-4 p-3 min-[400px]:p-3.5 ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
         style={{
+          borderRadius: 'var(--sunday-radius, 12px)',
           backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
-          boxShadow: '0 2px 12px color-mix(in srgb, var(--sunday-primary, #1A1A1A) 3%, transparent)',
-          transition: 'transform 120ms ease',
+          boxShadow: 'var(--sunday-shadow-sm)',
+          transition: 'transform 120ms ease, box-shadow 200ms ease',
           willChange: 'transform',
         }}
+        onMouseEnter={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--sunday-shadow-md)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; } : undefined}
+        onMouseOut={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--sunday-shadow-sm)'; (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
       >
         {/* Left: text content */}
         <div className="flex-1 min-w-0">
           {/* Sold out badge — only for unavailable items */}
           {!dish.is_available && (
-            <span className="font-body text-[11px] font-bold text-red-500 mb-1.5 block">
+            <span className="text-[11px] font-bold text-red-500 mb-1.5 block" style={{ fontFamily: 'var(--sunday-font-body)' }}>
               Sold out
             </span>
           )}
@@ -123,43 +126,53 @@ export default function DishCardV2({
           <div className="flex items-center gap-2 mb-1">
             <span
               className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: dish.is_veg ? '#0F8A00' : '#E23744' }}
+              style={{ backgroundColor: dish.is_veg ? 'var(--sunday-veg, #0F8A00)' : 'var(--sunday-nonveg, #E23744)' }}
             />
             <h3
-              className="font-body text-[13px] min-[400px]:text-[15px] font-semibold leading-tight whitespace-nowrap"
-              style={{ color: 'var(--sunday-text, #1c1c17)' }}
+              className="text-[13px] min-[400px]:text-[15px] font-semibold leading-tight whitespace-nowrap"
+              style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
             >
               {primaryName}
             </h3>
           </div>
 
           {/* Price */}
-          <p className="font-body text-[13px] min-[400px]:text-[15px] font-medium mb-1 min-[400px]:mb-1.5" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+          <p className="text-[13px] min-[400px]:text-[15px] font-medium mb-1 min-[400px]:mb-1.5" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
             ₹{dish.price}
           </p>
 
           {/* Description */}
           {dish.description && (
-            <p className="font-body text-[12px] min-[400px]:text-[13px] leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+            <p className="text-[12px] min-[400px]:text-[13px] leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
               {dish.description}
             </p>
           )}
 
-          {/* Tags — only exceptional badges */}
+          {/* Tags — badge-bg/badge-text for visual pop */}
           {(isBestseller || dish.is_jain) && (
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
               {isBestseller && (
                 <span
-                  className="font-body text-[11px] font-medium rounded-full px-2.5 py-0.5"
-                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                  className="text-[11px] font-medium px-2.5 py-0.5"
+                  style={{
+                    borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
+                    backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
+                    color: 'var(--sunday-badge-text, #ffffff)',
+                    fontFamily: 'var(--sunday-font-body)',
+                  }}
                 >
                   Popular
                 </span>
               )}
               {dish.is_jain && (
                 <span
-                  className="font-body text-[11px] font-medium rounded-full px-2.5 py-0.5"
-                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                  className="text-[11px] font-medium px-2.5 py-0.5"
+                  style={{
+                    borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
+                    backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
+                    color: 'var(--sunday-badge-text, #ffffff)',
+                    fontFamily: 'var(--sunday-font-body)',
+                  }}
                 >
                   Jain
                 </span>
@@ -171,8 +184,11 @@ export default function DishCardV2({
         {/* Right: image + add button */}
         <div className="relative shrink-0">
           <div
-            className="w-[100px] h-[100px] min-[400px]:w-[128px] min-[400px]:h-[128px] rounded-xl overflow-hidden flex items-center justify-center select-none"
-            style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
+            className="w-[100px] h-[100px] min-[400px]:w-[128px] min-[400px]:h-[128px] overflow-hidden flex items-center justify-center select-none"
+            style={{
+              borderRadius: 'var(--sunday-radius, 12px)',
+              backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+            }}
             onTouchStart={(e) => { e.stopPropagation(); startLongPress(); }}
             onTouchEnd={(e) => { e.stopPropagation(); cancelLongPress(); }}
             onTouchMove={cancelLongPress}
@@ -206,7 +222,7 @@ export default function DishCardV2({
                   className="w-9 h-9 min-[400px]:w-11 min-[400px]:h-11 rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100"
                   style={{
                     background: 'linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))',
-                    boxShadow: '0 4px 12px color-mix(in srgb, var(--sunday-primary, #361f1a) 25%, transparent)',
+                    boxShadow: 'var(--sunday-shadow-md)',
                   }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -216,10 +232,12 @@ export default function DishCardV2({
                 </button>
               ) : (
                 <div
-                  className="flex items-center rounded-full px-1 py-0.5 shadow-md"
+                  className="flex items-center px-1 py-0.5"
                   style={{
+                    borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                     backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
                     border: '1px solid var(--sunday-accent, #b12d00)',
+                    boxShadow: 'var(--sunday-shadow-sm)',
                   }}
                 >
                   <button
@@ -230,8 +248,8 @@ export default function DishCardV2({
                     −
                   </button>
                   <span
-                    className="font-body text-[13px] font-bold min-w-[16px] text-center"
-                    style={{ color: 'var(--sunday-text, #1c1c17)' }}
+                    className="text-[13px] font-bold min-w-[16px] text-center"
+                    style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
                   >
                     {qty}
                   </span>

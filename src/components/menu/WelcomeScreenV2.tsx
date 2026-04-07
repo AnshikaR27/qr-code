@@ -51,8 +51,8 @@ export default function WelcomeScreenV2({
 
       {/* Logo circle overlapping hero */}
       <div className="flex justify-center -mt-[60px] min-[400px]:-mt-[75px] relative z-10">
-        <div className="w-[88px] h-[88px] min-[400px]:w-[110px] min-[400px]:h-[110px] rounded-full shadow-lg flex items-center justify-center overflow-hidden border-4 border-white"
-          style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)' }}>
+        <div className="w-[88px] h-[88px] min-[400px]:w-[110px] min-[400px]:h-[110px] rounded-full flex items-center justify-center overflow-hidden border-4 border-white"
+          style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)', boxShadow: 'var(--sunday-shadow-lg)' }}>
           {restaurant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -61,7 +61,7 @@ export default function WelcomeScreenV2({
               className="w-[72px] h-[72px] min-[400px]:w-[90px] min-[400px]:h-[90px] rounded-full object-cover"
             />
           ) : (
-            <span className="font-display text-3xl font-bold" style={{ color: 'var(--sunday-accent, #b12d00)' }}>
+            <span className="text-3xl font-bold" style={{ color: 'var(--sunday-accent, #b12d00)', fontFamily: 'var(--sunday-font-heading)' }}>
               {restaurant.name.charAt(0)}
             </span>
           )}
@@ -69,13 +69,13 @@ export default function WelcomeScreenV2({
       </div>
 
       {/* Restaurant name */}
-      <h1 className="font-display text-xl min-[400px]:text-2xl font-bold text-center mt-3 min-[400px]:mt-4" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+      <h1 className="text-xl min-[400px]:text-2xl font-bold text-center mt-3 min-[400px]:mt-4" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
         Welcome to {restaurant.name}
       </h1>
 
       {/* Tagline */}
       {(restaurant.tagline || restaurant.city || restaurant.address) && (
-        <p className="font-serif text-[13px] min-[400px]:text-[15px] italic text-center mt-1.5 min-[400px]:mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-3" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+        <p className="text-[13px] min-[400px]:text-[15px] italic text-center mt-1.5 min-[400px]:mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-3" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
           {restaurant.tagline
             ?? (restaurant.address
               ? `${restaurant.address}${restaurant.city ? `, ${restaurant.city}` : ''}`
@@ -91,11 +91,15 @@ export default function WelcomeScreenV2({
             <button
               key={cat.id}
               onClick={() => onCategorySelect(cat.id)}
-              className="text-left bg-transparent border-none cursor-pointer p-0"
+              className="text-left bg-transparent border-none cursor-pointer p-0 transition-transform duration-150 active:scale-[0.97]"
             >
               <div
-                className="aspect-[3/2] rounded-xl overflow-hidden mb-2"
-                style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
+                className="aspect-[3/2] overflow-hidden mb-2"
+                style={{
+                  borderRadius: 'var(--sunday-radius, 12px)',
+                  backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+                  boxShadow: 'var(--sunday-shadow-sm)',
+                }}
               >
                 {imgUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -113,7 +117,7 @@ export default function WelcomeScreenV2({
                   </div>
                 )}
               </div>
-              <p className="font-body text-sm min-[400px]:text-base font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+              <p className="text-sm min-[400px]:text-base font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
                 {cat.name}
               </p>
             </button>

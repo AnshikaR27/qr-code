@@ -31,7 +31,7 @@ export default function CategoryTabsV2({
   return (
     <div
       className="border-b"
-      style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'var(--sunday-border, #E8D5B0)' }}
+      style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)' }}
     >
       <div className="flex overflow-x-auto scrollbar-hide px-4">
         {categories.map((cat) => {
@@ -42,19 +42,22 @@ export default function CategoryTabsV2({
               key={cat.id}
               ref={active ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
-              className="shrink-0 px-2.5 min-[400px]:px-3 py-2.5 min-[400px]:py-3 border-b-2 bg-transparent font-body text-[12px] min-[400px]:text-[13px] whitespace-nowrap transition-colors duration-150"
-              style={active
-                ? {
-                    borderBottomColor: 'var(--sunday-accent, #b12d00)',
-                    color: 'var(--sunday-text, #1c1c17)',
-                    fontWeight: 700,
-                  }
-                : {
-                    borderBottomColor: 'transparent',
-                    color: 'var(--sunday-text-muted, #7A6040)',
-                    fontWeight: 500,
-                  }
-              }
+              className="shrink-0 px-2.5 min-[400px]:px-3 py-2.5 min-[400px]:py-3 border-b-2 bg-transparent text-[12px] min-[400px]:text-[13px] whitespace-nowrap transition-all duration-150"
+              style={{
+                fontFamily: 'var(--sunday-font-body)',
+                ...(active
+                  ? {
+                      borderBottomColor: 'var(--sunday-accent, #b12d00)',
+                      color: 'var(--sunday-text, #1c1c17)',
+                      fontWeight: 700,
+                      backgroundColor: 'color-mix(in srgb, var(--sunday-secondary, #3E2B1A) 6%, transparent)',
+                    }
+                  : {
+                      borderBottomColor: 'transparent',
+                      color: 'var(--sunday-text-muted, #7A6040)',
+                      fontWeight: 500,
+                    }),
+              }}
             >
               {label}
             </button>

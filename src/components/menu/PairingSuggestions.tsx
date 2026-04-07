@@ -15,13 +15,19 @@ export default function PairingSuggestions({ suggestions }: Props) {
 
   return (
     <div className="mt-6 mb-2">
-      <h4 className="font-body text-base font-semibold text-[#1A1A1A] mb-3 px-5">
+      <h4 className="text-base font-semibold mb-3 px-5" style={{ color: 'var(--sunday-text, #1A1A1A)', fontFamily: 'var(--sunday-font-heading)' }}>
         People usually pair this with
       </h4>
       <div className="flex overflow-x-auto scrollbar-hide gap-3 px-5 pb-2">
         {suggestions.map((item) => (
           <div key={item.id} className="shrink-0 w-[120px]">
-            <div className="relative w-[120px] h-[120px] rounded-lg overflow-hidden bg-[#F5F5F0] mb-2">
+            <div
+              className="relative w-[120px] h-[120px] overflow-hidden mb-2"
+              style={{
+                borderRadius: 'var(--sunday-radius, 12px)',
+                backgroundColor: 'var(--sunday-surface-low, #F5F5F0)',
+              }}
+            >
               {item.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -31,21 +37,21 @@ export default function PairingSuggestions({ suggestions }: Props) {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <Utensils size={24} color="#999" strokeWidth={1.5} />
+                  <Utensils size={24} style={{ color: 'var(--sunday-text-muted, #999)' }} strokeWidth={1.5} />
                 </div>
               )}
               <button
                 onClick={() => { addItem(item); navigator.vibrate?.(50); }}
-                className="absolute top-2 right-2 w-7 h-7 rounded-full text-white flex items-center justify-center text-sm shadow-md"
-                style={{ backgroundColor: 'var(--sunday-accent)' }}
+                className="absolute top-2 right-2 w-7 h-7 rounded-full text-white flex items-center justify-center text-sm active:scale-90 transition-transform duration-100"
+                style={{ backgroundColor: 'var(--sunday-accent)', boxShadow: 'var(--sunday-shadow-sm)' }}
               >
                 +
               </button>
             </div>
-            <p className="font-body text-sm font-medium text-[#1A1A1A] leading-tight line-clamp-2">
+            <p className="text-sm font-medium leading-tight line-clamp-2" style={{ color: 'var(--sunday-text, #1A1A1A)', fontFamily: 'var(--sunday-font-body)' }}>
               {item.name}
             </p>
-            <p className="font-body text-[13px] text-[#666] mt-0.5">
+            <p className="text-[13px] mt-0.5" style={{ color: 'var(--sunday-text-muted, #666)', fontFamily: 'var(--sunday-font-body)' }}>
               ₹{item.price}
             </p>
           </div>

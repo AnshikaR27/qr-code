@@ -23,6 +23,10 @@ export interface MenuTokens {
   headerGradient: string;
   ctaGradient: string;
   border: string;
+  // Elevation
+  shadowSm: string;
+  shadowMd: string;
+  shadowLg: string;
 }
 
 /** Shifts a hex color toward lighter (dark bg) or darker (light bg) by a given amount. */
@@ -58,8 +62,8 @@ export const DEFAULT_TOKENS: MenuTokens = {
   text: '#1D1208',
   textMuted: '#7A6040',
   // Use Playfair Display + Inter loaded in layout.tsx — fall back to system fonts
-  fontHeading: 'var(--font-display), Georgia, serif',
-  fontBody: 'var(--font-sans), system-ui, sans-serif',
+  fontHeading: "'Playfair Display', Georgia, serif",
+  fontBody: "'DM Sans', system-ui, sans-serif",
   radius: '12px',
   navBg: shiftBg('#FFF8F0'),
   surfaceLow: shiftColor('#FFF8F0', 7),
@@ -73,6 +77,9 @@ export const DEFAULT_TOKENS: MenuTokens = {
   headerGradient: '#FFF8F0',
   ctaGradient: 'linear-gradient(135deg, #8B6914, #C8991A)',
   border: '#E8D5B0',
+  shadowSm: `0 1px 3px #8B69140F, 0 1px 2px #8B691408`,
+  shadowMd: `0 4px 6px #8B691414, 0 2px 4px #8B69140A`,
+  shadowLg: `0 10px 25px #8B69141F, 0 4px 10px #8B691414`,
 };
 
 export function buildMenuTokens(raw: Record<string, string> | null | undefined): MenuTokens {
@@ -91,6 +98,11 @@ export function buildMenuTokens(raw: Record<string, string> | null | undefined):
   const mutedDefault   = isDark ? '#A09888' : DEFAULT_TOKENS.textMuted;
   const cardBgDefault  = isDark ? shiftColor(bg, 16) : DEFAULT_TOKENS.cardBg;
   const borderDefault  = isDark ? shiftColor(bg, 22) : DEFAULT_TOKENS.border;
+
+  // Build shadow tokens using primary color for tinted shadows
+  const shadowSm = `0 1px 3px ${primary}0F, 0 1px 2px ${primary}08`;
+  const shadowMd = `0 4px 8px ${primary}14, 0 2px 4px ${primary}0A`;
+  const shadowLg = `0 10px 25px ${primary}1F, 0 4px 10px ${primary}14`;
 
   return {
     primary,
@@ -115,5 +127,8 @@ export function buildMenuTokens(raw: Record<string, string> | null | undefined):
     headerGradient: bg,
     ctaGradient: `linear-gradient(135deg, ${primary}, ${accent})`,
     border: t('--border', borderDefault),
+    shadowSm,
+    shadowMd,
+    shadowLg,
   };
 }

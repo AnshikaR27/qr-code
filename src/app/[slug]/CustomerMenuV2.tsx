@@ -49,7 +49,7 @@ function SundayToast({
       className="fixed left-1/2 -translate-x-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in"
       style={{ bottom }}
     >
-      <div className="text-white font-body text-[13px] min-[400px]:text-sm font-medium px-3.5 min-[400px]:px-4 py-2.5 min-[400px]:py-3 rounded-xl flex items-center justify-between shadow-lg" style={{ backgroundColor: 'var(--sunday-primary, #1A1A1A)' }}>
+      <div className="text-white text-[13px] min-[400px]:text-sm font-medium px-3.5 min-[400px]:px-4 py-2.5 min-[400px]:py-3 flex items-center justify-between" style={{ backgroundColor: 'var(--sunday-primary, #1A1A1A)', borderRadius: 'var(--sunday-radius, 12px)', boxShadow: 'var(--sunday-shadow-lg)', fontFamily: 'var(--sunday-font-body)' }}>
         <span>{message}</span>
         <button onClick={onClose} className="ml-3 text-white/60 bg-transparent border-none cursor-pointer">
           <X size={14} />
@@ -84,30 +84,33 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
 
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty('--sunday-primary', primaryColor);
-    root.style.setProperty('--sunday-primary-text', primaryTextColor);
-    root.style.setProperty('--sunday-accent', accentColor);
-    root.style.setProperty('--sunday-accent-text', accentTextColor);
-    root.style.setProperty('--sunday-bg', tokens.bg);
-    root.style.setProperty('--sunday-card-bg', tokens.cardBg);
-    root.style.setProperty('--sunday-nav-bg', tokens.navBg);
-    root.style.setProperty('--sunday-surface-low', tokens.surfaceLow);
-    root.style.setProperty('--sunday-text', tokens.text);
-    root.style.setProperty('--sunday-text-muted', tokens.textMuted);
-    root.style.setProperty('--sunday-border', tokens.border);
-    console.log('Setting --sunday-accent to:', accentColor); // temporary debug log
+    const vars: Record<string, string> = {
+      '--sunday-primary': primaryColor,
+      '--sunday-primary-text': primaryTextColor,
+      '--sunday-secondary': tokens.secondary,
+      '--sunday-accent': accentColor,
+      '--sunday-accent-text': accentTextColor,
+      '--sunday-bg': tokens.bg,
+      '--sunday-card-bg': tokens.cardBg,
+      '--sunday-nav-bg': tokens.navBg,
+      '--sunday-surface-low': tokens.surfaceLow,
+      '--sunday-text': tokens.text,
+      '--sunday-text-muted': tokens.textMuted,
+      '--sunday-border': tokens.border,
+      '--sunday-badge-bg': tokens.badgeBg,
+      '--sunday-badge-text': tokens.badgeText,
+      '--sunday-veg': tokens.veg,
+      '--sunday-nonveg': tokens.nonveg,
+      '--sunday-font-heading': tokens.fontHeading,
+      '--sunday-font-body': tokens.fontBody,
+      '--sunday-radius': tokens.radius,
+      '--sunday-shadow-sm': tokens.shadowSm,
+      '--sunday-shadow-md': tokens.shadowMd,
+      '--sunday-shadow-lg': tokens.shadowLg,
+    };
+    for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
     return () => {
-      root.style.removeProperty('--sunday-primary');
-      root.style.removeProperty('--sunday-primary-text');
-      root.style.removeProperty('--sunday-accent');
-      root.style.removeProperty('--sunday-accent-text');
-      root.style.removeProperty('--sunday-bg');
-      root.style.removeProperty('--sunday-card-bg');
-      root.style.removeProperty('--sunday-nav-bg');
-      root.style.removeProperty('--sunday-surface-low');
-      root.style.removeProperty('--sunday-text');
-      root.style.removeProperty('--sunday-text-muted');
-      root.style.removeProperty('--sunday-border');
+      for (const k of Object.keys(vars)) root.style.removeProperty(k);
     };
   }, [tokens, accentColor, accentTextColor, primaryColor, primaryTextColor]);
 
@@ -349,7 +352,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 {searchOpen && (
                   <div
                     className="px-4 py-2 flex items-center gap-2 border-b"
-                    style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'var(--sunday-border, #E8D5B0)' }}
+                    style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)' }}
                   >
                     {/* Search */}
                     <div className="relative flex-1 min-w-0">
@@ -368,12 +371,16 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search dishes..."
                         autoFocus
-                        className="w-full py-2 pl-8 pr-7 rounded-lg font-body text-[13px] outline-none"
+                        className="w-full py-2 pl-8 pr-7 font-body text-[13px] outline-none transition-colors duration-150"
                         style={{
-                          border: '1px solid var(--sunday-border, #E8D5B0)',
+                          borderRadius: 'var(--sunday-radius, 12px)',
+                          border: '1px solid color-mix(in srgb, var(--sunday-border, #E8D5B0) 75%, transparent)',
                           backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
                           color: 'var(--sunday-text, #1c1c17)',
+                          fontFamily: 'var(--sunday-font-body)',
                         }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--sunday-accent, #b12d00)'; }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 75%, transparent)'; }}
                       />
                       {searchQuery && (
                         <button
@@ -394,11 +401,14 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                           <button
                             key={v}
                             onClick={() => setActiveFilter(active ? 'all' : v)}
-                            className="px-2.5 py-1.5 rounded-md font-body text-[11px] font-semibold whitespace-nowrap transition-colors duration-100 border"
-                            style={active
-                              ? { backgroundColor: accentColor, borderColor: accentColor, color: accentTextColor }
-                              : { backgroundColor: 'var(--sunday-card-bg, #FFFFFF)', borderColor: 'var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text-muted, #7A6040)' }
-                            }
+                            className="py-1.5 font-body text-[11px] font-semibold whitespace-nowrap transition-all duration-100 border active:scale-95"
+                            style={{
+                              borderRadius: 'calc(var(--sunday-radius, 12px) * 0.5)',
+                              padding: '6px 10px',
+                              ...(active
+                                ? { backgroundColor: 'var(--sunday-accent, #b12d00)', borderColor: 'var(--sunday-accent, #b12d00)', color: 'var(--sunday-accent-text, #fff)' }
+                                : { backgroundColor: 'var(--sunday-card-bg, #FFFFFF)', borderColor: 'var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text-muted, #7A6040)' }),
+                            }}
                           >
                             {label}
                           </button>
@@ -415,22 +425,31 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
-                    className="mx-4 mt-3 p-3 rounded-xl flex items-center gap-2.5"
-                    style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)', border: '1px solid var(--sunday-border, #E8D5B0)' }}
+                    className="mx-4 mt-3 p-3 flex items-center gap-2.5"
+                    style={{
+                      borderRadius: 'var(--sunday-radius, 12px)',
+                      backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
+                      border: '1px solid var(--sunday-border, #E8D5B0)',
+                      boxShadow: 'var(--sunday-shadow-sm)',
+                    }}
                   >
                     <RotateCcw size={17} strokeWidth={2} className="shrink-0" style={{ color: 'var(--sunday-primary, #361f1a)' }} />
                     <div className="flex-1 min-w-0">
-                      <p className="font-body text-[13px] font-bold m-0" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                      <p className="text-[13px] font-bold m-0" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
                         Repeat last order?
                       </p>
-                      <p className="font-body text-[11px] mt-0.5 m-0" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                      <p className="text-[11px] mt-0.5 m-0" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                         {repeatOrder.items.length} item{repeatOrder.items.length !== 1 ? 's' : ''} · {formatPrice(repeatOrder.total)}
                       </p>
                     </div>
                     <button
                       onClick={handleRepeatOrder}
-                      className="px-3 py-1.5 rounded-full border-none font-body text-xs font-bold cursor-pointer shrink-0 text-white"
-                      style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
+                      className="px-3 py-1.5 border-none text-xs font-bold cursor-pointer shrink-0 text-white"
+                      style={{
+                        borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
+                        background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))`,
+                        fontFamily: 'var(--sunday-font-body)',
+                      }}
                     >
                       Repeat
                     </button>
@@ -450,9 +469,10 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   </div>
                 )}
 
-                {categories.map((cat) => {
+                {categories.map((cat, catIndex) => {
                   const filtered = getFilteredProducts(cat.id);
                   if (filtered.length === 0 && isFiltering) return null;
+                  const isAlt = catIndex % 2 === 1;
 
                   return (
                     <div
@@ -462,26 +482,31 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                         else sectionRefs.current.delete(cat.id);
                       }}
                       data-category-id={cat.id}
-                      style={{ scrollMarginTop: '110px' }}
+                      style={{
+                        scrollMarginTop: '110px',
+                        backgroundColor: isAlt
+                          ? 'color-mix(in srgb, var(--sunday-secondary, #3E2B1A) 4%, var(--sunday-bg, #fdf9f0))'
+                          : undefined,
+                      }}
                     >
                       {/* Section heading */}
                       <div className="pt-5 min-[400px]:pt-6 pb-2 min-[400px]:pb-2.5 px-3.5 min-[400px]:px-4">
-                        <h2 className="font-body text-lg min-[400px]:text-xl font-semibold leading-tight" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                        <h2 className="text-lg min-[400px]:text-xl font-semibold leading-tight" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
                           {lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name}
                         </h2>
                         {cat.name_hindi && lang === 'en' && (
-                          <p className="font-body text-xs mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                             {cat.name_hindi}
                           </p>
                         )}
                       </div>
 
                       {filtered.length === 0 ? (
-                        <div className="px-4 py-4 font-body text-[13px]" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                        <div className="px-4 py-4 text-[13px]" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                           No dishes in this category
                         </div>
                       ) : (
-                        <div className="flex flex-col gap-3.5 min-[400px]:gap-5 px-3.5 min-[400px]:px-4">
+                        <div className="flex flex-col gap-3.5 min-[400px]:gap-5 px-3.5 min-[400px]:px-4 pb-2">
                           {filtered.map((dish, i) => (
                             <DishCardV2
                               key={dish.id}

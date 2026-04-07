@@ -93,19 +93,23 @@ export default function CartSheetV2({
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-[480px] max-h-[82vh] rounded-t-2xl flex flex-col overflow-hidden shadow-[0_-4px_40px_rgba(0,0,0,0.2)] sunday-slide-up"
-          style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)' }}
+          className="w-full max-w-[480px] max-h-[82vh] flex flex-col overflow-hidden sunday-slide-up"
+          style={{
+            borderRadius: 'calc(var(--sunday-radius, 12px) * 1.5) calc(var(--sunday-radius, 12px) * 1.5) 0 0',
+            backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
+            boxShadow: '0 -4px 40px rgba(0,0,0,0.2)',
+          }}
         >
-          {/* Header — warm beige surface */}
+          {/* Header */}
           <div
             className="flex items-center justify-between px-4 min-[400px]:px-5 pt-4 min-[400px]:pt-5 pb-3 min-[400px]:pb-3.5 shrink-0 border-b"
             style={{
               backgroundColor: 'var(--sunday-nav-bg, #efebe2)',
-              borderColor: 'var(--sunday-border, #E8D5B0)',
+              borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)',
             }}
           >
             <div className="w-8" />
-            <span className="font-body text-[15px] min-[400px]:text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+            <span className="text-[15px] min-[400px]:text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
               Basket
             </span>
             <button
@@ -121,10 +125,10 @@ export default function CartSheetV2({
           {items.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8">
               <div className="text-[40px]">🛒</div>
-              <p className="font-body text-base font-bold m-0 text-center" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+              <p className="text-base font-bold m-0 text-center" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
                 Your basket is empty
               </p>
-              <p className="font-body text-[13px] m-0 text-center" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+              <p className="text-[13px] m-0 text-center" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                 Add some dishes to get started
               </p>
             </div>
@@ -138,12 +142,15 @@ export default function CartSheetV2({
                     <div
                       key={item.product_id}
                       className="flex items-center gap-2.5 min-[400px]:gap-3 px-4 min-[400px]:px-5 py-2.5 min-[400px]:py-3 border-b"
-                      style={{ borderColor: 'var(--sunday-border, #E8D5B0)' }}
+                      style={{ borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)' }}
                     >
                       {/* Thumbnail */}
                       <div
-                        className="w-10 h-10 min-[400px]:w-12 min-[400px]:h-12 rounded-lg overflow-hidden shrink-0 flex items-center justify-center"
-                        style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
+                        className="w-10 h-10 min-[400px]:w-12 min-[400px]:h-12 overflow-hidden shrink-0 flex items-center justify-center"
+                        style={{
+                          borderRadius: 'calc(var(--sunday-radius, 12px) * 0.66)',
+                          backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+                        }}
                       >
                         {imgUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -155,15 +162,15 @@ export default function CartSheetV2({
 
                       {/* Name + addons + price */}
                       <div className="flex-1 min-w-0">
-                        <div className="font-body text-[13px] min-[400px]:text-sm font-bold truncate" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                        <div className="text-[13px] min-[400px]:text-sm font-bold truncate" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
                           {item.name}
                         </div>
                         {item.addons.length > 0 && (
-                          <div className="font-body text-[11px] mt-0.5 truncate" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                          <div className="text-[11px] mt-0.5 truncate" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                             + {item.addons.map((a) => a.name).join(', ')}
                           </div>
                         )}
-                        <div className="font-body text-[13px] mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                        <div className="text-[13px] mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                           {formatPrice(item.price + item.addons.reduce((s, a) => s + a.price, 0))}
                         </div>
                       </div>
@@ -177,7 +184,7 @@ export default function CartSheetV2({
                         >
                           <Minus size={11} strokeWidth={2.5} />
                         </button>
-                        <span className="font-body text-[15px] font-bold min-w-[18px] text-center" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                        <span className="text-[15px] font-bold min-w-[18px] text-center" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
                           {item.quantity}
                         </span>
                         <button
@@ -196,8 +203,8 @@ export default function CartSheetV2({
                 <div className="px-5 pt-3 pb-1 flex justify-end">
                   <button
                     onClick={onClose}
-                    className="font-body text-sm font-semibold bg-transparent border-none cursor-pointer underline underline-offset-2"
-                    style={{ color: 'var(--sunday-text, #1c1c17)' }}
+                    className="text-sm font-semibold bg-transparent border-none cursor-pointer underline underline-offset-2"
+                    style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
                   >
                     Add more
                   </button>
@@ -208,14 +215,17 @@ export default function CartSheetV2({
                   {!noteOpen ? (
                     <button
                       onClick={() => setNoteOpen(true)}
-                      className="w-full flex items-center justify-between px-4 py-3.5 rounded-lg border-none cursor-pointer text-left"
-                      style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
+                      className="w-full flex items-center justify-between px-4 py-3.5 border-none cursor-pointer text-left"
+                      style={{
+                        borderRadius: 'calc(var(--sunday-radius, 12px) * 0.66)',
+                        backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+                      }}
                     >
                       <div>
-                        <div className="font-body text-[13px] font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                        <div className="text-[13px] font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
                           Add an order note
                         </div>
-                        <div className="font-body text-xs mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                           {orderNote || 'Utensils, special requests...'}
                         </div>
                       </div>
@@ -223,8 +233,12 @@ export default function CartSheetV2({
                     </button>
                   ) : (
                     <div
-                      className="rounded-lg overflow-hidden"
-                      style={{ border: '1px solid var(--sunday-accent, #b12d00)', backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}
+                      className="overflow-hidden"
+                      style={{
+                        borderRadius: 'calc(var(--sunday-radius, 12px) * 0.66)',
+                        border: '1px solid var(--sunday-accent, #b12d00)',
+                        backgroundColor: 'var(--sunday-bg, #fdf9f0)',
+                      }}
                     >
                       <textarea
                         autoFocus
@@ -233,34 +247,39 @@ export default function CartSheetV2({
                         onBlur={() => setNoteOpen(false)}
                         placeholder="Utensils, special requests..."
                         rows={3}
-                        className="w-full p-3 border-none bg-transparent font-body text-[13px] resize-none outline-none"
-                        style={{ color: 'var(--sunday-text, #1c1c17)' }}
+                        className="w-full p-3 border-none bg-transparent text-[13px] resize-none outline-none"
+                        style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
                       />
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Footer — slightly raised surface */}
+              {/* Footer */}
               <div
                 className="shrink-0 px-4 min-[400px]:px-5 pt-3 min-[400px]:pt-3.5 pb-5 min-[400px]:pb-7 border-t"
                 style={{
                   backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
-                  borderColor: 'var(--sunday-border, #E8D5B0)',
+                  borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)',
                 }}
               >
                 <div className="flex justify-between items-center mb-3.5">
-                  <span className="font-body text-[15px] font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                  <span className="text-[15px] font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
                     Subtotal
                   </span>
-                  <span className="font-body text-[15px] font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                  <span className="text-[15px] font-bold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
                     {formatPrice(total)}
                   </span>
                 </div>
                 <button
                   onClick={handlePlaceOrder}
-                  className="w-full py-3.5 min-[400px]:py-4 rounded-full text-white font-body text-[15px] min-[400px]:text-base font-bold border-none cursor-pointer"
-                  style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
+                  className="w-full py-3.5 min-[400px]:py-4 text-white text-[15px] min-[400px]:text-base font-bold border-none cursor-pointer active:scale-[0.98] transition-transform duration-100"
+                  style={{
+                    borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
+                    background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))`,
+                    boxShadow: 'var(--sunday-shadow-md)',
+                    fontFamily: 'var(--sunday-font-body)',
+                  }}
                 >
                   Order
                 </button>

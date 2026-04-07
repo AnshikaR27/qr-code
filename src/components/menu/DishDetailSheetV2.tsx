@@ -63,7 +63,6 @@ export default function DishDetailSheetV2({
   // Find add-on products for this dish's category
   const addonProducts = useMemo(() => {
     if (!product?.category_id || categories.length === 0) return [];
-    // Find child categories of this dish's category (add-ons, sides, extras)
     const childCats = categories.filter((c) => c.parent_category_id === product.category_id);
     if (childCats.length === 0) return [];
     const childCatIds = new Set(childCats.map((c) => c.id));
@@ -77,7 +76,6 @@ export default function DishDetailSheetV2({
     setDragY(0);
     const existing = items.find((i) => i.product_id === product.id);
     setNotes(existing?.notes ?? '');
-    // Restore selected addons from cart
     setSelectedAddons(new Set(existing?.addons.map((a) => a.product_id) ?? []));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
@@ -154,15 +152,17 @@ export default function DishDetailSheetV2({
           ref={scrollRef}
           onClick={(e) => e.stopPropagation()}
           onScroll={handleSheetScroll}
-          className={`w-full max-w-[480px] rounded-t-2xl max-h-[90vh] overflow-y-auto shadow-[0_-4px_32px_rgba(0,0,0,0.15)] relative ${
+          className={`w-full max-w-[480px] max-h-[90vh] overflow-y-auto relative ${
             reduced ? '' : 'sunday-slide-up'
           }`}
           style={{
+            borderRadius: 'calc(var(--sunday-radius, 12px) * 1.5) calc(var(--sunday-radius, 12px) * 1.5) 0 0',
             backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
             overflowY: dragY > 0 ? 'hidden' : 'auto',
             transform: sheetTransform,
             opacity: sheetOpacity,
             transition: dragY > 0 ? 'none' : 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
+            boxShadow: '0 -4px 32px rgba(0,0,0,0.15)',
           }}
         >
           {/* Drag handle */}
@@ -181,11 +181,13 @@ export default function DishDetailSheetV2({
           {/* Back button */}
           <button
             onClick={onClose}
-            className="absolute top-3 left-3 z-[11] w-9 h-9 rounded-full flex items-center justify-center text-white shadow-md"
-            style={dish.image_url
-              ? { background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }
-              : { backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text, #1c1c17)' }
-            }
+            className="absolute top-3 left-3 z-[11] w-9 h-9 rounded-full flex items-center justify-center text-white"
+            style={{
+              ...(dish.image_url
+                ? { background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }
+                : { backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text, #1c1c17)' }),
+              boxShadow: 'var(--sunday-shadow-md)',
+            }}
           >
             <ChevronLeft size={18} strokeWidth={2.5} />
           </button>
@@ -217,22 +219,32 @@ export default function DishDetailSheetV2({
           <div className={`${dish.image_url ? 'pt-4 min-[400px]:pt-5' : 'pt-10 min-[400px]:pt-12'} px-4 min-[400px]:px-5 pb-32 min-[400px]:pb-36`}>
             {/* Orderable badge */}
             <div className="flex items-center gap-1.5 mb-3">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dish.is_available ? '#0F8A00' : '#E23744' }} />
-              <span className="font-body text-xs font-medium" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dish.is_available ? 'var(--sunday-veg, #0F8A00)' : 'var(--sunday-nonveg, #E23744)' }} />
+              <span className="text-xs font-medium" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                 {dish.is_available ? 'Orderable' : 'Sold out'}
               </span>
               {isBestseller && (
                 <span
-                  className="font-body text-[10px] font-bold rounded px-1.5 py-0.5"
-                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                  className="text-[10px] font-bold px-1.5 py-0.5"
+                  style={{
+                    borderRadius: 'calc(var(--sunday-radius, 12px) * 0.33)',
+                    backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
+                    color: 'var(--sunday-badge-text, #ffffff)',
+                    fontFamily: 'var(--sunday-font-body)',
+                  }}
                 >
                   Popular
                 </span>
               )}
               {dish.is_jain && (
                 <span
-                  className="font-body text-[10px] font-bold rounded px-1.5 py-0.5"
-                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                  className="text-[10px] font-bold px-1.5 py-0.5"
+                  style={{
+                    borderRadius: 'calc(var(--sunday-radius, 12px) * 0.33)',
+                    backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
+                    color: 'var(--sunday-badge-text, #ffffff)',
+                    fontFamily: 'var(--sunday-font-body)',
+                  }}
                 >
                   Jain
                 </span>
@@ -240,26 +252,26 @@ export default function DishDetailSheetV2({
             </div>
 
             {/* Dish name */}
-            <h2 className="font-display text-xl min-[400px]:text-2xl font-bold leading-tight mb-1.5 min-[400px]:mb-2" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+            <h2 className="text-xl min-[400px]:text-2xl font-bold leading-tight mb-1.5 min-[400px]:mb-2" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
               {primaryName}
             </h2>
 
             {/* Description */}
             {dish.description && (
-              <p className="font-body text-[13px] min-[400px]:text-sm leading-relaxed mb-3 min-[400px]:mb-4" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+              <p className="text-[13px] min-[400px]:text-sm leading-relaxed mb-3 min-[400px]:mb-4" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                 {dish.description}
               </p>
             )}
 
             {/* Price */}
-            <p className="font-body text-base min-[400px]:text-lg font-semibold mb-4 min-[400px]:mb-5" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+            <p className="text-base min-[400px]:text-lg font-semibold mb-4 min-[400px]:mb-5" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
               ₹{dish.price}
             </p>
 
             {/* Add-ons section */}
             {addonProducts.length > 0 && (
               <div className="mb-5">
-                <h3 className="font-body text-sm font-bold mb-3" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
                   Add-ons
                 </h3>
                 <div className="flex flex-col gap-2">
@@ -270,25 +282,27 @@ export default function DishDetailSheetV2({
                         key={addon.id}
                         type="button"
                         onClick={() => toggleAddon(addon)}
-                        className="flex items-center gap-3 px-3.5 py-3 rounded-xl border transition-colors duration-100 text-left"
+                        className="flex items-center gap-3 px-3.5 py-3 border transition-all duration-100 text-left active:scale-[0.98]"
                         style={{
+                          borderRadius: 'var(--sunday-radius, 12px)',
                           borderColor: selected ? 'var(--sunday-accent, #b12d00)' : 'var(--sunday-border, #E8D5B0)',
                           backgroundColor: selected ? 'var(--sunday-surface-low, #f6f2e9)' : 'transparent',
                         }}
                       >
                         <div
-                          className="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0"
+                          className="w-5 h-5 border-2 flex items-center justify-center shrink-0"
                           style={{
+                            borderRadius: 'calc(var(--sunday-radius, 12px) * 0.33)',
                             borderColor: selected ? 'var(--sunday-accent, #b12d00)' : 'var(--sunday-border, #E8D5B0)',
                             backgroundColor: selected ? 'var(--sunday-accent, #b12d00)' : 'transparent',
                           }}
                         >
                           {selected && <Check size={12} strokeWidth={3} className="text-white" />}
                         </div>
-                        <span className="flex-1 font-body text-sm font-medium" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                        <span className="flex-1 text-sm font-medium" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
                           {addon.name}
                         </span>
-                        <span className="font-body text-sm font-semibold shrink-0" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                        <span className="text-sm font-semibold shrink-0" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                           +₹{addon.price}
                         </span>
                       </button>
@@ -302,8 +316,13 @@ export default function DishDetailSheetV2({
             {dish.allergens && dish.allergens.length > 0 && (
               <div className="mb-4">
                 <span
-                  className="font-body text-[11px] font-semibold rounded-full px-3 py-1"
-                  style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text-muted, #7A6040)' }}
+                  className="text-[11px] font-semibold px-3 py-1"
+                  style={{
+                    borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
+                    backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+                    color: 'var(--sunday-text-muted, #7A6040)',
+                    fontFamily: 'var(--sunday-font-body)',
+                  }}
                 >
                   Contains: {dish.allergens.map((a) => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}
                 </span>
@@ -320,13 +339,17 @@ export default function DishDetailSheetV2({
               className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] border-t px-4 min-[400px]:px-5 py-3 min-[400px]:py-4 flex items-center gap-2.5 min-[400px]:gap-3 z-[101]"
               style={{
                 backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
-                borderColor: 'var(--sunday-border, #E8D5B0)',
+                borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)',
+                boxShadow: '0 -2px 12px rgba(0,0,0,0.08)',
               }}
             >
               {/* Qty stepper */}
               <div
-                className="flex items-center rounded-full overflow-hidden"
-                style={{ border: '1px solid var(--sunday-border, #E8D5B0)' }}
+                className="flex items-center overflow-hidden"
+                style={{
+                  borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
+                  border: '1px solid var(--sunday-border, #E8D5B0)',
+                }}
               >
                 <button
                   onClick={() => setLocalQty((q) => Math.max(1, q - 1))}
@@ -335,7 +358,7 @@ export default function DishDetailSheetV2({
                 >
                   −
                 </button>
-                <span className="w-7 min-[400px]:w-8 text-center font-body text-sm min-[400px]:text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                <span className="w-7 min-[400px]:w-8 text-center text-sm min-[400px]:text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
                   {localQty}
                 </span>
                 <button
@@ -350,14 +373,19 @@ export default function DishDetailSheetV2({
               {/* Add button */}
               <button
                 onClick={handleAddToOrder}
-                className="flex-1 py-3 min-[400px]:py-4 rounded-full text-white font-body text-[13px] min-[400px]:text-[15px] font-bold border-none cursor-pointer"
-                style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
+                className="flex-1 py-3 min-[400px]:py-4 text-white text-[13px] min-[400px]:text-[15px] font-bold border-none cursor-pointer active:scale-[0.98] transition-transform duration-100"
+                style={{
+                  borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
+                  background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))`,
+                  boxShadow: 'var(--sunday-shadow-md)',
+                  fontFamily: 'var(--sunday-font-body)',
+                }}
               >
                 Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{itemTotal}
               </button>
             </div>
           ) : (
-            <div className="text-center font-body text-sm font-bold py-4" style={{ color: '#E23744' }}>
+            <div className="text-center text-sm font-bold py-4" style={{ color: 'var(--sunday-nonveg, #E23744)', fontFamily: 'var(--sunday-font-body)' }}>
               Sold out
             </div>
           )}

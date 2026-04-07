@@ -43,13 +43,13 @@ export default function MenuNavbarV2({
         backgroundColor: isScrolled
           ? 'color-mix(in srgb, var(--sunday-nav-bg, #efebe2) 95%, transparent)'
           : 'var(--sunday-nav-bg, #efebe2)',
-        borderBottom: isScrolled ? '1px solid var(--sunday-border, #E8D5B0)' : 'none',
+        borderBottom: isScrolled ? '1px solid color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)' : 'none',
       }}
     >
       {/* Left: back arrow */}
       <button
         onClick={() => window.history.back()}
-        className="w-9 h-9 min-[400px]:w-10 min-[400px]:h-10 flex items-center justify-center shrink-0"
+        className="w-9 h-9 min-[400px]:w-10 min-[400px]:h-10 flex items-center justify-center shrink-0 transition-colors duration-150"
         style={{ color: 'var(--sunday-text, #1c1c17)' }}
         aria-label="Go back"
       >
@@ -62,8 +62,8 @@ export default function MenuNavbarV2({
       {/* Center: restaurant name */}
       <div className="flex-1 flex flex-col items-center min-w-0">
         <span
-          className="font-display font-bold truncate transition-all duration-200 text-base min-[400px]:text-lg"
-          style={{ color: 'var(--sunday-text, #1c1c17)' }}
+          className="font-bold truncate transition-all duration-200 text-base min-[400px]:text-lg"
+          style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
         >
           {restaurant.name}
         </span>
@@ -73,7 +73,7 @@ export default function MenuNavbarV2({
       <button
         key={animKey}
         onClick={onSearch ?? onCartOpen}
-        className="w-9 h-9 min-[400px]:w-10 min-[400px]:h-10 flex items-center justify-center shrink-0"
+        className="w-9 h-9 min-[400px]:w-10 min-[400px]:h-10 flex items-center justify-center shrink-0 transition-colors duration-150"
         style={{ color: 'var(--sunday-text, #1c1c17)' }}
         aria-label="Search"
       >
