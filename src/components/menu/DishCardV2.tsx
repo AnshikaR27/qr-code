@@ -126,7 +126,7 @@ export default function DishCardV2({
               style={{ backgroundColor: dish.is_veg ? '#0F8A00' : '#E23744' }}
             />
             <h3
-              className="font-body text-[15px] min-[400px]:text-base font-semibold leading-tight line-clamp-2"
+              className="font-body text-[13px] min-[400px]:text-[15px] font-semibold leading-tight whitespace-nowrap"
               style={{ color: 'var(--sunday-text, #1c1c17)' }}
             >
               {primaryName}
