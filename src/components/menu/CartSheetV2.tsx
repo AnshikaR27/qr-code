@@ -98,14 +98,14 @@ export default function CartSheetV2({
         >
           {/* Header — warm beige surface */}
           <div
-            className="flex items-center justify-between px-5 pt-5 pb-3.5 shrink-0 border-b"
+            className="flex items-center justify-between px-4 sm:px-5 pt-4 sm:pt-5 pb-3 sm:pb-3.5 shrink-0 border-b"
             style={{
               backgroundColor: 'var(--sunday-nav-bg, #efebe2)',
               borderColor: 'var(--sunday-border, #E8D5B0)',
             }}
           >
             <div className="w-8" />
-            <span className="font-body text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+            <span className="font-body text-[15px] sm:text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
               Basket
             </span>
             <button
@@ -137,12 +137,12 @@ export default function CartSheetV2({
                   return (
                     <div
                       key={item.product_id}
-                      className="flex items-center gap-3 px-5 py-3 border-b"
+                      className="flex items-center gap-2.5 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 border-b"
                       style={{ borderColor: 'var(--sunday-border, #E8D5B0)' }}
                     >
                       {/* Thumbnail */}
                       <div
-                        className="w-12 h-12 rounded-lg overflow-hidden shrink-0 flex items-center justify-center"
+                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden shrink-0 flex items-center justify-center"
                         style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
                       >
                         {imgUrl ? (
@@ -155,7 +155,7 @@ export default function CartSheetV2({
 
                       {/* Name + addons + price */}
                       <div className="flex-1 min-w-0">
-                        <div className="font-body text-sm font-bold truncate" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                        <div className="font-body text-[13px] sm:text-sm font-bold truncate" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                           {item.name}
                         </div>
                         {item.addons.length > 0 && (
@@ -243,7 +243,7 @@ export default function CartSheetV2({
 
               {/* Footer — slightly raised surface */}
               <div
-                className="shrink-0 px-5 pt-3.5 pb-7 border-t"
+                className="shrink-0 px-4 sm:px-5 pt-3 sm:pt-3.5 pb-5 sm:pb-7 border-t"
                 style={{
                   backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
                   borderColor: 'var(--sunday-border, #E8D5B0)',
@@ -259,7 +259,7 @@ export default function CartSheetV2({
                 </div>
                 <button
                   onClick={handlePlaceOrder}
-                  className="w-full py-4 rounded-full text-white font-body text-base font-bold border-none cursor-pointer"
+                  className="w-full py-3.5 sm:py-4 rounded-full text-white font-body text-[15px] sm:text-base font-bold border-none cursor-pointer"
                   style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
                 >
                   Order

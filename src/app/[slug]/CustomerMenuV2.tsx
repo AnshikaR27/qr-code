@@ -308,7 +308,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
   const activeCategoryName = categories.find((c) => c.id === activeTab)?.name;
 
   return (
-    <div className="max-w-[480px] mx-auto min-h-screen relative" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
+    <div className="max-w-[480px] mx-auto min-h-[100dvh] relative" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       <style>{`* { -webkit-tap-highlight-color: transparent; }`}</style>
 
       {/* Welcome screen */}

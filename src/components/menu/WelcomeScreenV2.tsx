@@ -29,7 +29,7 @@ export default function WelcomeScreenV2({
   const accent = restaurant.design_tokens?.['--accent'] ?? '#b12d00';
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
+    <div className="min-h-[100dvh]" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       {/* Hero image */}
       <div className="w-full h-[22vh] sm:h-[28vh] relative overflow-hidden">
         {heroUrl ? (
