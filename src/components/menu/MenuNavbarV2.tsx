@@ -42,8 +42,8 @@ export default function MenuNavbarV2({
       style={{
         backgroundColor: isScrolled
           ? 'color-mix(in srgb, var(--sunday-nav-bg, #efebe2) 95%, transparent)'
-          : 'var(--sunday-nav-bg, #efebe2)',
-        borderBottom: isScrolled ? '1px solid color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)' : 'none',
+          : 'var(--sunday-surface-low, color-mix(in srgb, var(--sunday-primary) 3%, var(--sunday-nav-bg, #efebe2)))',
+        boxShadow: isScrolled ? 'var(--sunday-shadow-sm)' : 'none',
       }}
     >
       {/* Left: back arrow */}
@@ -59,14 +59,22 @@ export default function MenuNavbarV2({
         </svg>
       </button>
 
-      {/* Center: restaurant name */}
-      <div className="flex-1 flex flex-col items-center min-w-0">
-        <span
-          className="font-bold truncate transition-all duration-200 text-base min-[400px]:text-lg"
-          style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
-        >
-          {restaurant.name}
-        </span>
+      {/* Center: restaurant logo */}
+      <div className="flex-1 flex items-center justify-center min-w-0">
+        {restaurant.logo_url ? (
+          <img
+            src={restaurant.logo_url}
+            alt={restaurant.name}
+            className="h-9 min-[400px]:h-10 max-h-10 w-auto object-contain"
+          />
+        ) : (
+          <span
+            className="font-bold truncate transition-all duration-200 text-base min-[400px]:text-lg"
+            style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+          >
+            {restaurant.name}
+          </span>
+        )}
       </div>
 
       {/* Right: search icon */}
