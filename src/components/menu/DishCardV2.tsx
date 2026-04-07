@@ -106,12 +106,10 @@ export default function DishCardV2({
         style={{
           borderRadius: 'var(--sunday-radius, 12px)',
           backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
-          boxShadow: 'var(--sunday-shadow-sm)',
-          transition: 'transform 120ms ease, box-shadow 200ms ease',
+          boxShadow: 'var(--sunday-shadow-md)',
+          transition: 'transform 120ms ease',
           willChange: 'transform',
         }}
-        onMouseEnter={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--sunday-shadow-md)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; } : undefined}
-        onMouseOut={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--sunday-shadow-sm)'; (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
       >
         {/* Left: text content */}
         <div className="flex-1 min-w-0">

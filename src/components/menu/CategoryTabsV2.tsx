@@ -30,10 +30,9 @@ export default function CategoryTabsV2({
 
   return (
     <div
-      className="border-b"
-      style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)' }}
+      style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)' }}
     >
-      <div className="flex overflow-x-auto scrollbar-hide px-4">
+      <div className="flex overflow-x-auto scrollbar-hide gap-2 px-4 py-2.5">
         {categories.map((cat) => {
           const active = cat.id === activeTab;
           const label = (lang === 'hi' && cat.name_hindi) ? cat.name_hindi : cat.name;
@@ -42,18 +41,17 @@ export default function CategoryTabsV2({
               key={cat.id}
               ref={active ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
-              className="shrink-0 px-2.5 min-[400px]:px-3 py-2.5 min-[400px]:py-3 border-b-2 bg-transparent text-[12px] min-[400px]:text-[13px] whitespace-nowrap transition-all duration-150"
+              className="shrink-0 px-3.5 min-[400px]:px-4 py-1.5 min-[400px]:py-2 rounded-full text-[12px] min-[400px]:text-[13px] whitespace-nowrap transition-all duration-150 border-none"
               style={{
                 fontFamily: 'var(--sunday-font-body)',
                 ...(active
                   ? {
-                      borderBottomColor: 'var(--sunday-accent, #b12d00)',
-                      color: 'var(--sunday-text, #1c1c17)',
+                      backgroundColor: 'var(--sunday-primary, #361f1a)',
+                      color: 'var(--sunday-primary-text, #fff)',
                       fontWeight: 700,
-                      backgroundColor: 'color-mix(in srgb, var(--sunday-secondary, #3E2B1A) 6%, transparent)',
                     }
                   : {
-                      borderBottomColor: 'transparent',
+                      backgroundColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 40%, transparent)',
                       color: 'var(--sunday-text-muted, #7A6040)',
                       fontWeight: 500,
                     }),
