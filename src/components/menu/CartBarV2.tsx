@@ -22,17 +22,17 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
     >
       <button
         onClick={onOpen}
-        className="pointer-events-auto w-full h-[52px] rounded-2xl flex items-center justify-between px-5 border-none cursor-pointer shadow-lg transition-opacity duration-200"
+        className="pointer-events-auto w-full h-[46px] min-[400px]:h-[52px] rounded-2xl flex items-center justify-between px-4 min-[400px]:px-5 border-none cursor-pointer shadow-lg transition-opacity duration-200"
         style={{
           background: 'linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))',
           opacity: hasItems ? 1 : 0.7,
         }}
       >
-        <span className="font-body text-[16px] font-semibold text-white">
+        <span className="font-body text-[14px] min-[400px]:text-[16px] font-semibold text-white">
           {hasItems ? `View your order · ${formatPrice(total)}` : 'View your order'}
         </span>
         <div
-          className="w-7 h-7 rounded-full bg-white flex items-center justify-center font-body text-xs font-black"
+          className="w-6 h-6 min-[400px]:w-7 min-[400px]:h-7 rounded-full bg-white flex items-center justify-center font-body text-[10px] min-[400px]:text-xs font-black"
           style={{ color: 'var(--sunday-accent, #1A1A1A)' }}
         >
           {itemCount}

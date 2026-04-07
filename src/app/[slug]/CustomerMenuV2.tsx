@@ -49,7 +49,7 @@ function SundayToast({
       className="fixed left-1/2 -translate-x-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in"
       style={{ bottom }}
     >
-      <div className="text-white font-body text-sm font-medium px-4 py-3 rounded-xl flex items-center justify-between shadow-lg" style={{ backgroundColor: 'var(--sunday-primary, #1A1A1A)' }}>
+      <div className="text-white font-body text-[13px] min-[400px]:text-sm font-medium px-3.5 min-[400px]:px-4 py-2.5 min-[400px]:py-3 rounded-xl flex items-center justify-between shadow-lg" style={{ backgroundColor: 'var(--sunday-primary, #1A1A1A)' }}>
         <span>{message}</span>
         <button onClick={onClose} className="ml-3 text-white/60 bg-transparent border-none cursor-pointer">
           <X size={14} />
@@ -465,8 +465,8 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                       style={{ scrollMarginTop: '110px' }}
                     >
                       {/* Section heading */}
-                      <div className="pt-6 pb-2.5 px-4">
-                        <h2 className="font-body text-xl font-semibold leading-tight" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                      <div className="pt-5 min-[400px]:pt-6 pb-2 min-[400px]:pb-2.5 px-3.5 min-[400px]:px-4">
+                        <h2 className="font-body text-lg min-[400px]:text-xl font-semibold leading-tight" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                           {lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name}
                         </h2>
                         {cat.name_hindi && lang === 'en' && (
@@ -481,7 +481,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                           No dishes in this category
                         </div>
                       ) : (
-                        <div className="flex flex-col gap-5 px-4">
+                        <div className="flex flex-col gap-3.5 min-[400px]:gap-5 px-3.5 min-[400px]:px-4">
                           {filtered.map((dish, i) => (
                             <DishCardV2
                               key={dish.id}

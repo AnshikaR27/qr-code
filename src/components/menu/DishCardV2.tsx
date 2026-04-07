@@ -102,7 +102,7 @@ export default function DishCardV2({
         onMouseLeave={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
         onTouchStart={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'; } : undefined}
         onTouchEnd={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
-        className={`flex items-start gap-4 p-3.5 rounded-xl ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
+        className={`flex items-start gap-3 min-[400px]:gap-4 p-3 min-[400px]:p-3.5 rounded-xl ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
         style={{
           backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
           boxShadow: '0 2px 12px color-mix(in srgb, var(--sunday-primary, #1A1A1A) 3%, transparent)',
@@ -126,7 +126,7 @@ export default function DishCardV2({
               style={{ backgroundColor: dish.is_veg ? '#0F8A00' : '#E23744' }}
             />
             <h3
-              className="font-body text-base font-semibold leading-tight line-clamp-2"
+              className="font-body text-[15px] min-[400px]:text-base font-semibold leading-tight line-clamp-2"
               style={{ color: 'var(--sunday-text, #1c1c17)' }}
             >
               {primaryName}
@@ -134,13 +134,13 @@ export default function DishCardV2({
           </div>
 
           {/* Price */}
-          <p className="font-body text-[15px] font-medium mb-1.5" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+          <p className="font-body text-[13px] min-[400px]:text-[15px] font-medium mb-1 min-[400px]:mb-1.5" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
             ₹{dish.price}
           </p>
 
           {/* Description */}
           {dish.description && (
-            <p className="font-body text-[13px] leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+            <p className="font-body text-[12px] min-[400px]:text-[13px] leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
               {dish.description}
             </p>
           )}
@@ -171,8 +171,8 @@ export default function DishCardV2({
         {/* Right: image + add button */}
         <div className="relative shrink-0">
           <div
-            className="rounded-xl overflow-hidden flex items-center justify-center select-none"
-            style={{ width: 'clamp(100px, 28vw, 128px)', height: 'clamp(100px, 28vw, 128px)', backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
+            className="w-[100px] h-[100px] min-[400px]:w-[128px] min-[400px]:h-[128px] rounded-xl overflow-hidden flex items-center justify-center select-none"
+            style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
             onTouchStart={(e) => { e.stopPropagation(); startLongPress(); }}
             onTouchEnd={(e) => { e.stopPropagation(); cancelLongPress(); }}
             onTouchMove={cancelLongPress}
@@ -203,13 +203,13 @@ export default function DishCardV2({
               {qty === 0 ? (
                 <button
                   onClick={handleAdd}
-                  className="w-11 h-11 rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100"
+                  className="w-9 h-9 min-[400px]:w-11 min-[400px]:h-11 rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100"
                   style={{
                     background: 'linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))',
                     boxShadow: '0 4px 12px color-mix(in srgb, var(--sunday-primary, #361f1a) 25%, transparent)',
                   }}
                 >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>

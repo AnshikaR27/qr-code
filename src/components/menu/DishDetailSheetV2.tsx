@@ -214,7 +214,7 @@ export default function DishDetailSheetV2({
           )}
 
           {/* Content */}
-          <div className={`${dish.image_url ? 'pt-5' : 'pt-12'} px-5 pb-36`}>
+          <div className={`${dish.image_url ? 'pt-4 min-[400px]:pt-5' : 'pt-10 min-[400px]:pt-12'} px-4 min-[400px]:px-5 pb-32 min-[400px]:pb-36`}>
             {/* Orderable badge */}
             <div className="flex items-center gap-1.5 mb-3">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dish.is_available ? '#0F8A00' : '#E23744' }} />
@@ -240,19 +240,19 @@ export default function DishDetailSheetV2({
             </div>
 
             {/* Dish name */}
-            <h2 className="font-display text-2xl font-bold leading-tight mb-2" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+            <h2 className="font-display text-xl min-[400px]:text-2xl font-bold leading-tight mb-1.5 min-[400px]:mb-2" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
               {primaryName}
             </h2>
 
             {/* Description */}
             {dish.description && (
-              <p className="font-body text-sm leading-relaxed mb-4" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+              <p className="font-body text-[13px] min-[400px]:text-sm leading-relaxed mb-3 min-[400px]:mb-4" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
                 {dish.description}
               </p>
             )}
 
             {/* Price */}
-            <p className="font-body text-lg font-semibold mb-5" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+            <p className="font-body text-base min-[400px]:text-lg font-semibold mb-4 min-[400px]:mb-5" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
               ₹{dish.price}
             </p>
 
@@ -317,7 +317,7 @@ export default function DishDetailSheetV2({
           {/* Bottom add bar */}
           {dish.is_available ? (
             <div
-              className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] border-t px-5 py-4 flex items-center gap-3 z-[101]"
+              className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] border-t px-4 min-[400px]:px-5 py-3 min-[400px]:py-4 flex items-center gap-2.5 min-[400px]:gap-3 z-[101]"
               style={{
                 backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
                 borderColor: 'var(--sunday-border, #E8D5B0)',
@@ -330,17 +330,17 @@ export default function DishDetailSheetV2({
               >
                 <button
                   onClick={() => setLocalQty((q) => Math.max(1, q - 1))}
-                  className="w-11 h-12 bg-transparent border-none text-xl font-light cursor-pointer flex items-center justify-center"
+                  className="w-9 h-10 min-[400px]:w-11 min-[400px]:h-12 bg-transparent border-none text-lg min-[400px]:text-xl font-light cursor-pointer flex items-center justify-center"
                   style={{ color: 'var(--sunday-text, #1c1c17)' }}
                 >
                   −
                 </button>
-                <span className="w-8 text-center font-body text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+                <span className="w-7 min-[400px]:w-8 text-center font-body text-sm min-[400px]:text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                   {localQty}
                 </span>
                 <button
                   onClick={() => setLocalQty((q) => q + 1)}
-                  className="w-11 h-12 bg-transparent border-none text-xl font-light cursor-pointer flex items-center justify-center"
+                  className="w-9 h-10 min-[400px]:w-11 min-[400px]:h-12 bg-transparent border-none text-lg min-[400px]:text-xl font-light cursor-pointer flex items-center justify-center"
                   style={{ color: 'var(--sunday-text, #1c1c17)' }}
                 >
                   +
@@ -350,7 +350,7 @@ export default function DishDetailSheetV2({
               {/* Add button */}
               <button
                 onClick={handleAddToOrder}
-                className="flex-1 py-4 rounded-full text-white font-body text-[15px] font-bold border-none cursor-pointer"
+                className="flex-1 py-3 min-[400px]:py-4 rounded-full text-white font-body text-[13px] min-[400px]:text-[15px] font-bold border-none cursor-pointer"
                 style={{ background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }}
               >
                 Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{itemTotal}

@@ -42,7 +42,7 @@ export default function CategoryTabsV2({
               key={cat.id}
               ref={active ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
-              className="shrink-0 px-3 py-3 border-b-2 bg-transparent font-body text-[13px] whitespace-nowrap transition-colors duration-150"
+              className="shrink-0 px-2.5 min-[400px]:px-3 py-2.5 min-[400px]:py-3 border-b-2 bg-transparent font-body text-[12px] min-[400px]:text-[13px] whitespace-nowrap transition-colors duration-150"
               style={active
                 ? {
                     borderBottomColor: 'var(--sunday-accent, #b12d00)',
