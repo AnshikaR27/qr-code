@@ -469,10 +469,9 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   </div>
                 )}
 
-                {categories.map((cat, catIndex) => {
+                {categories.map((cat) => {
                   const filtered = getFilteredProducts(cat.id);
                   if (filtered.length === 0 && isFiltering) return null;
-                  const isAlt = catIndex % 2 === 1;
 
                   return (
                     <div
@@ -484,9 +483,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                       data-category-id={cat.id}
                       style={{
                         scrollMarginTop: '110px',
-                        backgroundColor: isAlt
-                          ? 'color-mix(in srgb, var(--sunday-secondary, #3E2B1A) 4%, var(--sunday-bg, #fdf9f0))'
-                          : undefined,
                       }}
                     >
                       {/* Section heading */}
