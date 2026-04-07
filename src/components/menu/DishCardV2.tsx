@@ -127,7 +127,7 @@ export default function DishCardV2({
               style={{ backgroundColor: dish.is_veg ? 'var(--sunday-veg, #0F8A00)' : 'var(--sunday-nonveg, #E23744)' }}
             />
             <h3
-              className="text-[13px] min-[400px]:text-[15px] font-semibold leading-tight whitespace-nowrap"
+              className="text-[13px] min-[400px]:text-[15px] font-bold leading-tight whitespace-nowrap"
               style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
             >
               {primaryName}
@@ -135,13 +135,13 @@ export default function DishCardV2({
           </div>
 
           {/* Price */}
-          <p className="text-[13px] min-[400px]:text-[15px] font-medium mb-1 min-[400px]:mb-1.5" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
+          <p className="text-[13px] min-[400px]:text-[14px] font-semibold mb-1 min-[400px]:mb-1.5" style={{ color: 'var(--sunday-primary, #361f1a)', fontFamily: 'var(--sunday-font-body)' }}>
             ₹{dish.price}
           </p>
 
           {/* Description */}
           {dish.description && (
-            <p className="text-[12px] min-[400px]:text-[13px] leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+            <p className="text-[11px] min-[400px]:text-[12px] leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
               {dish.description}
             </p>
           )}

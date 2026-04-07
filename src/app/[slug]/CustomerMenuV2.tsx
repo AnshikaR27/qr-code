@@ -486,7 +486,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                       }}
                     >
                       {/* Section heading */}
-                      <div className="pt-5 min-[400px]:pt-6 pb-2 min-[400px]:pb-2.5 px-3.5 min-[400px]:px-4">
+                      <div className="pt-3 min-[400px]:pt-4 pb-2 min-[400px]:pb-2.5 px-3.5 min-[400px]:px-4">
                         <h2 className="text-lg min-[400px]:text-xl font-semibold leading-tight" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
                           {lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name}
                         </h2>
