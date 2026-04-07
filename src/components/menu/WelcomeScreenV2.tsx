@@ -31,7 +31,7 @@ export default function WelcomeScreenV2({
   return (
     <div className="min-h-[100dvh]" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       {/* Hero image */}
-      <div className="w-full h-[22vh] sm:h-[28vh] relative overflow-hidden">
+      <div className="w-full h-[28vh] relative overflow-hidden">
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -50,15 +50,15 @@ export default function WelcomeScreenV2({
       </div>
 
       {/* Logo circle overlapping hero */}
-      <div className="flex justify-center -mt-[60px] sm:-mt-[75px] relative z-10">
-        <div className="w-[88px] h-[88px] sm:w-[110px] sm:h-[110px] rounded-full shadow-lg flex items-center justify-center overflow-hidden border-4 border-white"
+      <div className="flex justify-center -mt-[75px] relative z-10">
+        <div className="w-[110px] h-[110px] rounded-full shadow-lg flex items-center justify-center overflow-hidden border-4 border-white"
           style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)' }}>
           {restaurant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={restaurant.logo_url}
               alt={restaurant.name}
-              className="w-[72px] h-[72px] sm:w-[90px] sm:h-[90px] rounded-full object-cover"
+              className="w-[90px] h-[90px] rounded-full object-cover"
             />
           ) : (
             <span className="font-display text-3xl font-bold" style={{ color: 'var(--sunday-accent, #b12d00)' }}>
@@ -69,13 +69,13 @@ export default function WelcomeScreenV2({
       </div>
 
       {/* Restaurant name */}
-      <h1 className="font-display text-xl sm:text-2xl font-bold text-center mt-3 sm:mt-4" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+      <h1 className="font-display text-2xl font-bold text-center mt-4" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
         Welcome to {restaurant.name}
       </h1>
 
       {/* Tagline */}
       {(restaurant.tagline || restaurant.city || restaurant.address) && (
-        <p className="font-serif text-[13px] sm:text-[15px] italic text-center mt-1.5 sm:mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-3" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+        <p className="font-serif text-[15px] italic text-center mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-3" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
           {restaurant.tagline
             ?? (restaurant.address
               ? `${restaurant.address}${restaurant.city ? `, ${restaurant.city}` : ''}`
@@ -84,7 +84,7 @@ export default function WelcomeScreenV2({
       )}
 
       {/* Category grid */}
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 px-3.5 sm:px-4 mt-6 sm:mt-8" style={{ paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="grid grid-cols-2 gap-3 px-4 mt-8" style={{ paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))' }}>
         {categories.map((cat) => {
           const imgUrl = getCategoryImage(cat.id, products);
           return (
@@ -113,7 +113,7 @@ export default function WelcomeScreenV2({
                   </div>
                 )}
               </div>
-              <p className="font-body text-sm sm:text-base font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+              <p className="font-body text-base font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
                 {cat.name}
               </p>
             </button>
