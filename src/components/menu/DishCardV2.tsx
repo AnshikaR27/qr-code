@@ -126,18 +126,27 @@ export default function DishCardV2({
             </span>
           )}
 
-          {/* Dish name with veg/non-veg dot inline */}
-          <div className="flex items-center gap-2 mb-1">
-            <span
-              className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: dish.is_veg ? 'var(--sunday-veg, #0F8A00)' : 'var(--sunday-nonveg, #E23744)' }}
-            />
+          {/* Dish name with inline emoji badges */}
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+            <span style={{ fontSize: typeScale.emojiBadgeSmall }}>
+              {dish.is_veg ? '🌱' : '🍗'}
+            </span>
             <h3
-              className="font-bold leading-tight whitespace-nowrap"
+              className="font-semibold line-clamp-2 flex-1 min-w-0"
               style={{ fontSize: typeScale.md, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
             >
               {primaryName}
             </h3>
+            {dish.spice_level > 0 && (
+              <span style={{ fontSize: typeScale.emojiBadgeSmall }} title="Spicy">
+                🌶️
+              </span>
+            )}
+            {isBestseller && (
+              <span style={{ fontSize: typeScale.emojiBadgeSmall }} title="Popular">
+                ⭐
+              </span>
+            )}
           </div>
 
           {/* Price */}
@@ -158,39 +167,6 @@ export default function DishCardV2({
             </p>
           )}
 
-          {/* Tags — badge-bg/badge-text for visual pop */}
-          {(isBestseller || dish.is_jain) && (
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              {isBestseller && (
-                <span
-                  className="font-medium px-2.5 py-0.5"
-                  style={{
-                    fontSize: typeScale.xs,
-                    borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
-                    backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
-                    color: 'var(--sunday-badge-text, #ffffff)',
-                    fontFamily: 'var(--sunday-font-body)',
-                  }}
-                >
-                  Popular
-                </span>
-              )}
-              {dish.is_jain && (
-                <span
-                  className="font-medium px-2.5 py-0.5"
-                  style={{
-                    fontSize: typeScale.xs,
-                    borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
-                    backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
-                    color: 'var(--sunday-badge-text, #ffffff)',
-                    fontFamily: 'var(--sunday-font-body)',
-                  }}
-                >
-                  Jain
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Right: image + add button */}

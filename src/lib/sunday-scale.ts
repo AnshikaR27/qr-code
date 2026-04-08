@@ -38,6 +38,8 @@ function fluid(minPx: number, maxPx: number, minVw = 320, maxVw = 480): string {
 // Apply via: style={{ fontSize: typeScale.body }}
 
 export const typeScale = {
+  /** 14→16px  inline emoji badges (veg/non-veg, spicy, star) next to dish name */
+  emojiBadgeSmall: fluid(14, 16),
   /** 11→13px  badges, secondary meta (Popular, Jain, allergens, sold-out) */
   xs:    fluid(11, 13),
   /** 12→14px  dish descriptions, add-on row text, helper labels */
