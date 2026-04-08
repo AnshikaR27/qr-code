@@ -115,7 +115,7 @@ export default function DishCardV2({
         <div className="flex-1 min-w-0">
           {/* Sold out badge — only for unavailable items */}
           {!dish.is_available && (
-            <span className="text-[11px] font-bold text-red-500 mb-1.5 block" style={{ fontFamily: 'var(--sunday-font-body)' }}>
+            <span className="text-[12px] font-bold text-red-500 mb-1.5 block" style={{ fontFamily: 'var(--sunday-font-body)' }}>
               Sold out
             </span>
           )}
@@ -127,7 +127,7 @@ export default function DishCardV2({
               style={{ backgroundColor: dish.is_veg ? 'var(--sunday-veg, #0F8A00)' : 'var(--sunday-nonveg, #E23744)' }}
             />
             <h3
-              className="text-[13px] min-[400px]:text-[15px] font-bold leading-tight whitespace-nowrap"
+              className="text-[14px] min-[400px]:text-[15px] font-bold leading-tight whitespace-nowrap"
               style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
             >
               {primaryName}
@@ -135,13 +135,13 @@ export default function DishCardV2({
           </div>
 
           {/* Price */}
-          <p className="text-[13px] min-[400px]:text-[14px] font-semibold mb-1 min-[400px]:mb-1.5" style={{ color: 'var(--sunday-primary, #361f1a)', fontFamily: 'var(--sunday-font-body)' }}>
+          <p className="text-[14px] min-[400px]:text-[15px] font-semibold mb-1 min-[400px]:mb-1.5" style={{ color: 'var(--sunday-primary, #361f1a)', fontFamily: 'var(--sunday-font-body)' }}>
             ₹{dish.price}
           </p>
 
           {/* Description */}
           {dish.description && (
-            <p className="text-[11px] min-[400px]:text-[12px] leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+            <p className="text-[12px] min-[400px]:text-[13px] leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
               {dish.description}
             </p>
           )}
@@ -151,7 +151,7 @@ export default function DishCardV2({
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
               {isBestseller && (
                 <span
-                  className="text-[11px] font-medium px-2.5 py-0.5"
+                  className="text-[12px] font-medium px-2.5 py-0.5"
                   style={{
                     borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                     backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
@@ -164,7 +164,7 @@ export default function DishCardV2({
               )}
               {dish.is_jain && (
                 <span
-                  className="text-[11px] font-medium px-2.5 py-0.5"
+                  className="text-[12px] font-medium px-2.5 py-0.5"
                   style={{
                     borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                     backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
@@ -246,7 +246,7 @@ export default function DishCardV2({
                     −
                   </button>
                   <span
-                    className="text-[13px] font-bold min-w-[16px] text-center"
+                    className="text-[14px] font-bold min-w-[16px] text-center"
                     style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
                   >
                     {qty}

@@ -75,7 +75,7 @@ export default function WelcomeScreenV2({
 
       {/* Tagline */}
       {(restaurant.tagline || restaurant.city || restaurant.address) && (
-        <p className="text-[13px] min-[400px]:text-[15px] italic text-center mt-1.5 min-[400px]:mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-3" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+        <p className="text-[14px] min-[400px]:text-[15px] italic text-center mt-1.5 min-[400px]:mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-3" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
           {restaurant.tagline
             ?? (restaurant.address
               ? `${restaurant.address}${restaurant.city ? `, ${restaurant.city}` : ''}`

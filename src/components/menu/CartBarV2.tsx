@@ -34,7 +34,7 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
           {hasItems ? `View your order · ${formatPrice(total)}` : 'View your order'}
         </span>
         <div
-          className="w-6 h-6 min-[400px]:w-7 min-[400px]:h-7 rounded-full bg-white flex items-center justify-center text-[10px] min-[400px]:text-xs font-black"
+          className="w-6 h-6 min-[400px]:w-7 min-[400px]:h-7 rounded-full bg-white flex items-center justify-center text-[11px] min-[400px]:text-xs font-black"
           style={{ color: 'var(--sunday-accent, #1A1A1A)', fontFamily: 'var(--sunday-font-body)' }}
         >
           {itemCount}

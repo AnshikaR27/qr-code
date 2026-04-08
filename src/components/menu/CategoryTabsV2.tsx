@@ -41,7 +41,7 @@ export default function CategoryTabsV2({
               key={cat.id}
               ref={active ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
-              className="shrink-0 px-3.5 min-[400px]:px-4 py-1.5 min-[400px]:py-2 rounded-full text-[12px] min-[400px]:text-[13px] whitespace-nowrap transition-all duration-150 border-none bg-transparent"
+              className="shrink-0 px-3.5 min-[400px]:px-4 py-1.5 min-[400px]:py-2 rounded-full text-[13px] min-[400px]:text-[14px] whitespace-nowrap transition-all duration-150 border-none bg-transparent"
               style={{
                 fontFamily: 'var(--sunday-font-body)',
                 ...(active

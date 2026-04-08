@@ -225,7 +225,7 @@ export default function DishDetailSheetV2({
               </span>
               {isBestseller && (
                 <span
-                  className="text-[10px] font-bold px-1.5 py-0.5"
+                  className="text-[11px] font-bold px-1.5 py-0.5"
                   style={{
                     borderRadius: 'calc(var(--sunday-radius, 12px) * 0.33)',
                     backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
@@ -238,7 +238,7 @@ export default function DishDetailSheetV2({
               )}
               {dish.is_jain && (
                 <span
-                  className="text-[10px] font-bold px-1.5 py-0.5"
+                  className="text-[11px] font-bold px-1.5 py-0.5"
                   style={{
                     borderRadius: 'calc(var(--sunday-radius, 12px) * 0.33)',
                     backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
@@ -258,7 +258,7 @@ export default function DishDetailSheetV2({
 
             {/* Description */}
             {dish.description && (
-              <p className="text-[13px] min-[400px]:text-sm leading-relaxed mb-3 min-[400px]:mb-4" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+              <p className="text-sm min-[400px]:text-sm leading-relaxed mb-3 min-[400px]:mb-4" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                 {dish.description}
               </p>
             )}
@@ -316,7 +316,7 @@ export default function DishDetailSheetV2({
             {dish.allergens && dish.allergens.length > 0 && (
               <div className="mb-4">
                 <span
-                  className="text-[11px] font-semibold px-3 py-1"
+                  className="text-[12px] font-semibold px-3 py-1"
                   style={{
                     borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                     backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
@@ -373,7 +373,7 @@ export default function DishDetailSheetV2({
               {/* Add button */}
               <button
                 onClick={handleAddToOrder}
-                className="flex-1 py-3 min-[400px]:py-4 text-white text-[13px] min-[400px]:text-[15px] font-bold border-none cursor-pointer active:scale-[0.98] transition-transform duration-100"
+                className="flex-1 py-3 min-[400px]:py-4 text-white text-[14px] min-[400px]:text-[15px] font-bold border-none cursor-pointer active:scale-[0.98] transition-transform duration-100"
                 style={{
                   borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                   background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))`,
