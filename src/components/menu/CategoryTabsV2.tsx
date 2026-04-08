@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { typeScale, spacingScale } from '@/lib/sunday-scale';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Category } from '@/types';
 
@@ -29,10 +30,17 @@ export default function CategoryTabsV2({
   }, [activeTab]);
 
   return (
-    <div
-      style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)' }}
-    >
-      <div className="flex overflow-x-auto scrollbar-hide gap-3 px-4 py-2">
+    <div style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)' }}>
+      <div
+        className="flex overflow-x-auto scrollbar-hide"
+        style={{
+          gap: spacingScale.gap,
+          paddingLeft: spacingScale.px,
+          paddingRight: spacingScale.px,
+          paddingTop: spacingScale.tabPy,
+          paddingBottom: spacingScale.tabPy,
+        }}
+      >
         {categories.map((cat) => {
           const active = cat.id === activeTab;
           const label = (lang === 'hi' && cat.name_hindi) ? cat.name_hindi : cat.name;
@@ -41,8 +49,13 @@ export default function CategoryTabsV2({
               key={cat.id}
               ref={active ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
-              className="shrink-0 px-3.5 min-[400px]:px-4 py-1.5 min-[400px]:py-2 rounded-full text-[13px] min-[400px]:text-[14px] whitespace-nowrap transition-all duration-150 border-none bg-transparent"
+              className="shrink-0 rounded-full whitespace-nowrap transition-all duration-150 border-none bg-transparent"
               style={{
+                fontSize: typeScale.body,
+                paddingLeft: spacingScale.tabPx,
+                paddingRight: spacingScale.tabPx,
+                paddingTop: spacingScale.tabPy,
+                paddingBottom: spacingScale.tabPy,
                 fontFamily: 'var(--sunday-font-body)',
                 ...(active
                   ? {

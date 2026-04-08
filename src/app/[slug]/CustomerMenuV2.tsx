@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { formatPrice } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
+import { typeScale, spacingScale } from '@/lib/sunday-scale';
 import WelcomeScreenV2 from '@/components/menu/WelcomeScreenV2';
 import MenuNavbarV2 from '@/components/menu/MenuNavbarV2';
 import CategoryTabsV2 from '@/components/menu/CategoryTabsV2';
@@ -49,7 +50,20 @@ function SundayToast({
       className="fixed left-1/2 -translate-x-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in"
       style={{ bottom }}
     >
-      <div className="text-white text-[13px] min-[400px]:text-sm font-medium px-3.5 min-[400px]:px-4 py-2.5 min-[400px]:py-3 flex items-center justify-between" style={{ backgroundColor: 'var(--sunday-primary, #1A1A1A)', borderRadius: 'var(--sunday-radius, 12px)', boxShadow: 'var(--sunday-shadow-lg)', fontFamily: 'var(--sunday-font-body)' }}>
+      <div
+        className="text-white font-medium flex items-center justify-between"
+        style={{
+          fontSize: typeScale.body,
+          paddingLeft: spacingScale.px,
+          paddingRight: spacingScale.px,
+          paddingTop: spacingScale.cardPad,
+          paddingBottom: spacingScale.cardPad,
+          backgroundColor: 'var(--sunday-primary, #1A1A1A)',
+          borderRadius: 'var(--sunday-radius, 12px)',
+          boxShadow: 'var(--sunday-shadow-lg)',
+          fontFamily: 'var(--sunday-font-body)',
+        }}
+      >
         <span>{message}</span>
         <button onClick={onClose} className="ml-3 text-white/60 bg-transparent border-none cursor-pointer">
           <X size={14} />
@@ -351,8 +365,15 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 {/* Search + filter row — only visible when search icon tapped */}
                 {searchOpen && (
                   <div
-                    className="px-4 py-2 flex items-center gap-2 border-b"
-                    style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)', borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)' }}
+                    className="flex items-center gap-2 border-b"
+                    style={{
+                      paddingLeft: spacingScale.px,
+                      paddingRight: spacingScale.px,
+                      paddingTop: spacingScale.tabPy,
+                      paddingBottom: spacingScale.tabPy,
+                      backgroundColor: 'var(--sunday-nav-bg, #efebe2)',
+                      borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)',
+                    }}
                   >
                     {/* Search */}
                     <div className="relative flex-1 min-w-0">
@@ -371,7 +392,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search dishes..."
                         autoFocus
-                        className="w-full py-2 pl-8 pr-7 font-body text-[13px] outline-none transition-colors duration-150"
+                        className="w-full py-2 pl-8 pr-7 font-body outline-none transition-colors duration-150"
                         style={{
                           borderRadius: 'var(--sunday-radius, 12px)',
                           border: '1px solid color-mix(in srgb, var(--sunday-border, #E8D5B0) 75%, transparent)',
@@ -401,8 +422,9 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                           <button
                             key={v}
                             onClick={() => setActiveFilter(active ? 'all' : v)}
-                            className="py-1.5 font-body text-[11px] font-semibold whitespace-nowrap transition-all duration-100 border active:scale-95"
+                            className="font-body font-semibold whitespace-nowrap transition-all duration-100 border active:scale-95"
                             style={{
+                              fontSize: typeScale.xs,
                               borderRadius: 'calc(var(--sunday-radius, 12px) * 0.5)',
                               padding: '6px 10px',
                               ...(active
@@ -425,8 +447,11 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
-                    className="mx-4 mt-3 p-3 flex items-center gap-2.5"
+                    className="mt-3 flex items-center gap-2.5"
                     style={{
+                      marginLeft: spacingScale.px,
+                      marginRight: spacingScale.px,
+                      padding: spacingScale.cardPad,
                       borderRadius: 'var(--sunday-radius, 12px)',
                       backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
                       border: '1px solid var(--sunday-border, #E8D5B0)',
@@ -435,17 +460,24 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   >
                     <RotateCcw size={17} strokeWidth={2} className="shrink-0" style={{ color: 'var(--sunday-primary, #361f1a)' }} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold m-0" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
+                      <p
+                        className="font-bold m-0"
+                        style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                      >
                         Repeat last order?
                       </p>
-                      <p className="text-[11px] mt-0.5 m-0" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+                      <p
+                        className="mt-0.5 m-0"
+                        style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+                      >
                         {repeatOrder.items.length} item{repeatOrder.items.length !== 1 ? 's' : ''} · {formatPrice(repeatOrder.total)}
                       </p>
                     </div>
                     <button
                       onClick={handleRepeatOrder}
-                      className="px-3 py-1.5 border-none text-xs font-bold cursor-pointer shrink-0 text-white"
+                      className="px-3 py-1.5 border-none font-bold cursor-pointer shrink-0 text-white"
                       style={{
+                        fontSize: typeScale.sm,
                         borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                         background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))`,
                         fontFamily: 'var(--sunday-font-body)',
@@ -464,7 +496,10 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 )}
 
                 {isFiltering && !hasAnyResults && (
-                  <div className="py-12 px-4 text-center font-body text-sm" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                  <div
+                    className="py-12 px-4 text-center font-body"
+                    style={{ fontSize: typeScale.body, color: 'var(--sunday-text-muted, #7A6040)' }}
+                  >
                     No items found
                   </div>
                 )}
@@ -481,28 +516,49 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                         else sectionRefs.current.delete(cat.id);
                       }}
                       data-category-id={cat.id}
-                      style={{
-                        scrollMarginTop: '110px',
-                      }}
+                      style={{ scrollMarginTop: '110px' }}
                     >
                       {/* Section heading */}
-                      <div className="pt-3 min-[400px]:pt-4 pb-2 min-[400px]:pb-2.5 px-3.5 min-[400px]:px-4">
-                        <h2 className="text-lg min-[400px]:text-xl font-semibold leading-tight" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
+                      <div
+                        style={{
+                          paddingTop: spacingScale.px,
+                          paddingBottom: spacingScale.cardPad,
+                          paddingLeft: spacingScale.px,
+                          paddingRight: spacingScale.px,
+                        }}
+                      >
+                        <h2
+                          className="font-semibold leading-tight"
+                          style={{ fontSize: typeScale.xl, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+                        >
                           {lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name}
                         </h2>
                         {cat.name_hindi && lang === 'en' && (
-                          <p className="text-xs mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+                          <p
+                            className="mt-0.5"
+                            style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+                          >
                             {cat.name_hindi}
                           </p>
                         )}
                       </div>
 
                       {filtered.length === 0 ? (
-                        <div className="px-4 py-4 text-[13px]" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+                        <div
+                          className="px-4 py-4"
+                          style={{ fontSize: typeScale.body, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+                        >
                           No dishes in this category
                         </div>
                       ) : (
-                        <div className="flex flex-col gap-3.5 min-[400px]:gap-5 px-3.5 min-[400px]:px-4 pb-2">
+                        <div
+                          className="flex flex-col pb-2"
+                          style={{
+                            gap: spacingScale.dishGap,
+                            paddingLeft: spacingScale.px,
+                            paddingRight: spacingScale.px,
+                          }}
+                        >
                           {filtered.map((dish, i) => (
                             <DishCardV2
                               key={dish.id}
@@ -602,10 +658,10 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
             alt={zoomedImage.name}
             className="max-w-[94%] max-h-[78vh] object-contain rounded-xl"
           />
-          <p className="text-white/75 font-body text-sm font-semibold m-0">
+          <p className="text-white/75 font-body font-semibold m-0" style={{ fontSize: typeScale.sm }}>
             {zoomedImage.name}
           </p>
-          <p className="text-white/40 font-body text-xs m-0">
+          <p className="text-white/40 font-body m-0" style={{ fontSize: typeScale.xs }}>
             Tap anywhere to close
           </p>
         </div>

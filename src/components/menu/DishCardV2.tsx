@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Utensils } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
@@ -102,8 +103,10 @@ export default function DishCardV2({
         onMouseLeave={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
         onTouchStart={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'; } : undefined}
         onTouchEnd={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
-        className={`flex items-start gap-3 min-[400px]:gap-4 p-3 min-[400px]:p-3.5 ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
+        className={`flex items-start ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
         style={{
+          gap: spacingScale.gap,
+          padding: spacingScale.cardPad,
           borderRadius: 'var(--sunday-radius, 12px)',
           backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
           boxShadow: 'var(--sunday-shadow-md)',
@@ -115,7 +118,10 @@ export default function DishCardV2({
         <div className="flex-1 min-w-0">
           {/* Sold out badge — only for unavailable items */}
           {!dish.is_available && (
-            <span className="text-[12px] font-bold text-red-500 mb-1.5 block" style={{ fontFamily: 'var(--sunday-font-body)' }}>
+            <span
+              className="font-bold text-red-500 mb-1.5 block"
+              style={{ fontSize: typeScale.xs, fontFamily: 'var(--sunday-font-body)' }}
+            >
               Sold out
             </span>
           )}
@@ -127,21 +133,27 @@ export default function DishCardV2({
               style={{ backgroundColor: dish.is_veg ? 'var(--sunday-veg, #0F8A00)' : 'var(--sunday-nonveg, #E23744)' }}
             />
             <h3
-              className="text-[14px] min-[400px]:text-[15px] font-bold leading-tight whitespace-nowrap"
-              style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+              className="font-bold leading-tight whitespace-nowrap"
+              style={{ fontSize: typeScale.md, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
             >
               {primaryName}
             </h3>
           </div>
 
           {/* Price */}
-          <p className="text-[14px] min-[400px]:text-[15px] font-semibold mb-1 min-[400px]:mb-1.5" style={{ color: 'var(--sunday-primary, #361f1a)', fontFamily: 'var(--sunday-font-body)' }}>
+          <p
+            className="font-semibold mb-1"
+            style={{ fontSize: typeScale.md, color: 'var(--sunday-primary, #361f1a)', fontFamily: 'var(--sunday-font-body)' }}
+          >
             ₹{dish.price}
           </p>
 
           {/* Description */}
           {dish.description && (
-            <p className="text-[12px] min-[400px]:text-[13px] leading-relaxed line-clamp-2" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+            <p
+              className="leading-relaxed line-clamp-2"
+              style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+            >
               {dish.description}
             </p>
           )}
@@ -151,8 +163,9 @@ export default function DishCardV2({
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
               {isBestseller && (
                 <span
-                  className="text-[12px] font-medium px-2.5 py-0.5"
+                  className="font-medium px-2.5 py-0.5"
                   style={{
+                    fontSize: typeScale.xs,
                     borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                     backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
                     color: 'var(--sunday-badge-text, #ffffff)',
@@ -164,8 +177,9 @@ export default function DishCardV2({
               )}
               {dish.is_jain && (
                 <span
-                  className="text-[12px] font-medium px-2.5 py-0.5"
+                  className="font-medium px-2.5 py-0.5"
                   style={{
+                    fontSize: typeScale.xs,
                     borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                     backgroundColor: 'var(--sunday-badge-bg, #C8991A)',
                     color: 'var(--sunday-badge-text, #ffffff)',
@@ -182,8 +196,10 @@ export default function DishCardV2({
         {/* Right: image + add button */}
         <div className="relative shrink-0">
           <div
-            className="w-[100px] h-[100px] min-[400px]:w-[128px] min-[400px]:h-[128px] overflow-hidden flex items-center justify-center select-none"
+            className="overflow-hidden flex items-center justify-center select-none"
             style={{
+              width: sizeScale.dishImage,
+              height: sizeScale.dishImage,
               borderRadius: 'var(--sunday-radius, 12px)',
               backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
             }}
@@ -217,8 +233,10 @@ export default function DishCardV2({
               {qty === 0 ? (
                 <button
                   onClick={handleAdd}
-                  className="w-9 h-9 min-[400px]:w-11 min-[400px]:h-11 rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100"
+                  className="rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100"
                   style={{
+                    width: sizeScale.addBtn,
+                    height: sizeScale.addBtn,
                     background: 'linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))',
                     boxShadow: 'var(--sunday-shadow-md)',
                   }}
@@ -246,8 +264,8 @@ export default function DishCardV2({
                     −
                   </button>
                   <span
-                    className="text-[14px] font-bold min-w-[16px] text-center"
-                    style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                    className="font-bold min-w-[16px] text-center"
+                    style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
                   >
                     {qty}
                   </span>

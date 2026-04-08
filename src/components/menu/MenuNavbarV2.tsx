@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
+import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Restaurant } from '@/types';
 
@@ -38,8 +39,12 @@ export default function MenuNavbarV2({
 
   return (
     <div
-      className={`backdrop-blur-md transition-all duration-200 ${isScrolled ? 'py-2 min-[400px]:py-2.5' : 'py-3 min-[400px]:py-4'} px-3 min-[400px]:px-4 flex items-center`}
+      className="backdrop-blur-md transition-all duration-200 flex items-center"
       style={{
+        paddingTop: isScrolled ? spacingScale.navPyS : spacingScale.navPy,
+        paddingBottom: isScrolled ? spacingScale.navPyS : spacingScale.navPy,
+        paddingLeft: spacingScale.px,
+        paddingRight: spacingScale.px,
         backgroundColor: isScrolled
           ? 'color-mix(in srgb, var(--sunday-nav-bg, #efebe2) 95%, transparent)'
           : 'var(--sunday-surface-low, color-mix(in srgb, var(--sunday-primary) 3%, var(--sunday-nav-bg, #efebe2)))',
@@ -49,8 +54,12 @@ export default function MenuNavbarV2({
       {/* Left: back arrow */}
       <button
         onClick={() => window.history.back()}
-        className="w-9 h-9 min-[400px]:w-10 min-[400px]:h-10 flex items-center justify-center shrink-0 transition-colors duration-150"
-        style={{ color: 'var(--sunday-text, #1c1c17)' }}
+        className="flex items-center justify-center shrink-0 transition-colors duration-150"
+        style={{
+          width: sizeScale.touchTarget,
+          height: sizeScale.touchTarget,
+          color: 'var(--sunday-text, #1c1c17)',
+        }}
         aria-label="Go back"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -65,12 +74,13 @@ export default function MenuNavbarV2({
           <img
             src={restaurant.logo_url}
             alt={restaurant.name}
-            className="h-9 min-[400px]:h-10 max-h-10 w-auto object-contain"
+            className="w-auto object-contain"
+            style={{ height: sizeScale.logoHeight, maxHeight: '44px' }}
           />
         ) : (
           <span
-            className="font-bold truncate transition-all duration-200 text-base min-[400px]:text-lg"
-            style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+            className="font-bold truncate transition-all duration-200"
+            style={{ fontSize: typeScale.base, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
           >
             {restaurant.name}
           </span>
@@ -81,8 +91,12 @@ export default function MenuNavbarV2({
       <button
         key={animKey}
         onClick={onSearch ?? onCartOpen}
-        className="w-9 h-9 min-[400px]:w-10 min-[400px]:h-10 flex items-center justify-center shrink-0 transition-colors duration-150"
-        style={{ color: 'var(--sunday-text, #1c1c17)' }}
+        className="flex items-center justify-center shrink-0 transition-colors duration-150"
+        style={{
+          width: sizeScale.touchTarget,
+          height: sizeScale.touchTarget,
+          color: 'var(--sunday-text, #1c1c17)',
+        }}
         aria-label="Search"
       >
         <Search size={18} strokeWidth={2} color="currentColor" />

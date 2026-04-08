@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { X, Plus, Minus } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
+import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Restaurant, Product } from '@/types';
 
@@ -102,14 +103,21 @@ export default function CartSheetV2({
         >
           {/* Header */}
           <div
-            className="flex items-center justify-between px-4 min-[400px]:px-5 pt-4 min-[400px]:pt-5 pb-3 min-[400px]:pb-3.5 shrink-0 border-b"
+            className="flex items-center justify-between shrink-0 border-b"
             style={{
+              paddingLeft: spacingScale.px,
+              paddingRight: spacingScale.px,
+              paddingTop: spacingScale.px,
+              paddingBottom: spacingScale.cardPad,
               backgroundColor: 'var(--sunday-nav-bg, #efebe2)',
               borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)',
             }}
           >
             <div className="w-8" />
-            <span className="text-[15px] min-[400px]:text-base font-bold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
+            <span
+              className="font-bold"
+              style={{ fontSize: typeScale.lg, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+            >
               Basket
             </span>
             <button
@@ -125,10 +133,10 @@ export default function CartSheetV2({
           {items.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8">
               <div className="text-[40px]">🛒</div>
-              <p className="text-base font-bold m-0 text-center" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
+              <p className="font-bold m-0 text-center" style={{ fontSize: typeScale.md, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
                 Your basket is empty
               </p>
-              <p className="text-[13px] m-0 text-center" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+              <p className="m-0 text-center" style={{ fontSize: typeScale.body, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                 Add some dishes to get started
               </p>
             </div>
@@ -141,13 +149,22 @@ export default function CartSheetV2({
                   return (
                     <div
                       key={item.product_id}
-                      className="flex items-center gap-2.5 min-[400px]:gap-3 px-4 min-[400px]:px-5 py-2.5 min-[400px]:py-3 border-b"
-                      style={{ borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)' }}
+                      className="flex items-center border-b"
+                      style={{
+                        gap: spacingScale.gap,
+                        paddingLeft: spacingScale.px,
+                        paddingRight: spacingScale.px,
+                        paddingTop: spacingScale.cardPad,
+                        paddingBottom: spacingScale.cardPad,
+                        borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)',
+                      }}
                     >
                       {/* Thumbnail */}
                       <div
-                        className="w-10 h-10 min-[400px]:w-12 min-[400px]:h-12 overflow-hidden shrink-0 flex items-center justify-center"
+                        className="overflow-hidden shrink-0 flex items-center justify-center"
                         style={{
+                          width: sizeScale.cartThumb,
+                          height: sizeScale.cartThumb,
                           borderRadius: 'calc(var(--sunday-radius, 12px) * 0.66)',
                           backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
                         }}
@@ -162,15 +179,24 @@ export default function CartSheetV2({
 
                       {/* Name + addons + price */}
                       <div className="flex-1 min-w-0">
-                        <div className="text-[13px] min-[400px]:text-sm font-bold truncate" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
+                        <div
+                          className="font-bold truncate"
+                          style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                        >
                           {item.name}
                         </div>
                         {item.addons.length > 0 && (
-                          <div className="text-[11px] mt-0.5 truncate" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+                          <div
+                            className="mt-0.5 truncate"
+                            style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+                          >
                             + {item.addons.map((a) => a.name).join(', ')}
                           </div>
                         )}
-                        <div className="text-[13px] mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+                        <div
+                          className="mt-0.5"
+                          style={{ fontSize: typeScale.body, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+                        >
                           {formatPrice(item.price + item.addons.reduce((s, a) => s + a.price, 0))}
                         </div>
                       </div>
@@ -184,7 +210,10 @@ export default function CartSheetV2({
                         >
                           <Minus size={11} strokeWidth={2.5} />
                         </button>
-                        <span className="text-[15px] font-bold min-w-[18px] text-center" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
+                        <span
+                          className="font-bold min-w-[18px] text-center"
+                          style={{ fontSize: typeScale.lg, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                        >
                           {item.quantity}
                         </span>
                         <button
@@ -203,8 +232,8 @@ export default function CartSheetV2({
                 <div className="px-5 pt-3 pb-1 flex justify-end">
                   <button
                     onClick={onClose}
-                    className="text-sm font-semibold bg-transparent border-none cursor-pointer underline underline-offset-2"
-                    style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                    className="font-semibold bg-transparent border-none cursor-pointer underline underline-offset-2"
+                    style={{ fontSize: typeScale.sm, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
                   >
                     Add more
                   </button>
@@ -222,10 +251,16 @@ export default function CartSheetV2({
                       }}
                     >
                       <div>
-                        <div className="text-[13px] font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
+                        <div
+                          className="font-semibold"
+                          style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                        >
                           Add an order note
                         </div>
-                        <div className="text-xs mt-0.5" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+                        <div
+                          className="mt-0.5"
+                          style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+                        >
                           {orderNote || 'Utensils, special requests...'}
                         </div>
                       </div>
@@ -247,8 +282,8 @@ export default function CartSheetV2({
                         onBlur={() => setNoteOpen(false)}
                         placeholder="Utensils, special requests..."
                         rows={3}
-                        className="w-full p-3 border-none bg-transparent text-[13px] resize-none outline-none"
-                        style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                        className="w-full p-3 border-none bg-transparent resize-none outline-none"
+                        style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
                       />
                     </div>
                   )}
@@ -257,24 +292,35 @@ export default function CartSheetV2({
 
               {/* Footer */}
               <div
-                className="shrink-0 px-4 min-[400px]:px-5 pt-3 min-[400px]:pt-3.5 pb-5 min-[400px]:pb-7 border-t"
+                className="shrink-0 border-t"
                 style={{
+                  paddingLeft: spacingScale.px,
+                  paddingRight: spacingScale.px,
+                  paddingTop: spacingScale.cardPad,
+                  paddingBottom: 'calc(28px + env(safe-area-inset-bottom, 0px))',
                   backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
                   borderColor: 'color-mix(in srgb, var(--sunday-border, #E8D5B0) 50%, transparent)',
                 }}
               >
                 <div className="flex justify-between items-center mb-3.5">
-                  <span className="text-[15px] font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
+                  <span
+                    className="font-semibold"
+                    style={{ fontSize: typeScale.lg, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                  >
                     Subtotal
                   </span>
-                  <span className="text-[15px] font-bold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
+                  <span
+                    className="font-bold"
+                    style={{ fontSize: typeScale.lg, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                  >
                     {formatPrice(total)}
                   </span>
                 </div>
                 <button
                   onClick={handlePlaceOrder}
-                  className="w-full py-3.5 min-[400px]:py-4 text-white text-[15px] min-[400px]:text-base font-bold border-none cursor-pointer active:scale-[0.98] transition-transform duration-100"
+                  className="w-full py-3.5 text-white font-bold border-none cursor-pointer active:scale-[0.98] transition-transform duration-100"
                   style={{
+                    fontSize: typeScale.lg,
                     borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                     background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))`,
                     boxShadow: 'var(--sunday-shadow-md)',

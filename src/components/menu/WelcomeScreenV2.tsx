@@ -1,6 +1,7 @@
 'use client';
 
 import { Utensils } from 'lucide-react';
+import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Restaurant, Category, Product } from '@/types';
 
 interface Props {
@@ -30,8 +31,8 @@ export default function WelcomeScreenV2({
 
   return (
     <div className="min-h-[100dvh]" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
-      {/* Hero image */}
-      <div className="w-full h-[22vh] min-[400px]:h-[28vh] relative overflow-hidden">
+      {/* Hero image — fluid height, no breakpoint needed */}
+      <div className="w-full relative overflow-hidden" style={{ height: '25dvh' }}>
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -50,18 +51,32 @@ export default function WelcomeScreenV2({
       </div>
 
       {/* Logo circle overlapping hero */}
-      <div className="flex justify-center -mt-[60px] min-[400px]:-mt-[75px] relative z-10">
-        <div className="w-[88px] h-[88px] min-[400px]:w-[110px] min-[400px]:h-[110px] rounded-full flex items-center justify-center overflow-hidden border-4 border-white"
-          style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)', boxShadow: 'var(--sunday-shadow-lg)' }}>
+      <div
+        className="flex justify-center relative z-10"
+        style={{ marginTop: sizeScale.logoOverlap }}
+      >
+        <div
+          className="rounded-full flex items-center justify-center overflow-hidden border-4 border-white"
+          style={{
+            width: sizeScale.logoCircle,
+            height: sizeScale.logoCircle,
+            backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
+            boxShadow: 'var(--sunday-shadow-lg)',
+          }}
+        >
           {restaurant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={restaurant.logo_url}
               alt={restaurant.name}
-              className="w-[72px] h-[72px] min-[400px]:w-[90px] min-[400px]:h-[90px] rounded-full object-cover"
+              className="rounded-full object-cover"
+              style={{ width: sizeScale.logoImg, height: sizeScale.logoImg }}
             />
           ) : (
-            <span className="text-3xl font-bold" style={{ color: 'var(--sunday-accent, #b12d00)', fontFamily: 'var(--sunday-font-heading)' }}>
+            <span
+              className="text-3xl font-bold"
+              style={{ color: 'var(--sunday-accent, #b12d00)', fontFamily: 'var(--sunday-font-heading)' }}
+            >
               {restaurant.name.charAt(0)}
             </span>
           )}
@@ -69,13 +84,19 @@ export default function WelcomeScreenV2({
       </div>
 
       {/* Restaurant name */}
-      <h1 className="text-xl min-[400px]:text-2xl font-bold text-center mt-3 min-[400px]:mt-4" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}>
+      <h1
+        className="font-bold text-center mt-3"
+        style={{ fontSize: typeScale['3xl'], color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+      >
         Welcome to {restaurant.name}
       </h1>
 
       {/* Tagline */}
       {(restaurant.tagline || restaurant.city || restaurant.address) && (
-        <p className="text-[14px] min-[400px]:text-[15px] italic text-center mt-1.5 min-[400px]:mt-2 max-w-[280px] mx-auto leading-relaxed line-clamp-3" style={{ color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+        <p
+          className="italic text-center mt-1.5 max-w-[280px] mx-auto leading-relaxed line-clamp-3"
+          style={{ fontSize: typeScale.body, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+        >
           {restaurant.tagline
             ?? (restaurant.address
               ? `${restaurant.address}${restaurant.city ? `, ${restaurant.city}` : ''}`
@@ -84,7 +105,15 @@ export default function WelcomeScreenV2({
       )}
 
       {/* Category grid */}
-      <div className="grid grid-cols-2 gap-2.5 min-[400px]:gap-3 px-3.5 min-[400px]:px-4 mt-6 min-[400px]:mt-8" style={{ paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))' }}>
+      <div
+        className="grid grid-cols-2 mt-6"
+        style={{
+          gap: spacingScale.gap,
+          paddingLeft: spacingScale.px,
+          paddingRight: spacingScale.px,
+          paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
         {categories.map((cat) => {
           const imgUrl = getCategoryImage(cat.id, products);
           return (
@@ -117,7 +146,10 @@ export default function WelcomeScreenV2({
                   </div>
                 )}
               </div>
-              <p className="text-sm min-[400px]:text-base font-semibold" style={{ color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}>
+              <p
+                className="font-semibold"
+                style={{ fontSize: typeScale.md, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+              >
                 {cat.name}
               </p>
             </button>
