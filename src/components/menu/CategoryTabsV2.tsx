@@ -32,8 +32,10 @@ export default function CategoryTabsV2({
   return (
     <div style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)' }}>
       <div
-        className="flex overflow-x-auto scrollbar-hide"
+        className="flex overflow-x-auto scrollbar-hide [&::-webkit-scrollbar]:hidden"
         style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
           gap: spacingScale.gap,
           paddingLeft: spacingScale.px,
           paddingRight: spacingScale.px,

@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { formatPrice } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
-import { typeScale, spacingScale } from '@/lib/sunday-scale';
+import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import WelcomeScreenV2 from '@/components/menu/WelcomeScreenV2';
 import MenuNavbarV2 from '@/components/menu/MenuNavbarV2';
 import CategoryTabsV2 from '@/components/menu/CategoryTabsV2';
@@ -442,8 +442,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               </div>
 
               {/* Scrolling content */}
-              {/* cart bar at 12px + safe, 52px tall → need 12+52+16=80px + safe */}
-              <div style={{ paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))' }}>
+              <div style={{ paddingBottom: `calc(${sizeScale.cartBarH} + env(safe-area-inset-bottom, 0px) + 24px)` }}>
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
@@ -516,7 +515,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                         else sectionRefs.current.delete(cat.id);
                       }}
                       data-category-id={cat.id}
-                      style={{ scrollMarginTop: '110px' }}
+                      style={{ scrollMarginTop: '110px', marginTop: spacingScale.sectionGap }}
                     >
                       {/* Section heading */}
                       <div

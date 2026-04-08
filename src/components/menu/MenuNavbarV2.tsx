@@ -62,20 +62,20 @@ export default function MenuNavbarV2({
         }}
         aria-label="Go back"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg style={{ width: 'clamp(20px, 5.5vw, 24px)', height: 'clamp(20px, 5.5vw, 24px)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M19 12H5" />
           <path d="M12 19l-7-7 7-7" />
         </svg>
       </button>
 
-      {/* Center: restaurant logo */}
+      {/* Center: restaurant logo — transparent, no box */}
       <div className="flex-1 flex items-center justify-center min-w-0">
         {restaurant.logo_url ? (
           <img
             src={restaurant.logo_url}
             alt={restaurant.name}
             className="w-auto object-contain"
-            style={{ height: sizeScale.logoHeight, maxHeight: '44px' }}
+            style={{ height: 'clamp(36px, 10vw, 48px)' }}
           />
         ) : (
           <span
@@ -99,7 +99,7 @@ export default function MenuNavbarV2({
         }}
         aria-label="Search"
       >
-        <Search size={18} strokeWidth={2} color="currentColor" />
+        <Search style={{ width: 'clamp(20px, 5.5vw, 24px)', height: 'clamp(20px, 5.5vw, 24px)' }} strokeWidth={2} color="currentColor" />
       </button>
     </div>
   );

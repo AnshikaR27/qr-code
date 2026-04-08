@@ -110,6 +110,8 @@ export const spacingScale = {
   gap:     fluid(12, 16),
   /** 14→20px  vertical gap between dish cards in the menu list */
   dishGap: fluid(14, 20),
+  /** 20→28px  vertical gap between category sections */
+  sectionGap: fluid(20, 28),
 } as const;
 
 export type TypeScale    = typeof typeScale;
