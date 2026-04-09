@@ -68,7 +68,7 @@ function getSerial(): Serial | null {
 
 // Broad set of filters covering common thermal printer vendors + generic USB printer class
 const PRINTER_FILTERS: USBRequestDeviceOptions['filters'] = [
-  { classCode: 7 },        // USB Printer class (works for most ESC/POS printers)
+  { classCode: 7 },        // USB Printer class
   { vendorId: 0x04b8 },    // Epson
   { vendorId: 0x0519 },    // Star Micronics
   { vendorId: 0x154f },    // Bixolon
@@ -82,6 +82,10 @@ const PRINTER_FILTERS: USBRequestDeviceOptions['filters'] = [
   { vendorId: 0x20d1 },    // TVS Electronics (common in India)
   { vendorId: 0x1d5f },    // POS-X
   { vendorId: 0x0525 },    // Netchip Technology
+  { vendorId: 0x0418 },    // POS80 / generic Chinese thermal printers
+  { vendorId: 0x0471 },    // Philips / some POS printers
+  { vendorId: 0x0bda },    // Realtek USB-to-printer adapters
+  { vendorId: 0x1a86 },    // QinHeng Electronics (CH340 — common in Chinese POS)
 ];
 
 // ── Printer Service ───────────────────────────────────────────────────────────
@@ -136,13 +140,17 @@ class ThermalPrinterService {
     try {
       await port.open({ baudRate });
       const writer = port.writable.getWriter();
-      await writer.write(data);
-      writer.releaseLock();
+      try {
+        await writer.write(data);
+        await writer.close(); // flush + close the WritableStream before closing the port
+      } catch (writeErr: unknown) {
+        writer.releaseLock();
+        throw writeErr;
+      }
       await port.close();
       this.lastPrintTime.set(printerId, new Date());
       return { success: true };
     } catch (err: unknown) {
-      // Port may already be open from a previous failed print
       try { await port.close(); } catch { /* ignore */ }
       return { success: false, error: err instanceof Error ? err.message : 'Serial print failed' };
     }
@@ -220,6 +228,53 @@ class ThermalPrinterService {
     return {
       success: true,
       deviceName: device.productName ?? device.manufacturerName ?? 'USB Printer',
+      vendorId: device.vendorId,
+      productId: device.productId,
+      serialNumber: device.serialNumber,
+    };
+  }
+
+  // Same as connectUSB but with no filters — shows ALL USB devices
+  async connectUSBUnfiltered(printerId: string): Promise<ConnectResult> {
+    const usb = getUSB();
+    if (!usb) return { success: false, error: 'WebUSB not supported. Use Chrome or Edge.' };
+
+    let device: USBDevice | null = null;
+    try {
+      device = await usb.requestDevice({ filters: [] });
+    } catch (err: unknown) {
+      const name = err instanceof DOMException ? err.name : '';
+      if (name === 'NotFoundError') return { success: false, error: 'No device selected' };
+      return { success: false, error: err instanceof Error ? err.message : 'Picker failed' };
+    }
+
+    try {
+      await device.open();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : '';
+      if (!msg.includes('already')) {
+        console.error('[printer] device.open() failed:', err);
+        return { success: false, error: this.friendlyUSBError(err) };
+      }
+    }
+
+    try {
+      if (device.configuration === null || device.configuration === undefined) {
+        await device.selectConfiguration(1);
+      }
+    } catch { /* non-fatal */ }
+
+    try {
+      await this.claimPrinterInterface(device);
+    } catch (err: unknown) {
+      console.error('[printer] claimInterface failed:', err);
+      return { success: false, error: this.friendlyUSBError(err) };
+    }
+
+    this.usbDevices.set(printerId, device);
+    return {
+      success: true,
+      deviceName: device.productName ?? device.manufacturerName ?? 'USB Device',
       vendorId: device.vendorId,
       productId: device.productId,
       serialNumber: device.serialNumber,
