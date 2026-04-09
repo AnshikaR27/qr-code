@@ -105,7 +105,7 @@ export function buildKOTTicket(
         .text(item.name.slice(0, lineWidth - 3))
         .newLine();
       if (item.notes) {
-        p.text(`   * ${item.notes}`.slice(0, lineWidth)).newLine();
+        p.wrapText(`* ${item.notes}`, lineWidth, '   ');
       }
     }
   }
@@ -114,7 +114,7 @@ export function buildKOTTicket(
 
   // Order notes
   if (order.notes) {
-    p.text(`NOTE: ${order.notes}`.slice(0, lineWidth)).newLine();
+    p.wrapText(`NOTE: ${order.notes}`, lineWidth);
     p.dashLine(lineWidth);
   }
 

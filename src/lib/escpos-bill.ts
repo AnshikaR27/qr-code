@@ -153,7 +153,7 @@ export function buildBillReceipt(
 
   if (order.notes) {
     p.dashLine(lineWidth);
-    p.alignLeft().text(`Note: ${order.notes}`.slice(0, lineWidth)).newLine();
+    p.alignLeft().wrapText(`Note: ${order.notes}`, lineWidth);
   }
 
   p.dashLine(lineWidth);

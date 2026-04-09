@@ -78,6 +78,33 @@ export class ESCPOSBuilder {
     return this.text('-'.repeat(chars)).newLine();
   }
 
+  // Word-wrap text to lineWidth, printing each line followed by newLine()
+  wrapText(content: string, lineWidth: number, indent = ''): this {
+    const words = content.split(' ');
+    let line = indent;
+    for (const word of words) {
+      const candidate = line.length === indent.length ? line + word : line + ' ' + word;
+      if (candidate.length <= lineWidth) {
+        line = candidate;
+      } else {
+        if (line.trim()) this.text(line).newLine();
+        // Word longer than a full line — hard wrap it
+        if (word.length > lineWidth) {
+          let remaining = word;
+          while (remaining.length > lineWidth) {
+            this.text(remaining.slice(0, lineWidth)).newLine();
+            remaining = remaining.slice(lineWidth);
+          }
+          line = indent + remaining;
+        } else {
+          line = indent + word;
+        }
+      }
+    }
+    if (line.trim()) this.text(line).newLine();
+    return this;
+  }
+
   // Print two strings left and right on the same line (total width = `lineWidth`)
   textColumns(left: string, right: string, lineWidth = 42): this {
     const space = lineWidth - left.length - right.length;
