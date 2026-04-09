@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { BellRing, ChefHat, PackageCheck, CheckCheck, XCircle, Printer, ReceiptText } from 'lucide-react';
+import { BellRing, ChefHat, PackageCheck, CheckCheck, XCircle, Printer, ReceiptText, Usb, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
 import { ORDER_STATUSES } from '@/lib/constants';
 import PrintOrderDialog from '@/components/dashboard/PrintOrderDialog';
-import type { Order, OrderStatus, Restaurant } from '@/types';
+import type { Order, OrderStatus, Restaurant, PrinterDevice } from '@/types';
 
 interface Props {
   restaurant: Restaurant;
@@ -42,19 +42,44 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
   const [printMode, setPrintMode]   = useState<'accept' | 'reprint'>('accept');
 
+  // USB printer connection state — tracks which USB printers failed to auto-reconnect
+  const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
+  const [connectingUSB, setConnectingUSB] = useState<string | null>(null);
+
   const isFirstRender = useRef(true);
 
   // ── Auto-reconnect USB printers on mount ───────────────────────────────────
   useEffect(() => {
     const config = restaurant.printer_config;
     if (!config) return;
-    const hasUSB = config.printers.some((p) => p.type === 'usb');
-    if (!hasUSB) return;
-    import('@/lib/printer-service').then(({ printerService }) => {
-      printerService.reconnectAll(config);
+    const usbPrinters = config.printers.filter((p) => p.type === 'usb');
+    if (usbPrinters.length === 0) return;
+
+    import('@/lib/printer-service').then(async ({ printerService }) => {
+      const results = await printerService.reconnectAll(config);
+      const failed = usbPrinters.filter((p) => results.get(p.id) !== true);
+      setDisconnectedUSB(failed);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function connectUSBPrinter(printer: PrinterDevice) {
+    setConnectingUSB(printer.id);
+    try {
+      const { printerService } = await import('@/lib/printer-service');
+      const result = await printerService.connectUSB(printer.id);
+      if (result.success) {
+        setDisconnectedUSB((prev) => prev.filter((p) => p.id !== printer.id));
+        toast.success(`${printer.name} connected`);
+      } else if (result.error && result.error !== 'No device selected') {
+        toast.error(result.error);
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Connection failed');
+    } finally {
+      setConnectingUSB(null);
+    }
+  }
 
   // ── Realtime subscription ──────────────────────────────────────────────────
   useEffect(() => {
@@ -203,6 +228,24 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-3">
+      {/* ── USB printer disconnected banner ── */}
+      {disconnectedUSB.map((printer) => (
+        <div key={printer.id} className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span><span className="font-semibold">{printer.name}</span> not connected — KOT prints will fail</span>
+          </div>
+          <button
+            onClick={() => connectUSBPrinter(printer)}
+            disabled={connectingUSB === printer.id}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60"
+          >
+            <Usb className="w-3.5 h-3.5" />
+            {connectingUSB === printer.id ? 'Connecting…' : 'Connect USB'}
+          </button>
+        </div>
+      ))}
+
       {/* ── Header ── */}
       <div className="flex items-center justify-between pt-2">
         <div>

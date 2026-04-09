@@ -174,6 +174,17 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
       if (result.success) {
         setUsbStatus((prev) => ({ ...prev, [printer.id]: result.deviceName ?? 'Connected' }));
         toast.success(`Connected: ${result.deviceName ?? 'USB Printer'}`);
+        // Persist VID/PID/serial so reconnectAll can match this device on future page loads
+        if (result.vendorId !== undefined) {
+          setConfig((prev) => ({
+            ...prev,
+            printers: prev.printers.map((p) =>
+              p.id === printer.id
+                ? { ...p, vendor_id: result.vendorId, product_id: result.productId, serial_number: result.serialNumber }
+                : p,
+            ),
+          }));
+        }
       } else {
         if (result.error !== 'No device selected') toast.error(result.error ?? 'Connection failed');
       }

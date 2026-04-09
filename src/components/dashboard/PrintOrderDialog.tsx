@@ -91,7 +91,26 @@ function PrintDialogInner({
             const data = buildKOTTicket(order, restaurantName, kot, selectedCategories, printer.paper_width);
             for (let i = 0; i < copies; i++) {
               const result = await printerService.print(printer, data);
-              if (!result.success) toast.error(`${printer.name}: ${result.error ?? 'Print failed'}`);
+              if (!result.success) {
+                if (result.error === 'Printer not connected') {
+                  toast.error(`${printer.name} not connected`, {
+                    description: 'Select your printer in the USB device picker',
+                    action: {
+                      label: 'Connect',
+                      onClick: async () => {
+                        const cr = await printerService.connectUSB(printer.id);
+                        if (cr.success) {
+                          toast.success(`${printer.name} connected — please reprint`);
+                        } else if (cr.error && cr.error !== 'No device selected') {
+                          toast.error(cr.error);
+                        }
+                      },
+                    },
+                  });
+                } else {
+                  toast.error(`${printer.name}: ${result.error ?? 'Print failed'}`);
+                }
+              }
             }
           }
         } else {
@@ -118,7 +137,26 @@ function PrintDialogInner({
               const data = buildKOTTicket(order, restaurantName, kot, cats, printer.paper_width, totalCatsInOrder);
               for (let i = 0; i < copies; i++) {
                 const result = await printerService.print(printer, data);
-                if (!result.success) toast.error(`${printer.name}: ${result.error ?? 'Print failed'}`);
+                if (!result.success) {
+                  if (result.error === 'Printer not connected') {
+                    toast.error(`${printer.name} not connected`, {
+                      description: 'Select your printer in the USB device picker',
+                      action: {
+                        label: 'Connect',
+                        onClick: async () => {
+                          const cr = await printerService.connectUSB(printer.id);
+                          if (cr.success) {
+                            toast.success(`${printer.name} connected — please reprint`);
+                          } else if (cr.error && cr.error !== 'No device selected') {
+                            toast.error(cr.error);
+                          }
+                        },
+                      },
+                    });
+                  } else {
+                    toast.error(`${printer.name}: ${result.error ?? 'Print failed'}`);
+                  }
+                }
               }
             })
           );

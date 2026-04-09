@@ -3,7 +3,10 @@ import type { PrinterDevice, PrinterConfig } from '@/types';
 // ── Minimal WebUSB type declarations ─────────────────────────────────────────
 
 interface USBDevice {
+  vendorId: number;
+  productId: number;
   productName?: string;
+  manufacturerName?: string;
   serialNumber?: string;
   open(): Promise<void>;
   close(): Promise<void>;
@@ -26,7 +29,7 @@ interface USBDevice {
 }
 
 interface USBRequestDeviceOptions {
-  filters: Array<{ classCode?: number; vendorId?: number }>;
+  filters: Array<{ classCode?: number; vendorId?: number; productId?: number }>;
 }
 
 interface USB {
@@ -40,6 +43,24 @@ function getUSB(): USB | null {
   return nav.usb ?? null;
 }
 
+// Broad set of filters covering common thermal printer vendors + generic USB printer class
+const PRINTER_FILTERS: USBRequestDeviceOptions['filters'] = [
+  { classCode: 7 },        // USB Printer class (works for most ESC/POS printers)
+  { vendorId: 0x04b8 },    // Epson
+  { vendorId: 0x0519 },    // Star Micronics
+  { vendorId: 0x154f },    // Bixolon
+  { vendorId: 0x1504 },    // Bixolon alternate
+  { vendorId: 0x0fe6 },    // ICS Advent / Bixolon
+  { vendorId: 0x28e9 },    // Xprinter (common in India)
+  { vendorId: 0x0dd4 },    // Custom / generic Chinese
+  { vendorId: 0x1cbe },    // Rongta
+  { vendorId: 0x0483 },    // STMicroelectronics
+  { vendorId: 0x0416 },    // Winbond
+  { vendorId: 0x20d1 },    // TVS Electronics (common in India)
+  { vendorId: 0x1d5f },    // POS-X
+  { vendorId: 0x0525 },    // Netchip Technology
+];
+
 // ── Printer Service ───────────────────────────────────────────────────────────
 
 export interface PrintResult {
@@ -50,6 +71,9 @@ export interface PrintResult {
 export interface ConnectResult {
   success: boolean;
   deviceName?: string;
+  vendorId?: number;
+  productId?: number;
+  serialNumber?: string;
   error?: string;
 }
 
@@ -64,27 +88,40 @@ class ThermalPrinterService {
   // Connect a new USB printer via device picker
   async connectUSB(printerId: string): Promise<ConnectResult> {
     const usb = getUSB();
-    if (!usb) return { success: false, error: 'WebUSB not supported in this browser' };
+    if (!usb) return { success: false, error: 'WebUSB not supported in this browser. Please use Chrome or Edge.' };
 
     try {
-      const device = await usb.requestDevice({
-        filters: [{ classCode: 7 }], // USB Printer class
-      });
-      await device.open();
+      const device = await usb.requestDevice({ filters: PRINTER_FILTERS });
+      try { await device.open(); } catch { /* may already be open */ }
       if (device.configuration === null || device.configuration === undefined) {
         await device.selectConfiguration(1);
       }
       await this.claimPrinterInterface(device);
       this.usbDevices.set(printerId, device);
-      return { success: true, deviceName: device.productName ?? 'USB Printer' };
+      return {
+        success: true,
+        deviceName: device.productName ?? device.manufacturerName ?? 'USB Printer',
+        vendorId: device.vendorId,
+        productId: device.productId,
+        serialNumber: device.serialNumber,
+      };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Connection failed';
-      if (msg.includes('No device selected')) return { success: false, error: 'No device selected' };
+      if (msg.includes('No device selected') || msg.includes('NotFoundError')) {
+        return { success: false, error: 'No device selected' };
+      }
+      // Windows driver conflict — give actionable guidance
+      if (msg.includes('access') || msg.includes('claim') || msg.includes('NetworkError')) {
+        return {
+          success: false,
+          error: 'Windows USB driver conflict. Open Zadig, select your printer, install WinUSB driver, then try again.',
+        };
+      }
       return { success: false, error: msg };
     }
   }
 
-  // Auto-reconnect previously paired USB devices (no picker)
+  // Auto-reconnect previously paired USB devices — matches by VID/PID/serial if stored
   async reconnectAll(config: PrinterConfig): Promise<Map<string, boolean>> {
     const results = new Map<string, boolean>();
     const usb = getUSB();
@@ -93,29 +130,47 @@ class ThermalPrinterService {
     const usbPrinters = config.printers.filter((p) => p.type === 'usb');
     if (usbPrinters.length === 0) return results;
 
+    let pairedDevices: USBDevice[] = [];
     try {
-      const pairedDevices = await usb.getDevices();
-      for (const printer of usbPrinters) {
-        if (pairedDevices.length > 0) {
-          // Try each paired device — match by index or use first available
-          const device = pairedDevices[0];
-          try {
-            await device.open();
-            if (device.configuration === null || device.configuration === undefined) {
-              await device.selectConfiguration(1);
-            }
-            await this.claimPrinterInterface(device);
-            this.usbDevices.set(printer.id, device);
-            results.set(printer.id, true);
-          } catch {
-            results.set(printer.id, false);
-          }
-        } else {
-          results.set(printer.id, false);
-        }
-      }
+      pairedDevices = await usb.getDevices();
     } catch {
       for (const p of usbPrinters) results.set(p.id, false);
+      return results;
+    }
+
+    if (pairedDevices.length === 0) {
+      for (const p of usbPrinters) results.set(p.id, false);
+      return results;
+    }
+
+    for (const printer of usbPrinters) {
+      // Try to find the specific device this printer was paired with
+      let device: USBDevice | undefined;
+
+      if (printer.vendor_id !== undefined && printer.product_id !== undefined) {
+        // Match by VID+PID, optionally serial
+        device = pairedDevices.find(
+          (d) =>
+            d.vendorId === printer.vendor_id &&
+            d.productId === printer.product_id &&
+            (!printer.serial_number || d.serialNumber === printer.serial_number),
+        );
+      }
+
+      // Fallback: use first available paired device
+      if (!device) device = pairedDevices[0];
+
+      try {
+        try { await device.open(); } catch { /* may already be open */ }
+        if (device.configuration === null || device.configuration === undefined) {
+          await device.selectConfiguration(1);
+        }
+        await this.claimPrinterInterface(device);
+        this.usbDevices.set(printer.id, device);
+        results.set(printer.id, true);
+      } catch {
+        results.set(printer.id, false);
+      }
     }
 
     return results;
@@ -123,13 +178,14 @@ class ThermalPrinterService {
 
   private async claimPrinterInterface(device: USBDevice): Promise<void> {
     const config = device.configuration;
-    if (!config) return;
-    for (const iface of config.interfaces) {
-      try {
-        await device.claimInterface(iface.interfaceNumber);
-        return;
-      } catch {
-        // try next interface
+    if (config) {
+      for (const iface of config.interfaces) {
+        try {
+          await device.claimInterface(iface.interfaceNumber);
+          return;
+        } catch {
+          // try next interface
+        }
       }
     }
     // Fallback: try interface 0
@@ -163,8 +219,7 @@ class ThermalPrinterService {
       return { success: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Print failed';
-      // Try once more — device may have reconnected
-      if (msg.includes('disconnected') || msg.includes('closed')) {
+      if (msg.includes('disconnected') || msg.includes('closed') || msg.includes('device lost')) {
         this.usbDevices.delete(printerId);
         return { success: false, error: 'Printer disconnected. Please reconnect.' };
       }
@@ -196,7 +251,6 @@ class ThermalPrinterService {
     } else if (printer.type === 'network') {
       return this.printToNetwork(printer.ip ?? '', printer.port ?? 9100, data);
     } else {
-      // Browser fallback — caller should handle this
       return { success: false, error: 'Use browser fallback' };
     }
   }

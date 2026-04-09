@@ -10,6 +10,10 @@ export interface PrinterDevice {
   port?: number;
   paper_width: '80mm' | '58mm';
   auto_cut: boolean;
+  // USB pairing info — saved after first requestDevice() so reconnect can match by VID/PID
+  vendor_id?: number;
+  product_id?: number;
+  serial_number?: string;
 }
 
 export interface PrinterConfig {
