@@ -45,10 +45,8 @@ export default function MenuNavbarV2({
         paddingBottom: isScrolled ? spacingScale.navPyS : spacingScale.navPy,
         paddingLeft: spacingScale.px,
         paddingRight: spacingScale.px,
-        backgroundColor: isScrolled
-          ? 'color-mix(in srgb, var(--sunday-nav-bg, #efebe2) 95%, transparent)'
-          : 'var(--sunday-surface-low, color-mix(in srgb, var(--sunday-primary) 3%, var(--sunday-nav-bg, #efebe2)))',
-        boxShadow: isScrolled ? 'var(--sunday-shadow-sm)' : 'none',
+        backgroundColor: 'var(--sunday-primary, #361f1a)',
+        boxShadow: isScrolled ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
       }}
     >
       {/* Left: back arrow */}
@@ -58,7 +56,7 @@ export default function MenuNavbarV2({
         style={{
           width: sizeScale.touchTarget,
           height: sizeScale.touchTarget,
-          color: 'var(--sunday-text, #1c1c17)',
+          color: 'var(--sunday-primary-text, #fff)',
         }}
         aria-label="Go back"
       >
@@ -80,7 +78,7 @@ export default function MenuNavbarV2({
         ) : (
           <span
             className="font-bold truncate transition-all duration-200"
-            style={{ fontSize: typeScale.base, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+            style={{ fontSize: typeScale.base, color: 'var(--sunday-primary-text, #fff)', fontFamily: 'var(--sunday-font-heading)' }}
           >
             {restaurant.name}
           </span>
@@ -95,7 +93,7 @@ export default function MenuNavbarV2({
         style={{
           width: sizeScale.touchTarget,
           height: sizeScale.touchTarget,
-          color: 'var(--sunday-text, #1c1c17)',
+          color: 'var(--sunday-primary-text, #fff)',
         }}
         aria-label="Search"
       >
