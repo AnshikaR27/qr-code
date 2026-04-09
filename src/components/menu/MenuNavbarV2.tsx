@@ -68,23 +68,14 @@ export default function MenuNavbarV2({
         </svg>
       </button>
 
-      {/* Center: restaurant logo — transparent, no box */}
+      {/* Center: cafe name */}
       <div className="flex-1 flex items-center justify-center min-w-0">
-        {restaurant.logo_url ? (
-          <img
-            src={restaurant.logo_url}
-            alt={restaurant.name}
-            className="w-auto object-contain"
-            style={{ height: 'clamp(36px, 10vw, 48px)' }}
-          />
-        ) : (
-          <span
-            className="font-bold truncate transition-all duration-200"
-            style={{ fontSize: typeScale.base, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
-          >
-            {restaurant.name}
-          </span>
-        )}
+        <span
+          className="font-bold truncate transition-all duration-200"
+          style={{ fontSize: typeScale.base, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+        >
+          {restaurant.name}
+        </span>
       </div>
 
       {/* Right: search icon */}
