@@ -44,6 +44,18 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
   const isFirstRender = useRef(true);
 
+  // ── Auto-reconnect USB printers on mount ───────────────────────────────────
+  useEffect(() => {
+    const config = restaurant.printer_config;
+    if (!config) return;
+    const hasUSB = config.printers.some((p) => p.type === 'usb');
+    if (!hasUSB) return;
+    import('@/lib/printer-service').then(({ printerService }) => {
+      printerService.reconnectAll(config);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Realtime subscription ──────────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient();
