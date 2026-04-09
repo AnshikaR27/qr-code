@@ -43,6 +43,29 @@ function getUSB(): USB | null {
   return nav.usb ?? null;
 }
 
+// ── Minimal Web Serial type declarations ──────────────────────────────────────
+
+interface SerialPort {
+  open(options: { baudRate: number }): Promise<void>;
+  close(): Promise<void>;
+  readonly writable: WritableStream<Uint8Array>;
+}
+
+interface SerialPortRequestOptions {
+  filters?: Array<{ usbVendorId?: number; usbProductId?: number }>;
+}
+
+interface Serial {
+  requestPort(options?: SerialPortRequestOptions): Promise<SerialPort>;
+  getPorts(): Promise<SerialPort[]>;
+}
+
+function getSerial(): Serial | null {
+  if (typeof window === 'undefined') return null;
+  const nav = navigator as unknown as { serial?: Serial };
+  return nav.serial ?? null;
+}
+
 // Broad set of filters covering common thermal printer vendors + generic USB printer class
 const PRINTER_FILTERS: USBRequestDeviceOptions['filters'] = [
   { classCode: 7 },        // USB Printer class (works for most ESC/POS printers)
@@ -78,11 +101,73 @@ export interface ConnectResult {
 }
 
 class ThermalPrinterService {
-  private usbDevices = new Map<string, USBDevice>();
+  private usbDevices    = new Map<string, USBDevice>();
+  private serialPorts   = new Map<string, SerialPort>();
   private lastPrintTime = new Map<string, Date>();
 
   isWebUSBSupported(): boolean {
     return getUSB() !== null;
+  }
+
+  isWebSerialSupported(): boolean {
+    return getSerial() !== null;
+  }
+
+  // ── Web Serial ─────────────────────────────────────────────────────────────
+
+  async connectSerial(printerId: string): Promise<ConnectResult> {
+    const serial = getSerial();
+    if (!serial) return { success: false, error: 'Web Serial not supported. Use Chrome or Edge 89+.' };
+    try {
+      const port = await serial.requestPort();
+      // Store so we can open it on demand per print (port may need to be opened fresh each time)
+      this.serialPorts.set(printerId, port);
+      return { success: true, deviceName: 'Serial Port' };
+    } catch (err: unknown) {
+      const name = err instanceof DOMException ? err.name : '';
+      if (name === 'NotFoundError') return { success: false, error: 'No device selected' };
+      return { success: false, error: err instanceof Error ? err.message : 'Serial connection failed' };
+    }
+  }
+
+  async printToSerial(printerId: string, data: Uint8Array, baudRate = 9600): Promise<PrintResult> {
+    const port = this.serialPorts.get(printerId);
+    if (!port) return { success: false, error: 'Printer not connected' };
+    try {
+      await port.open({ baudRate });
+      const writer = port.writable.getWriter();
+      await writer.write(data);
+      writer.releaseLock();
+      await port.close();
+      this.lastPrintTime.set(printerId, new Date());
+      return { success: true };
+    } catch (err: unknown) {
+      // Port may already be open from a previous failed print
+      try { await port.close(); } catch { /* ignore */ }
+      return { success: false, error: err instanceof Error ? err.message : 'Serial print failed' };
+    }
+  }
+
+  async reconnectSerial(config: PrinterConfig): Promise<Map<string, boolean>> {
+    const results = new Map<string, boolean>();
+    const serial = getSerial();
+    if (!serial) return results;
+    const serialPrinters = config.printers.filter((p) => p.type === 'serial');
+    if (serialPrinters.length === 0) return results;
+    try {
+      const ports = await serial.getPorts();
+      for (const printer of serialPrinters) {
+        if (ports.length > 0) {
+          this.serialPorts.set(printer.id, ports[0]);
+          results.set(printer.id, true);
+        } else {
+          results.set(printer.id, false);
+        }
+      }
+    } catch {
+      for (const p of serialPrinters) results.set(p.id, false);
+    }
+    return results;
   }
 
   // Connect a new USB printer via device picker
@@ -90,40 +175,81 @@ class ThermalPrinterService {
     const usb = getUSB();
     if (!usb) return { success: false, error: 'WebUSB not supported in this browser. Please use Chrome or Edge.' };
 
+    let device: USBDevice | null = null;
     try {
-      const device = await usb.requestDevice({ filters: PRINTER_FILTERS });
-      try { await device.open(); } catch { /* may already be open */ }
+      device = await usb.requestDevice({ filters: PRINTER_FILTERS });
+    } catch (err: unknown) {
+      const name = err instanceof DOMException ? err.name : '';
+      const msg  = err instanceof Error ? err.message : '';
+      if (name === 'NotFoundError' || msg.includes('No device selected')) {
+        return { success: false, error: 'No device selected' };
+      }
+      return { success: false, error: msg || 'Could not open device picker' };
+    }
+
+    // Open the device — only ignore "already open" error
+    try {
+      await device.open();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : '';
+      if (!msg.includes('already')) {
+        console.error('[printer] device.open() failed:', err);
+        return { success: false, error: this.friendlyUSBError(err) };
+      }
+    }
+
+    // Select configuration if needed
+    try {
       if (device.configuration === null || device.configuration === undefined) {
         await device.selectConfiguration(1);
       }
-      await this.claimPrinterInterface(device);
-      this.usbDevices.set(printerId, device);
-      return {
-        success: true,
-        deviceName: device.productName ?? device.manufacturerName ?? 'USB Printer',
-        vendorId: device.vendorId,
-        productId: device.productId,
-        serialNumber: device.serialNumber,
-      };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Connection failed';
-      if (msg.includes('No device selected') || msg.includes('NotFoundError')) {
-        return { success: false, error: 'No device selected' };
-      }
-      // Windows driver conflict — give actionable guidance
-      if (msg.includes('access') || msg.includes('claim') || msg.includes('NetworkError')) {
-        return {
-          success: false,
-          error: 'Windows USB driver conflict. Open Zadig, select your printer, install WinUSB driver, then try again.',
-        };
-      }
-      return { success: false, error: msg };
+      console.error('[printer] selectConfiguration failed:', err);
+      // Non-fatal on some devices — continue
     }
+
+    // Claim interface
+    try {
+      await this.claimPrinterInterface(device);
+    } catch (err: unknown) {
+      console.error('[printer] claimInterface failed:', err);
+      return { success: false, error: this.friendlyUSBError(err) };
+    }
+
+    this.usbDevices.set(printerId, device);
+    return {
+      success: true,
+      deviceName: device.productName ?? device.manufacturerName ?? 'USB Printer',
+      vendorId: device.vendorId,
+      productId: device.productId,
+      serialNumber: device.serialNumber,
+    };
+  }
+
+  private friendlyUSBError(err: unknown): string {
+    const name = err instanceof DOMException ? err.name : '';
+    const msg  = (err instanceof Error ? err.message : String(err)).toLowerCase();
+
+    if (name === 'SecurityError' || msg.includes('access denied') || msg.includes('access') && msg.includes('denied')) {
+      return 'Access denied. Windows USB driver is blocking the connection. See instructions below to fix this.';
+    }
+    if (name === 'NetworkError' || msg.includes('unable to claim') || msg.includes('claim interface') || msg.includes('failed to open')) {
+      return 'Windows USB driver conflict — the printer is claimed by Windows. See instructions below to fix this.';
+    }
+    if (msg.includes('not found') || name === 'NotFoundError') {
+      return 'Printer not found. Make sure it is plugged in and turned on.';
+    }
+    return (err instanceof Error ? err.message : String(err)) || 'USB connection failed';
   }
 
   // Auto-reconnect previously paired USB devices — matches by VID/PID/serial if stored
   async reconnectAll(config: PrinterConfig): Promise<Map<string, boolean>> {
     const results = new Map<string, boolean>();
+
+    // Serial printers
+    const serialResults = await this.reconnectSerial(config);
+    serialResults.forEach((v, k) => results.set(k, v));
+
     const usb = getUSB();
     if (!usb) return results;
 
@@ -250,6 +376,8 @@ class ThermalPrinterService {
       return this.printToUSB(printer.id, data);
     } else if (printer.type === 'network') {
       return this.printToNetwork(printer.ip ?? '', printer.port ?? 9100, data);
+    } else if (printer.type === 'serial') {
+      return this.printToSerial(printer.id, data, printer.baud_rate ?? 9600);
     } else {
       return { success: false, error: 'Use browser fallback' };
     }

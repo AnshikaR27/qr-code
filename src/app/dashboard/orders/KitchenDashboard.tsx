@@ -52,12 +52,12 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
   useEffect(() => {
     const config = restaurant.printer_config;
     if (!config) return;
-    const usbPrinters = config.printers.filter((p) => p.type === 'usb');
-    if (usbPrinters.length === 0) return;
+    const connectablePrinters = config.printers.filter((p) => p.type === 'usb' || p.type === 'serial');
+    if (connectablePrinters.length === 0) return;
 
     import('@/lib/printer-service').then(async ({ printerService }) => {
       const results = await printerService.reconnectAll(config);
-      const failed = usbPrinters.filter((p) => results.get(p.id) !== true);
+      const failed = connectablePrinters.filter((p) => results.get(p.id) !== true);
       setDisconnectedUSB(failed);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,7 +67,9 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
     setConnectingUSB(printer.id);
     try {
       const { printerService } = await import('@/lib/printer-service');
-      const result = await printerService.connectUSB(printer.id);
+      const result = printer.type === 'serial'
+        ? await printerService.connectSerial(printer.id)
+        : await printerService.connectUSB(printer.id);
       if (result.success) {
         setDisconnectedUSB((prev) => prev.filter((p) => p.id !== printer.id));
         toast.success(`${printer.name} connected`);

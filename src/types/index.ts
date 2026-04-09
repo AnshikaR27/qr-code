@@ -1,6 +1,6 @@
 // ─── Printer ──────────────────────────────────────────────────────────────────
 
-export type PrinterConnectionType = 'usb' | 'network' | 'browser';
+export type PrinterConnectionType = 'usb' | 'network' | 'browser' | 'serial';
 
 export interface PrinterDevice {
   id: string;
@@ -14,6 +14,8 @@ export interface PrinterDevice {
   vendor_id?: number;
   product_id?: number;
   serial_number?: string;
+  // Serial port baud rate (for 'serial' type)
+  baud_rate?: number;
 }
 
 export interface PrinterConfig {

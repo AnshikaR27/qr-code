@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2, Pencil, Wifi, Usb, MonitorSmartphone, Check, X, Radio, ChefHat, Receipt } from 'lucide-react';
+import { Loader2, Plus, Trash2, Pencil, Wifi, Usb, MonitorSmartphone, Check, X, Radio, ChefHat, Receipt, Cable } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,22 +33,24 @@ interface FormState {
   type: PrinterConnectionType;
   ip: string;
   port: string;
+  baud_rate: string;
   paper_width: '80mm' | '58mm';
   auto_cut: boolean;
 }
 
 function newForm(): FormState {
-  return { id: crypto.randomUUID(), name: '', type: 'usb', ip: '', port: '9100', paper_width: '80mm', auto_cut: true };
+  return { id: crypto.randomUUID(), name: '', type: 'usb', ip: '', port: '9100', baud_rate: '9600', paper_width: '80mm', auto_cut: true };
 }
 
 const TYPE_ICONS: Record<PrinterConnectionType, React.ReactNode> = {
   usb:     <Usb className="w-4 h-4" />,
   network: <Wifi className="w-4 h-4" />,
   browser: <MonitorSmartphone className="w-4 h-4" />,
+  serial:  <Cable className="w-4 h-4" />,
 };
 
 const TYPE_LABELS: Record<PrinterConnectionType, string> = {
-  usb: 'USB', network: 'Network (WiFi/LAN)', browser: 'Browser Print',
+  usb: 'USB (WebUSB)', network: 'Network (WiFi/LAN)', browser: 'Browser Print', serial: 'Serial / COM Port',
 };
 
 export default function PrinterSettings({ restaurant, categories }: Props) {
@@ -83,8 +85,10 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
   const [usbConnecting, setUsbConnecting] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
   const [usbStatus, setUsbStatus] = useState<Record<string, string>>({});
+  const [showDriverHelp, setShowDriverHelp] = useState(false);
 
-  const webUSBSupported = typeof window !== 'undefined' && 'usb' in navigator;
+  const webUSBSupported    = typeof window !== 'undefined' && 'usb' in navigator;
+  const webSerialSupported = typeof window !== 'undefined' && 'serial' in navigator;
   const singlePrinter = config.printers.length === 1;
 
   function setF<K extends keyof FormState>(k: K, v: FormState[K]) {
@@ -108,6 +112,7 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
       type: printer.type,
       ip: printer.ip ?? '',
       port: String(printer.port ?? 9100),
+      baud_rate: String(printer.baud_rate ?? 9600),
       paper_width: printer.paper_width,
       auto_cut: printer.auto_cut,
     });
@@ -125,6 +130,7 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
       type: form.type,
       ip: form.type === 'network' ? form.ip.trim() : undefined,
       port: form.type === 'network' ? (parseInt(form.port) || 9100) : undefined,
+      baud_rate: form.type === 'serial' ? (parseInt(form.baud_rate) || 9600) : undefined,
       paper_width: form.paper_width,
       auto_cut: form.auto_cut,
     };
@@ -166,6 +172,25 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
     });
   }
 
+  async function connectSerial(printer: PrinterDevice) {
+    setUsbConnecting(printer.id);
+    try {
+      const { printerService } = await import('@/lib/printer-service');
+      const result = await printerService.connectSerial(printer.id);
+      if (result.success) {
+        setUsbStatus((prev) => ({ ...prev, [printer.id]: 'Connected' }));
+        setShowDriverHelp(false);
+        toast.success(`Serial port connected`);
+      } else if (result.error && result.error !== 'No device selected') {
+        toast.error(result.error);
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Connection failed');
+    } finally {
+      setUsbConnecting(null);
+    }
+  }
+
   async function connectUSB(printer: PrinterDevice) {
     setUsbConnecting(printer.id);
     try {
@@ -173,6 +198,7 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
       const result = await printerService.connectUSB(printer.id);
       if (result.success) {
         setUsbStatus((prev) => ({ ...prev, [printer.id]: result.deviceName ?? 'Connected' }));
+        setShowDriverHelp(false);
         toast.success(`Connected: ${result.deviceName ?? 'USB Printer'}`);
         // Persist VID/PID/serial so reconnectAll can match this device on future page loads
         if (result.vendorId !== undefined) {
@@ -186,7 +212,12 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
           }));
         }
       } else {
-        if (result.error !== 'No device selected') toast.error(result.error ?? 'Connection failed');
+        if (result.error && result.error !== 'No device selected') {
+          toast.error(result.error);
+          if (result.error.toLowerCase().includes('windows') || result.error.toLowerCase().includes('driver') || result.error.toLowerCase().includes('claim') || result.error.toLowerCase().includes('access')) {
+            setShowDriverHelp(true);
+          }
+        }
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Connection failed');
@@ -238,6 +269,31 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
   return (
     <div className="space-y-6">
 
+      {/* ── WebUSB not supported warning ── */}
+      {!webUSBSupported && config.printers.some((p) => p.type === 'usb') && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-300 text-sm text-red-800">
+          <Usb className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-500" />
+          <div className="space-y-1">
+            <p className="font-semibold">USB printing requires Chrome or Edge</p>
+            <p className="text-red-700">Your current browser does not support WebUSB. Open this page in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>, then click Connect next to your printer.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Windows driver conflict help ── */}
+      {showDriverHelp && (
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-sm space-y-3">
+          <p className="font-semibold text-amber-900">Windows USB driver conflict — fix in 3 steps:</p>
+          <ol className="list-decimal list-inside space-y-1.5 text-amber-800">
+            <li>Download <strong>Zadig</strong> from <code className="text-xs bg-amber-100 px-1 rounded">zadig.akeo.ie</code> (free, no install needed)</li>
+            <li>Open Zadig → select your printer from the dropdown → choose <strong>WinUSB</strong> driver → click <strong>Replace Driver</strong></li>
+            <li>Come back here and click <strong>Connect</strong> again</li>
+          </ol>
+          <p className="text-xs text-amber-700">This replaces the Windows printer driver with a WebUSB-compatible one. The printer will no longer appear in Windows print dialogs — it will print directly from this app instead.</p>
+          <p className="text-xs text-amber-700 font-medium">Alternative: switch Connection Type to <strong>Network (WiFi/LAN)</strong> if your printer has a network port — no driver change needed.</p>
+        </div>
+      )}
+
       {/* ── Single-printer helper banner ── */}
       {singlePrinter && (
         <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
@@ -281,7 +337,7 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
                 <p className="text-xs text-muted-foreground">
                   {TYPE_LABELS[printer.type]}
                   {printer.type === 'network' && printer.ip ? ` · ${printer.ip}:${printer.port ?? 9100}` : ''}
-                  {printer.type === 'usb' ? (usbConnected ? ` · ${usbConnected} ✓` : ' · Not connected') : ''}
+                  {(printer.type === 'usb' || printer.type === 'serial') ? (usbConnected ? ` · ${usbConnected} ✓` : ' · Not connected') : ''}
                   {' · '}{printer.paper_width}
                 </p>
               </div>
@@ -295,6 +351,17 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
                     title={!webUSBSupported ? 'WebUSB requires Chrome or Edge' : undefined}
                   >
                     {usbConnecting === printer.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Usb className="w-3.5 h-3.5" />}
+                    {usbConnected ? 'Reconnect' : 'Connect'}
+                  </Button>
+                )}
+                {printer.type === 'serial' && (
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => connectSerial(printer)}
+                    disabled={usbConnecting === printer.id || !webSerialSupported}
+                    title={!webSerialSupported ? 'Web Serial requires Chrome or Edge' : undefined}
+                  >
+                    {usbConnecting === printer.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Cable className="w-3.5 h-3.5" />}
                     {usbConnected ? 'Reconnect' : 'Connect'}
                   </Button>
                 )}
@@ -333,7 +400,7 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
           <div className="space-y-2">
             <Label>Connection Type</Label>
             <div className="flex gap-2">
-              {(['usb', 'network', 'browser'] as PrinterConnectionType[]).map((t) => (
+              {(['usb', 'serial', 'network', 'browser'] as PrinterConnectionType[]).map((t) => (
                 <button key={t} type="button" onClick={() => setF('type', t)}
                   className={cn(
                     'flex-1 flex flex-col items-center gap-1 py-2 rounded-lg border text-xs font-medium transition-colors',
@@ -346,6 +413,8 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
             </div>
             {form.type === 'browser' && <p className="text-xs text-muted-foreground">Falls back to browser print dialog. Works everywhere.</p>}
             {form.type === 'usb' && !webUSBSupported && <p className="text-xs text-amber-600">WebUSB requires Chrome or Edge browser.</p>}
+            {form.type === 'serial' && <p className="text-xs text-blue-700 bg-blue-50 p-2 rounded-lg">Best option for Windows — connects directly via COM port without needing to replace drivers.</p>}
+            {form.type === 'serial' && !webSerialSupported && <p className="text-xs text-amber-600">Web Serial requires Chrome or Edge 89+.</p>}
           </div>
 
           {form.type === 'network' && (
@@ -358,6 +427,22 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
                 <Label>Port</Label>
                 <Input value={form.port} onChange={(e) => setF('port', e.target.value)} placeholder="9100" />
               </div>
+            </div>
+          )}
+
+          {form.type === 'serial' && (
+            <div className="space-y-1">
+              <Label>Baud Rate</Label>
+              <select
+                value={form.baud_rate}
+                onChange={(e) => setF('baud_rate', e.target.value)}
+                className="w-full text-sm rounded-md border border-input bg-background px-3 py-2"
+              >
+                {['9600', '19200', '38400', '57600', '115200'].map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">Most thermal printers use 9600. Try 115200 if 9600 is slow.</p>
             </div>
           )}
 
