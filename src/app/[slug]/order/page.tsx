@@ -21,6 +21,7 @@ interface PendingOrder {
   order_type: 'dine_in' | 'parcel';
   customer_name: string | null;
   customer_phone: string | null;
+  notes?: string | null;
   items: PendingItem[];
 }
 
@@ -136,6 +137,14 @@ export default function OrderReviewPage() {
             ))}
           </ul>
         </div>
+
+        {/* Order note */}
+        {order.notes && (
+          <div className="bg-white rounded-xl border px-4 py-3">
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Order Note</p>
+            <p className="text-sm italic text-muted-foreground">"{order.notes}"</p>
+          </div>
+        )}
 
         {/* Total */}
         <div className="bg-white rounded-xl border px-4 py-3 flex justify-between items-center">

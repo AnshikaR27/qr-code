@@ -61,12 +61,13 @@ export default function CartSheetV2({
       order_type: 'dine_in',
       customer_name: null,
       customer_phone: null,
+      notes: orderNote.trim() || null,
       items: items.map((i) => {
         const addonTotal = i.addons.reduce((s, a) => s + a.price, 0);
         const addonText = i.addons.length > 0
           ? `Add-ons: ${i.addons.map((a) => `${a.name} (₹${a.price})`).join(', ')}`
           : '';
-        const itemNotes = [orderNote.trim(), i.notes, addonText].filter(Boolean).join(' | ');
+        const itemNotes = [i.notes, addonText].filter(Boolean).join(' | ');
         return {
           product_id: i.product_id,
           name: i.name,
