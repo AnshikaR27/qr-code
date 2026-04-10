@@ -61,9 +61,9 @@ export const DEFAULT_TOKENS: MenuTokens = {
   cardBg: '#FFFFFF',
   text: '#1D1208',
   textMuted: '#7A6040',
-  // Use Playfair Display + Inter loaded in layout.tsx — fall back to system fonts
-  fontHeading: "'Playfair Display', Georgia, serif",
-  fontBody: "'DM Sans', system-ui, sans-serif",
+  // Use Epilogue + Manrope loaded in layout.tsx — fall back to system fonts
+  fontHeading: "'Epilogue', Georgia, sans-serif",
+  fontBody: "'Manrope', system-ui, sans-serif",
   radius: '12px',
   navBg: shiftBg('#FFF8F0'),
   surfaceLow: shiftColor('#FFF8F0', 7),
