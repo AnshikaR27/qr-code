@@ -34,6 +34,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
+  console.log('[KitchenDashboard] rendered, restaurant.id:', restaurant.id);
   const [orders, setOrders]   = useState<Order[]>(initialOrders);
   const [filter, setFilter]   = useState<FilterTab>('active');
   const [updating, setUpdating] = useState<string | null>(null);
