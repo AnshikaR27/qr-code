@@ -163,7 +163,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
     const supabase = createClient();
 
     const channel = supabase
-      .channel('kitchen-orders')
+      .channel(`kitchen-orders-${Date.now()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurant.id}` },
