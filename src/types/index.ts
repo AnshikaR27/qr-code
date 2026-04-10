@@ -27,6 +27,8 @@ export interface PrinterConfig {
   station_routing: Record<string, string>; // category_name → printer id
   auto_print_kot: boolean;
   auto_print_bill: boolean;
+  /** 'on_order' = print KOT the moment customer places order; 'on_accept' = print when staff accepts (default) */
+  kot_print_trigger: 'on_order' | 'on_accept';
   copies_kot: 1 | 2;
   copies_bill: 1 | 2;
 }

@@ -19,6 +19,7 @@ const DEFAULT_CONFIG: PrinterConfig = {
   station_routing: {},
   auto_print_kot: true,
   auto_print_bill: false,
+  kot_print_trigger: 'on_accept',
   copies_kot: 1,
   copies_bill: 1,
 };
@@ -618,13 +619,40 @@ export default function PrinterSettings({ restaurant, categories }: Props) {
       <div className="rounded-xl border bg-white p-5 space-y-4">
         <h3 className="font-semibold text-sm">Print Behaviour</h3>
 
-        <label className="flex items-center justify-between cursor-pointer">
-          <div>
-            <p className="text-sm font-medium">Auto-print KOT on acceptance</p>
-            <p className="text-xs text-muted-foreground">Automatically print kitchen ticket when order is accepted</p>
+        {/* KOT print trigger */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">When to print kitchen ticket (KOT)</p>
+          <div className="rounded-lg border divide-y">
+            <label className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors rounded-t-lg">
+              <input
+                type="radio"
+                name="kot_print_trigger"
+                value="on_accept"
+                checked={config.kot_print_trigger === 'on_accept'}
+                onChange={() => setConf('kot_print_trigger', 'on_accept')}
+                className="mt-0.5 h-4 w-4 accent-black"
+              />
+              <div>
+                <p className="text-sm font-medium">After accepting at counter</p>
+                <p className="text-xs text-muted-foreground">Staff reviews the order and taps &ldquo;Start Preparing&rdquo; — the ticket prints at that point.</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors rounded-b-lg">
+              <input
+                type="radio"
+                name="kot_print_trigger"
+                value="on_order"
+                checked={config.kot_print_trigger === 'on_order'}
+                onChange={() => setConf('kot_print_trigger', 'on_order')}
+                className="mt-0.5 h-4 w-4 accent-black"
+              />
+              <div>
+                <p className="text-sm font-medium">Immediately when customer places order</p>
+                <p className="text-xs text-muted-foreground">Ticket prints automatically the moment an order arrives — no acceptance step needed.</p>
+              </div>
+            </label>
           </div>
-          <input type="checkbox" checked={config.auto_print_kot} onChange={(e) => setConf('auto_print_kot', e.target.checked)} className="h-4 w-4 rounded" />
-        </label>
+        </div>
 
         <label className="flex items-center justify-between cursor-pointer">
           <div>

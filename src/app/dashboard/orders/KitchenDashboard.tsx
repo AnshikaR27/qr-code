@@ -83,6 +83,66 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
     }
   }
 
+  // ── Auto-print KOT (used when kot_print_trigger === 'on_order') ───────────
+  async function autoPrintKOT(order: Order) {
+    const printerConfig = restaurant.printer_config;
+    const items = order.items ?? [];
+    const categoriesInOrder = Array.from(new Set(items.map((i) => i.category_name ?? 'Uncategorized')));
+
+    let kot = 1;
+    try {
+      const supabase = createClient();
+      const { data } = await supabase.rpc('get_next_kot_number', { p_restaurant_id: restaurant.id });
+      kot = (data as number) ?? 1;
+    } catch { /* fallback to 1 */ }
+
+    if (printerConfig && printerConfig.printers.length > 0) {
+      const { printerService } = await import('@/lib/printer-service');
+      const { buildKOTTicket } = await import('@/lib/escpos-kot');
+      const copies = printerConfig.copies_kot ?? 1;
+
+      if (printerConfig.kot_printer_mode !== 'station_routing') {
+        const pid = printerConfig.kot_printer_mode;
+        const printer = printerConfig.printers.find((p) => p.id === pid) ?? printerConfig.printers[0];
+        if (printer.type === 'browser') {
+          const { printKitchenTicket } = await import('@/lib/printTicket');
+          printKitchenTicket(order, kot, restaurant.name, categoriesInOrder);
+        } else {
+          const data = buildKOTTicket(order, restaurant.name, kot, categoriesInOrder, printer.paper_width);
+          for (let i = 0; i < copies; i++) await printerService.print(printer, data);
+        }
+      } else {
+        const routingMap = printerConfig.station_routing ?? {};
+        const defaultPrinterId = printerConfig.printers[0].id;
+        const printerGroups = new Map<string, string[]>();
+        for (const cat of categoriesInOrder) {
+          const pid = routingMap[cat] || defaultPrinterId;
+          if (!printerGroups.has(pid)) printerGroups.set(pid, []);
+          printerGroups.get(pid)!.push(cat);
+        }
+        await Promise.all(
+          Array.from(printerGroups.entries()).map(async ([pid, cats]) => {
+            const printer = printerConfig.printers.find((p) => p.id === pid);
+            if (!printer) return;
+            if (printer.type === 'browser') {
+              const { printKitchenTicket } = await import('@/lib/printTicket');
+              printKitchenTicket(order, kot, restaurant.name, cats);
+              return;
+            }
+            const data = buildKOTTicket(order, restaurant.name, kot, cats, printer.paper_width, categoriesInOrder.length);
+            for (let i = 0; i < copies; i++) await printerService.print(printer, data);
+          })
+        );
+      }
+    } else {
+      const { printKitchenTicket } = await import('@/lib/printTicket');
+      printKitchenTicket(order, kot, restaurant.name, categoriesInOrder);
+    }
+
+    toast.success(`KOT printed — Order #${order.order_number}`);
+    await advanceStatus(order);
+  }
+
   // ── Realtime subscription ──────────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient();
@@ -101,7 +161,11 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
               .eq('id', payload.new.id)
               .single();
             if (data) {
-              setOrders((prev) => [data as Order, ...prev]);
+              const newOrder = data as Order;
+              setOrders((prev) => [newOrder, ...prev]);
+              if (restaurant.printer_config?.kot_print_trigger === 'on_order') {
+                await autoPrintKOT(newOrder);
+              }
             }
           } else if (payload.eventType === 'UPDATE') {
             setOrders((prev) =>
@@ -308,7 +372,10 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
               restaurant={restaurant}
               onAdvance={
                 order.status === 'placed'
-                  ? () => openAcceptDialog(order)   // ← shows print dialog first
+                  // 'on_order' mode: KOT already printed on arrival, so just advance status directly
+                  ? restaurant.printer_config?.kot_print_trigger === 'on_order'
+                    ? () => advanceStatus(order)
+                    : () => openAcceptDialog(order)  // 'on_accept' mode: show print dialog first
                   : () => advanceStatus(order)
               }
               onCancel={() => cancelOrder(order)}
