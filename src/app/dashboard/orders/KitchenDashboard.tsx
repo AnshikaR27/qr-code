@@ -47,6 +47,9 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
   const [connectingUSB, setConnectingUSB] = useState<string | null>(null);
 
   const isFirstRender = useRef(true);
+  // Always holds the latest restaurant prop so async closures never read stale data
+  const restaurantRef = useRef(restaurant);
+  restaurantRef.current = restaurant;
 
   // ── Auto-reconnect USB printers on mount ───────────────────────────────────
   useEffect(() => {
@@ -85,62 +88,70 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
   // ── Auto-print KOT (used when kot_print_trigger === 'on_order') ───────────
   async function autoPrintKOT(order: Order) {
-    const printerConfig = restaurant.printer_config;
+    const r = restaurantRef.current;           // always latest restaurant data
+    const printerConfig = r.printer_config;
     const items = order.items ?? [];
     const categoriesInOrder = Array.from(new Set(items.map((i) => i.category_name ?? 'Uncategorized')));
 
-    let kot = 1;
+    // Always advance the order to 'preparing' regardless of print outcome
+    await advanceStatus(order);
+
     try {
-      const supabase = createClient();
-      const { data } = await supabase.rpc('get_next_kot_number', { p_restaurant_id: restaurant.id });
-      kot = (data as number) ?? 1;
-    } catch { /* fallback to 1 */ }
+      let kot = 1;
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.rpc('get_next_kot_number', { p_restaurant_id: r.id });
+        kot = (data as number) ?? 1;
+      } catch { /* fallback to 1 */ }
 
-    if (printerConfig && printerConfig.printers.length > 0) {
-      const { printerService } = await import('@/lib/printer-service');
-      const { buildKOTTicket } = await import('@/lib/escpos-kot');
-      const copies = printerConfig.copies_kot ?? 1;
+      if (printerConfig && printerConfig.printers.length > 0) {
+        const { printerService } = await import('@/lib/printer-service');
+        const { buildKOTTicket } = await import('@/lib/escpos-kot');
+        const copies = printerConfig.copies_kot ?? 1;
 
-      if (printerConfig.kot_printer_mode !== 'station_routing') {
-        const pid = printerConfig.kot_printer_mode;
-        const printer = printerConfig.printers.find((p) => p.id === pid) ?? printerConfig.printers[0];
-        if (printer.type === 'browser') {
-          const { printKitchenTicket } = await import('@/lib/printTicket');
-          printKitchenTicket(order, kot, restaurant.name, categoriesInOrder);
+        if (printerConfig.kot_printer_mode !== 'station_routing') {
+          const pid = printerConfig.kot_printer_mode;
+          const printer = printerConfig.printers.find((p) => p.id === pid) ?? printerConfig.printers[0];
+          if (printer.type === 'browser') {
+            const { printKitchenTicket } = await import('@/lib/printTicket');
+            printKitchenTicket(order, kot, r.name, categoriesInOrder);
+          } else {
+            const data = buildKOTTicket(order, r.name, kot, categoriesInOrder, printer.paper_width);
+            for (let i = 0; i < copies; i++) await printerService.print(printer, data);
+          }
         } else {
-          const data = buildKOTTicket(order, restaurant.name, kot, categoriesInOrder, printer.paper_width);
-          for (let i = 0; i < copies; i++) await printerService.print(printer, data);
+          const routingMap = printerConfig.station_routing ?? {};
+          const defaultPrinterId = printerConfig.printers[0].id;
+          const printerGroups = new Map<string, string[]>();
+          for (const cat of categoriesInOrder) {
+            const pid = routingMap[cat] || defaultPrinterId;
+            if (!printerGroups.has(pid)) printerGroups.set(pid, []);
+            printerGroups.get(pid)!.push(cat);
+          }
+          await Promise.all(
+            Array.from(printerGroups.entries()).map(async ([pid, cats]) => {
+              const printer = printerConfig.printers.find((p) => p.id === pid);
+              if (!printer) return;
+              if (printer.type === 'browser') {
+                const { printKitchenTicket } = await import('@/lib/printTicket');
+                printKitchenTicket(order, kot, r.name, cats);
+                return;
+              }
+              const data = buildKOTTicket(order, r.name, kot, cats, printer.paper_width, categoriesInOrder.length);
+              for (let i = 0; i < copies; i++) await printerService.print(printer, data);
+            })
+          );
         }
       } else {
-        const routingMap = printerConfig.station_routing ?? {};
-        const defaultPrinterId = printerConfig.printers[0].id;
-        const printerGroups = new Map<string, string[]>();
-        for (const cat of categoriesInOrder) {
-          const pid = routingMap[cat] || defaultPrinterId;
-          if (!printerGroups.has(pid)) printerGroups.set(pid, []);
-          printerGroups.get(pid)!.push(cat);
-        }
-        await Promise.all(
-          Array.from(printerGroups.entries()).map(async ([pid, cats]) => {
-            const printer = printerConfig.printers.find((p) => p.id === pid);
-            if (!printer) return;
-            if (printer.type === 'browser') {
-              const { printKitchenTicket } = await import('@/lib/printTicket');
-              printKitchenTicket(order, kot, restaurant.name, cats);
-              return;
-            }
-            const data = buildKOTTicket(order, restaurant.name, kot, cats, printer.paper_width, categoriesInOrder.length);
-            for (let i = 0; i < copies; i++) await printerService.print(printer, data);
-          })
-        );
+        const { printKitchenTicket } = await import('@/lib/printTicket');
+        printKitchenTicket(order, kot, r.name, categoriesInOrder);
       }
-    } else {
-      const { printKitchenTicket } = await import('@/lib/printTicket');
-      printKitchenTicket(order, kot, restaurant.name, categoriesInOrder);
-    }
 
-    toast.success(`KOT printed — Order #${order.order_number}`);
-    await advanceStatus(order);
+      toast.success(`KOT printed — Order #${order.order_number}`);
+    } catch (err) {
+      toast.error(`Auto-print failed for #${order.order_number} — use reprint button`);
+      console.error('[autoPrintKOT]', err);
+    }
   }
 
   // ── Realtime subscription ──────────────────────────────────────────────────
@@ -163,7 +174,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
             if (data) {
               const newOrder = data as Order;
               setOrders((prev) => [newOrder, ...prev]);
-              if (restaurant.printer_config?.kot_print_trigger === 'on_order') {
+              if (restaurantRef.current.printer_config?.kot_print_trigger === 'on_order') {
                 await autoPrintKOT(newOrder);
               }
             }
@@ -373,7 +384,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
               onAdvance={
                 order.status === 'placed'
                   // 'on_order' mode: KOT already printed on arrival, so just advance status directly
-                  ? restaurant.printer_config?.kot_print_trigger === 'on_order'
+                  ? restaurantRef.current.printer_config?.kot_print_trigger === 'on_order'
                     ? () => advanceStatus(order)
                     : () => openAcceptDialog(order)  // 'on_accept' mode: show print dialog first
                   : () => advanceStatus(order)
