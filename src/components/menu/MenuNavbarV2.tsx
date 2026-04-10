@@ -71,8 +71,8 @@ export default function MenuNavbarV2({
       {/* Center: cafe name */}
       <div className="flex-1 flex items-center justify-center min-w-0">
         <span
-          className="font-bold truncate transition-all duration-200"
-          style={{ fontSize: typeScale.base, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+          className="truncate transition-all duration-200"
+          style={{ fontSize: typeScale.lg, fontWeight: 300, letterSpacing: '0.01em', color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
         >
           {restaurant.name}
         </span>
