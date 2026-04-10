@@ -88,6 +88,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
   // ── Auto-print KOT (used when kot_print_trigger === 'on_order') ───────────
   async function autoPrintKOT(order: Order) {
+    console.log(`[autoPrintKOT] called for order #${order.order_number}`);
     const r = restaurantRef.current;           // always latest restaurant data
     const printerConfig = r.printer_config;
     const items = order.items ?? [];
@@ -153,6 +154,8 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
       console.error('[autoPrintKOT]', err);
     }
   }
+  const autoPrintKOTRef = useRef(autoPrintKOT);
+  autoPrintKOTRef.current = autoPrintKOT;
 
   // ── Realtime subscription ──────────────────────────────────────────────────
   useEffect(() => {
@@ -174,8 +177,9 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
             if (data) {
               const newOrder = data as Order;
               setOrders((prev) => [newOrder, ...prev]);
+              console.log(`[realtime] New order #${newOrder.order_number}, trigger=${restaurantRef.current.printer_config?.kot_print_trigger}`);
               if (restaurantRef.current.printer_config?.kot_print_trigger === 'on_order') {
-                await autoPrintKOT(newOrder);
+                await autoPrintKOTRef.current(newOrder);
               }
             }
           } else if (payload.eventType === 'UPDATE') {
