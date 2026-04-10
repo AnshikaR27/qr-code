@@ -159,6 +159,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
   // ── Realtime subscription ──────────────────────────────────────────────────
   useEffect(() => {
+    console.log('[realtime] setting up channel for restaurant:', restaurant.id);
     const supabase = createClient();
 
     const channel = supabase
@@ -193,7 +194,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => { console.log('[realtime] subscription status:', status); });
 
     isFirstRender.current = false;
     return () => { supabase.removeChannel(channel); };
