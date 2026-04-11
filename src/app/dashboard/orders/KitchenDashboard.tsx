@@ -7,8 +7,10 @@ import { BellRing, ChefHat, CheckCheck, IndianRupee, XCircle, Printer, ReceiptTe
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
 import { ORDER_STATUSES } from '@/lib/constants';
+import { useOrders } from '@/contexts/OrdersContext';
 import PrintOrderDialog from '@/components/dashboard/PrintOrderDialog';
-import type { Order, OrderStatus, Restaurant, PrinterDevice } from '@/types';
+import PaymentDialog from '@/components/dashboard/PaymentDialog';
+import type { Order, OrderStatus, PaymentMethod, Restaurant, PrinterDevice } from '@/types';
 
 interface Props {
   restaurant: Restaurant;
@@ -33,9 +35,9 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: 'Cancelled',
 };
 
-export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
+export default function KitchenDashboard({ restaurant }: Props) {
   console.log('[KitchenDashboard] rendered, restaurant.id:', restaurant.id);
-  const [orders, setOrders]   = useState<Order[]>(initialOrders);
+  const { orders } = useOrders();
   const [filter, setFilter]   = useState<FilterTab>('active');
   const [updating, setUpdating] = useState<string | null>(null);
 
@@ -43,11 +45,13 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
   const [printMode, setPrintMode]   = useState<'accept' | 'reprint'>('accept');
 
+  // Payment dialog state
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+
   // USB printer connection state — tracks which USB printers failed to auto-reconnect
   const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
   const [connectingUSB, setConnectingUSB] = useState<string | null>(null);
 
-  const isFirstRender = useRef(true);
   // Always holds the latest restaurant prop so async closures never read stale data
   const restaurantRef = useRef(restaurant);
   restaurantRef.current = restaurant;
@@ -87,49 +91,13 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
     }
   }
 
-  // ── Realtime subscription ──────────────────────────────────────────────────
-  useEffect(() => {
-    console.log('[realtime] setting up channel for restaurant:', restaurant.id);
-    const supabase = createClient();
-
-    const channel = supabase
-      .channel(`kitchen-orders-${Date.now()}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurant.id}` },
-        async (payload) => {
-          if (payload.eventType === 'INSERT') {
-            if (isFirstRender.current) return;
-            const { data } = await supabase
-              .from('orders')
-              .select('*, items:order_items(*), table:tables(*)')
-              .eq('id', payload.new.id)
-              .single();
-            if (data) {
-              const newOrder = data as Order;
-              setOrders((prev) => [newOrder, ...prev]);
-              console.log(`[realtime] New order #${newOrder.order_number}`);
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            setOrders((prev) =>
-              prev.map((o) =>
-                o.id === payload.new.id ? { ...o, ...(payload.new as Partial<Order>) } : o,
-              ),
-            );
-          } else if (payload.eventType === 'DELETE') {
-            setOrders((prev) => prev.filter((o) => o.id !== payload.old.id));
-          }
-        },
-      )
-      .subscribe((status) => { console.log('[realtime] subscription status:', status); });
-
-    isFirstRender.current = false;
-    return () => { supabase.removeChannel(channel); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurant.id]);
-
   // ── Status helpers ─────────────────────────────────────────────────────────
   async function advanceStatus(order: Order) {
+    // For "ready" orders, open payment dialog instead of advancing directly
+    if (order.status === 'ready') {
+      setPaymentOrder(order);
+      return;
+    }
     const nextStatus = STATUS_FLOW[order.status];
     if (!nextStatus) return;
     setUpdating(order.id);
@@ -142,6 +110,24 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
       if (error) throw error;
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to update order');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function recordPayment(order: Order, method: PaymentMethod) {
+    setPaymentOrder(null);
+    setUpdating(order.id);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'delivered' as OrderStatus, payment_method: method })
+        .eq('id', order.id);
+      if (error) throw error;
+      toast.success(`Payment recorded — ${method.toUpperCase()}`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to record payment');
     } finally {
       setUpdating(null);
     }
@@ -340,6 +326,13 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
         onClose={() => setPrintOrder(null)}
         printerConfig={restaurant.printer_config}
       />
+
+      {/* ── Payment method dialog ── */}
+      <PaymentDialog
+        order={paymentOrder}
+        onConfirm={recordPayment}
+        onClose={() => setPaymentOrder(null)}
+      />
     </div>
   );
 }
@@ -407,11 +400,18 @@ function OrderCard({ order, onAdvance, onCancel, onReprint, onPrintBill, isUpdat
 
       {/* ── Table / customer row ── */}
       <div className="px-4 py-2 border-b bg-gray-50">
-        <p className="text-sm font-medium">
-          {order.order_type === 'dine_in'
-            ? order.table ? `🪑 Table ${order.table.display_name?.trim() || order.table.table_number}` : '🪑 Dine In'
-            : `🛍️ Parcel${order.customer_name ? ` — ${order.customer_name}` : ''}`}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">
+            {order.order_type === 'dine_in'
+              ? order.table ? `🪑 Table ${order.table.display_name?.trim() || order.table.table_number}` : '🪑 Dine In'
+              : `🛍️ Parcel${order.customer_name ? ` — ${order.customer_name}` : ''}`}
+          </p>
+          {order.payment_method && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">
+              {order.payment_method.toUpperCase()}
+            </span>
+          )}
+        </div>
         {order.customer_phone && (
           <p className="text-xs text-muted-foreground">{order.customer_phone}</p>
         )}

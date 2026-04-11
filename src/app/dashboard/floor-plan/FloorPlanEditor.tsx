@@ -38,6 +38,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import PaymentDialog from '@/components/dashboard/PaymentDialog';
 import type {
   FloorCapacity,
   FloorLabel,
@@ -47,6 +48,7 @@ import type {
   Order,
   OrderNote,
   OrderStatus,
+  PaymentMethod,
   Restaurant,
   WaiterCall,
 } from '@/types';
@@ -163,6 +165,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [acknowledging, setAcknowledging]         = useState(false);
   const [markingAvailable, setMarkingAvailable]   = useState(false);
+  const [paymentOrder, setPaymentOrder]           = useState<Order | null>(null);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const canvasRef            = useRef<HTMLDivElement>(null);
@@ -390,6 +393,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   }
 
   async function advanceOrderStatus(orderId: string, currentStatus: OrderStatus) {
+    if (currentStatus === 'ready') {
+      const order = activeOrders.find((o) => o.id === orderId);
+      if (order) { setPaymentOrder(order); return; }
+    }
     const nextStatus = ORDER_STATUS_FLOW[currentStatus];
     if (!nextStatus) return;
     const supabase = createClient();
@@ -398,6 +405,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       .update({ status: nextStatus })
       .eq('id', orderId);
     if (error) { toast.error('Failed to update order'); return; }
+    fetchLiveData();
+  }
+
+  async function recordPayment(order: Order, method: PaymentMethod) {
+    setPaymentOrder(null);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'delivered' as OrderStatus, payment_method: method })
+      .eq('id', order.id);
+    if (error) { toast.error('Failed to record payment'); return; }
+    toast.success(`Payment recorded — ${method.toUpperCase()}`);
     fetchLiveData();
   }
 
@@ -908,6 +927,13 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         markingAvailable={markingAvailable}
         onRefresh={fetchLiveData}
         onAdvanceStatus={advanceOrderStatus}
+      />
+
+      {/* ── Payment method dialog ── */}
+      <PaymentDialog
+        order={paymentOrder}
+        onConfirm={recordPayment}
+        onClose={() => setPaymentOrder(null)}
       />
     </div>
   );

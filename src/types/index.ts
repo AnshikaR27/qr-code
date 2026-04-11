@@ -88,6 +88,7 @@ export interface OrderNote {
 
 export type OrderType = 'dine_in' | 'parcel';
 export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
+export type PaymentMethod = 'cash' | 'upi' | 'card';
 export type SpiceLevel = 0 | 1 | 2 | 3;
 
 export interface Restaurant {
@@ -159,6 +160,7 @@ export interface Order {
   customer_name: string | null;
   customer_phone: string | null;
   status: OrderStatus;
+  payment_method: PaymentMethod | null;
   total: number;
   notes: string | null;
   internal_notes?: OrderNote[];

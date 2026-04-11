@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import Sidebar from '@/components/dashboard/Sidebar';
 import GlobalNotifications from '@/components/dashboard/GlobalNotifications';
 import { AutoPrintListener } from '@/components/dashboard/AutoPrintListener';
-import type { Restaurant } from '@/types';
+import { OrdersProvider } from '@/contexts/OrdersContext';
+import type { Order, Restaurant } from '@/types';
 
 export default async function DashboardLayout({
   children,
@@ -28,6 +29,16 @@ export default async function DashboardLayout({
     redirect('/register');
   }
 
+  // Fetch today's orders so the realtime context starts with fresh data
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('*, items:order_items(*), table:tables(*)')
+    .eq('restaurant_id', restaurant.id)
+    .gte('created_at', today.toISOString())
+    .order('created_at', { ascending: false });
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Persists across all dashboard tab navigations */}
@@ -39,7 +50,9 @@ export default async function DashboardLayout({
       <Sidebar restaurant={restaurant as Restaurant} />
       <main className="flex-1 overflow-auto">
         <GlobalNotifications restaurantId={restaurant.id} restaurantName={restaurant.name} printerConfig={restaurant.printer_config} />
-        {children}
+        <OrdersProvider restaurantId={restaurant.id} initialOrders={(orders ?? []) as Order[]}>
+          {children}
+        </OrdersProvider>
       </main>
     </div>
   );
