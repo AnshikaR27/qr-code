@@ -155,7 +155,19 @@ export function playNewOrder(): void { _playNewOrder(); }
  */
 export function playOrderAlert(): void {
   if (!ctx) return; // AudioContext not yet unlocked — skip silently
-  const c = ctx;
+  try {
+    const c = ctx;
+    if (c.state === 'suspended') {
+      c.resume()
+        .then(() => _scheduleOrderAlert(c))
+        .catch(() => {});
+      return;
+    }
+    _scheduleOrderAlert(c);
+  } catch { /* AudioContext unavailable after tab freeze */ }
+}
+
+function _scheduleOrderAlert(c: AudioContext): void {
   const now = c.currentTime;
 
   const masterGain = c.createGain();
