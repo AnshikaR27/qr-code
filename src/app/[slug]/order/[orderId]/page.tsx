@@ -51,6 +51,8 @@ export default function OrderStatusPage() {
   const [notifPerm, setNotifPerm] = useState<'default' | 'granted' | 'denied'>('default');
   const audioUnlockedRef = useRef(false);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
+  const [ios, setIos] = useState(false);
+  useEffect(() => { setIos(isIOS()); }, []);
 
   // Unlock audio on first tap, and stop the ready chime loop if it's ringing
   const handleFirstInteraction = useCallback(() => {
@@ -285,7 +287,7 @@ export default function OrderStatusPage() {
         </div>
 
         {/* ── Notification banner — Android only (iOS blocks Web Push) ── */}
-        {!isIOS() && !isCancelled && !isCompleted && !isReady && notifPerm === 'default' && (
+        {!ios && !isCancelled && !isCompleted && !isReady && notifPerm === 'default' && (
           <button
             onClick={enableNotifications}
             className="w-full flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-left transition-colors active:bg-blue-100"
@@ -297,7 +299,7 @@ export default function OrderStatusPage() {
             </div>
           </button>
         )}
-        {!isIOS() && !isCancelled && !isCompleted && !isReady && notifPerm === 'granted' && (
+        {!ios && !isCancelled && !isCompleted && !isReady && notifPerm === 'granted' && (
           <div className="w-full flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
             <span className="text-xl flex-shrink-0">✅</span>
             <p className="text-sm font-semibold text-green-800">you&apos;re all set — we&apos;ll let you know when it&apos;s ready!</p>
