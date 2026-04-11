@@ -1,27 +1,45 @@
 // Web Audio API chime tones + speech for customer order status page.
 // No audio files needed — tones are generated programmatically,
 // and speech uses the browser's built-in Speech Synthesis API.
+//
+// IMPORTANT: Browsers block AudioContext creation and speechSynthesis.speak()
+// unless triggered by a user gesture. Call unlockCustomerAudio() from a click
+// handler before any sound can play.
 
 let ctx: AudioContext | null = null;
 
-// Pre-load voices — browsers load them asynchronously, so getVoices()
-// returns [] on the first call. This ensures they're ready when needed.
-let voicesLoaded = false;
-if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-  speechSynthesis.getVoices(); // kick off loading
-  speechSynthesis.addEventListener('voiceschanged', () => {
-    voicesLoaded = true;
-  });
-  // Some browsers (Firefox) load voices synchronously
-  if (speechSynthesis.getVoices().length > 0) voicesLoaded = true;
-}
-
-function getCtx(): AudioContext {
+/**
+ * Unlock audio for the customer page. Must be called from a user gesture
+ * (click/tap). Creates the AudioContext, resumes it, plays a silent buffer,
+ * and pre-warms speech synthesis voices.
+ */
+export async function unlockCustomerAudio(): Promise<void> {
   if (!ctx || ctx.state === 'closed') {
-    ctx = new AudioContext();
+    ctx = new (window.AudioContext ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).webkitAudioContext)();
   }
   if (ctx.state === 'suspended') {
-    ctx.resume();
+    await ctx.resume();
+  }
+  // Play a silent buffer to fully unlock on iOS/Android
+  const buf = ctx.createBuffer(1, 1, 22050);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start(0);
+
+  // Pre-warm speech synthesis voices
+  if ('speechSynthesis' in window) {
+    speechSynthesis.getVoices();
+  }
+}
+
+/** Returns the existing AudioContext, or null if not yet unlocked. */
+function getCtx(): AudioContext | null {
+  if (!ctx || ctx.state === 'closed') return null;
+  if (ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
   }
   return ctx;
 }
@@ -29,10 +47,12 @@ function getCtx(): AudioContext {
 /**
  * Speaks "Your order is ready!" using the browser Speech Synthesis API,
  * with a short chime beforehand to grab attention.
- * Falls back to the chime-only if speech synthesis is unavailable.
+ * Falls back to chime-only if speech synthesis is unavailable or blocked.
  */
 export function playReadyChime() {
   const ac = getCtx();
+  if (!ac) return; // not unlocked yet — skip silently
+
   const now = ac.currentTime;
 
   // Attention chime first — E5 → G5
@@ -49,43 +69,56 @@ export function playReadyChime() {
 
 /** Speak text in a US English accent. Handles async voice loading. */
 function speakUS(text: string) {
-  // Cancel any in-progress speech to avoid overlap
-  speechSynthesis.cancel();
+  try {
+    // Cancel any in-progress speech to avoid overlap
+    speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'en-US';
-  utterance.rate = 1;
-  utterance.pitch = 1.1;
-  utterance.volume = 1;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 1;
+    utterance.pitch = 1.1;
+    utterance.volume = 1;
 
-  const pickVoice = () => {
-    const voices = speechSynthesis.getVoices();
-    return voices.find(v => v.lang === 'en-US')
-      || voices.find(v => v.lang.startsWith('en'))
-      || null;
-  };
-
-  const voice = pickVoice();
-  if (voice) {
-    utterance.voice = voice;
-    speechSynthesis.speak(utterance);
-  } else {
-    // Voices not loaded yet — wait for them, then speak
-    const onVoices = () => {
-      const v = pickVoice();
-      if (v) utterance.voice = v;
-      speechSynthesis.speak(utterance);
-      speechSynthesis.removeEventListener('voiceschanged', onVoices);
+    const pickVoice = () => {
+      const voices = speechSynthesis.getVoices();
+      return voices.find(v => v.lang === 'en-US')
+        || voices.find(v => v.lang.startsWith('en'))
+        || null;
     };
-    speechSynthesis.addEventListener('voiceschanged', onVoices);
-    // Fallback: if voiceschanged never fires (some browsers), speak anyway after 500ms
-    setTimeout(() => {
-      speechSynthesis.removeEventListener('voiceschanged', onVoices);
-      // Only speak if not already speaking (the event handler may have fired)
-      if (!speechSynthesis.speaking) {
-        speechSynthesis.speak(utterance);
-      }
-    }, 500);
+
+    const voice = pickVoice();
+    if (voice) {
+      utterance.voice = voice;
+      speechSynthesis.speak(utterance);
+    } else {
+      // Voices not loaded yet — wait for them, then speak
+      const onVoices = () => {
+        const v = pickVoice();
+        if (v) utterance.voice = v;
+        try {
+          speechSynthesis.speak(utterance);
+        } catch (e) {
+          console.warn('[customer-chime] speech blocked after voiceschanged:', e);
+        }
+        speechSynthesis.removeEventListener('voiceschanged', onVoices);
+      };
+      speechSynthesis.addEventListener('voiceschanged', onVoices);
+      // Fallback: if voiceschanged never fires, speak anyway after 500ms
+      setTimeout(() => {
+        speechSynthesis.removeEventListener('voiceschanged', onVoices);
+        if (!speechSynthesis.speaking) {
+          try {
+            speechSynthesis.speak(utterance);
+          } catch (e) {
+            console.warn('[customer-chime] speech fallback blocked:', e);
+          }
+        }
+      }, 500);
+    }
+  } catch (e) {
+    // Chrome on Android may block speechSynthesis.speak() entirely
+    // if not in a direct user gesture chain — fall back to chime-only
+    console.warn('[customer-chime] speechSynthesis blocked, falling back to chime-only:', e);
   }
 }
 
@@ -95,8 +128,9 @@ function speakUS(text: string) {
  */
 export function playPreparingChime() {
   const ac = getCtx();
-  const now = ac.currentTime;
+  if (!ac) return; // not unlocked yet — skip silently
 
+  const now = ac.currentTime;
   playTone(ac, 523, now, 0.35, 0.3); // C5, soft
 }
 

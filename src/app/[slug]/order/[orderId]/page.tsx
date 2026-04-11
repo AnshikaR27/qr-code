@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, CheckCircle2, Clock, PackageCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import { playReadyChime, playPreparingChime } from '@/lib/customer-chime';
+import { playReadyChime, playPreparingChime, unlockCustomerAudio } from '@/lib/customer-chime';
 import type { Order, OrderItem, OrderStatus } from '@/types';
 
 const STEPS: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
@@ -34,6 +34,14 @@ export default function OrderStatusPage() {
   const [prevStatus, setPrevStatus] = useState<OrderStatus | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [notifPerm, setNotifPerm] = useState<'default' | 'granted' | 'denied'>('default');
+  const audioUnlockedRef = useRef(false);
+
+  // Unlock audio on any tap/click — runs once
+  const handleFirstInteraction = useCallback(() => {
+    if (audioUnlockedRef.current) return;
+    audioUnlockedRef.current = true;
+    unlockCustomerAudio().catch(() => {});
+  }, []);
 
   // Check notification permission on mount (don't auto-request — needs user gesture on mobile)
   useEffect(() => {
@@ -44,6 +52,8 @@ export default function OrderStatusPage() {
 
   async function enableNotifications() {
     if (typeof Notification === 'undefined') return;
+    // Also unlock audio from this user gesture
+    handleFirstInteraction();
     const perm = await Notification.requestPermission();
     setNotifPerm(perm as 'default' | 'granted' | 'denied');
   }
@@ -172,7 +182,7 @@ export default function OrderStatusPage() {
         }
       `}</style>
 
-      <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto px-4 py-6 gap-5">
+      <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto px-4 py-6 gap-5" onClick={handleFirstInteraction}>
         {/* ── Celebration overlay ── */}
         {showCelebration && (
           <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 pointer-events-none">
