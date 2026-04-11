@@ -408,7 +408,7 @@ export default function OrderStatusPage() {
         )}
 
         {/* ── Sound unlock — only self service, only if push not granted ── */}
-        {!isTableService && !isCancelled && !isCompleted && !isReady && !audioUnlocked && notifPerm !== 'granted' && (
+        {!ios && !isTableService && !isCancelled && !isCompleted && !isReady && !audioUnlocked && notifPerm !== 'granted' && (
           <button
             onClick={handleFirstInteraction}
             className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-left transition-colors active:bg-gray-100"
