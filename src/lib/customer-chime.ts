@@ -74,7 +74,7 @@ export function startReadyChimeLoop() {
   if (readyLoopId !== null) return;
   readyLoopId = 1 as unknown as ReturnType<typeof setInterval>; // mark as started, no repeat
   _fireReadyChime();
-  setTimeout(() => _speakReady(), 400);
+  // setTimeout(() => _speakReady(), 400);
 }
 
 function _speakReady() {
