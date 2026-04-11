@@ -334,6 +334,32 @@ export default function DishDetailSheetV2({
               </div>
             )}
 
+            {/* Special instructions */}
+            <div className="mb-5">
+              <h3
+                className="font-bold mb-2"
+                style={{ fontSize: typeScale.sm, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+              >
+                Special instructions
+              </h3>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. less spicy, no onions…"
+                rows={2}
+                className="w-full resize-none outline-none border transition-colors"
+                style={{
+                  fontSize: typeScale.sm,
+                  padding: spacingScale.cardPad,
+                  borderRadius: 'var(--sunday-radius, 12px)',
+                  borderColor: 'var(--sunday-border, #E8D5B0)',
+                  backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+                  color: 'var(--sunday-text, #1c1c17)',
+                  fontFamily: 'var(--sunday-font-body)',
+                }}
+              />
+            </div>
+
             {/* Allergens */}
             {dish.allergens && dish.allergens.length > 0 && (
               <div className="mb-4">

@@ -47,7 +47,7 @@ function SundayToast({
 
   return (
     <div
-      className="fixed left-1/2 -translate-x-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in"
+      className="fixed left-1/2 z-[60] max-w-[400px] w-[calc(100%-32px)] sunday-toast-in"
       style={{ bottom }}
     >
       <div
