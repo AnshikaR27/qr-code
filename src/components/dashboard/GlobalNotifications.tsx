@@ -33,11 +33,13 @@ export default function GlobalNotifications({ restaurantId, restaurantName, prin
 
   useEffect(() => { audioEnabledRef.current = audioEnabled; }, [audioEnabled]);
 
-  // Restore audio pref on mount
+  // Restore audio pref on mount.
+  // Do NOT call unlockAudio() here — creating an AudioContext without a user
+  // gesture triggers a browser warning. AutoPrintListener's click listener
+  // will unlock audio on the user's first interaction.
   useEffect(() => {
     if (localStorage.getItem(AUDIO_PREF_KEY) === 'true') {
       setAudioEnabled(true);
-      unlockAudio().catch(() => {});
     }
   }, []);
 
