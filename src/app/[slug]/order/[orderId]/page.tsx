@@ -291,6 +291,12 @@ export default function OrderStatusPage() {
             </div>
           </button>
         )}
+        {!isCancelled && !isCompleted && !isReady && notifPerm === 'granted' && (
+          <div className="w-full flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+            <span className="text-xl flex-shrink-0">✅</span>
+            <p className="text-sm font-semibold text-green-800">Notifications enabled — we&apos;ll ping you when it&apos;s ready!</p>
+          </div>
+        )}
 
         {/* ── Animated status card ── */}
         {!isCancelled && !isCompleted && (
