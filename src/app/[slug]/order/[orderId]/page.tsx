@@ -103,36 +103,37 @@ export default function OrderStatusPage() {
   // This catches status changes that happened while Chrome was backgrounded/suspended
   // (WebSocket is paused by the browser, so realtime events are missed).
   useEffect(() => {
-    const handleVisibility = async () => {
+    const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return;
       const supabase = createClient();
-      const { data } = await supabase
+      supabase
         .from('orders')
         .select('*')
         .eq('id', orderId)
-        .single();
-      if (!data) return;
-      const newStatus = (data as Order).status;
-      const prevOrder = orderRef.current;
-      // Only act if status actually changed
-      if (prevOrder && prevOrder.status !== newStatus) {
-        setOrder((prev) => prev ? { ...prev, ...(data as Order) } : prev);
-        orderRef.current = data as Order;
-        if (newStatus === 'ready' && serviceModeRef.current === 'self_service') {
-          if (audioUnlockedRef.current) {
-            startReadyChimeLoop();
-          } else {
-            pendingChimeRef.current = true;
+        .single()
+        .then(({ data, error }) => {
+          if (error || !data) return;
+          const newStatus = (data as Order).status;
+          const prevOrder = orderRef.current;
+          if (!prevOrder || prevOrder.status === newStatus) return;
+          setOrder((prev) => prev ? { ...prev, ...(data as Order) } : prev);
+          orderRef.current = data as Order;
+          if (newStatus === 'ready' && serviceModeRef.current === 'self_service') {
+            if (audioUnlockedRef.current) {
+              startReadyChimeLoop();
+            } else {
+              pendingChimeRef.current = true;
+            }
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+              navigator.vibrate([400, 150, 400, 150, 400]);
+            }
           }
-          if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate([400, 150, 400, 150, 400]);
+          if (newStatus === 'delivered') {
+            setShowCelebration(true);
+            setTimeout(() => setShowCelebration(false), 5000);
           }
-        }
-        if (newStatus === 'delivered') {
-          setShowCelebration(true);
-          setTimeout(() => setShowCelebration(false), 5000);
-        }
-      }
+        })
+        .catch(() => { /* network not ready yet — silently ignore */ });
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
