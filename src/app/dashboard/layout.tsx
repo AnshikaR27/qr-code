@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Sidebar from '@/components/dashboard/Sidebar';
 import GlobalNotifications from '@/components/dashboard/GlobalNotifications';
+import { AutoPrintListener } from '@/components/dashboard/AutoPrintListener';
 import type { Restaurant } from '@/types';
 
 export default async function DashboardLayout({
@@ -29,6 +30,12 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-gray-50">
+      {/* Persists across all dashboard tab navigations */}
+      <AutoPrintListener
+        restaurantId={restaurant.id}
+        restaurantName={restaurant.name}
+        printerConfig={restaurant.printer_config}
+      />
       <Sidebar restaurant={restaurant as Restaurant} />
       <main className="flex-1 overflow-auto">
         <GlobalNotifications restaurantId={restaurant.id} restaurantName={restaurant.name} />
