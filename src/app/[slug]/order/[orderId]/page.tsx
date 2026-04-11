@@ -62,16 +62,29 @@ export default function OrderStatusPage() {
   const audioUnlockedRef = useRef(false);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [ios, setIos] = useState(false);
+  // orderRef lets async handlers (visibility change, etc.) read latest order without stale closure
+  const orderRef = useRef<Order | null>(null);
+  // pendingChimeRef: chime needs to play as soon as audio is unlocked (e.g. order was ready before first tap)
+  const pendingChimeRef = useRef(false);
   useEffect(() => { setIos(isIOS()); }, []);
   useEffect(() => { serviceModeRef.current = serviceMode; }, [serviceMode]);
+  useEffect(() => { orderRef.current = order; }, [order]);
 
-  // Unlock audio on first tap, and stop the ready chime loop if it's ringing
+  // On first tap: unlock audio (and play pending chime if order is already ready).
+  // On subsequent taps: dismiss the chime.
   const handleFirstInteraction = useCallback(() => {
-    stopReadyChimeLoop();
-    if (audioUnlockedRef.current) return;
-    audioUnlockedRef.current = true;
-    setAudioUnlocked(true);
-    unlockCustomerAudio().catch(() => {});
+    if (!audioUnlockedRef.current) {
+      audioUnlockedRef.current = true;
+      setAudioUnlocked(true);
+      unlockCustomerAudio().then(() => {
+        if (pendingChimeRef.current) {
+          pendingChimeRef.current = false;
+          startReadyChimeLoop();
+        }
+      }).catch(() => {});
+    } else {
+      stopReadyChimeLoop();
+    }
   }, []);
 
   // Check notification permission on mount (don't auto-request — needs user gesture on mobile)
@@ -85,6 +98,45 @@ export default function OrderStatusPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-fetch order when tab comes back to foreground.
+  // This catches status changes that happened while Chrome was backgrounded/suspended
+  // (WebSocket is paused by the browser, so realtime events are missed).
+  useEffect(() => {
+    const handleVisibility = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+      if (!data) return;
+      const newStatus = (data as Order).status;
+      const prevOrder = orderRef.current;
+      // Only act if status actually changed
+      if (prevOrder && prevOrder.status !== newStatus) {
+        setOrder((prev) => prev ? { ...prev, ...(data as Order) } : prev);
+        orderRef.current = data as Order;
+        if (newStatus === 'ready' && serviceModeRef.current === 'self_service') {
+          if (audioUnlockedRef.current) {
+            startReadyChimeLoop();
+          } else {
+            pendingChimeRef.current = true;
+          }
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate([400, 150, 400, 150, 400]);
+          }
+        }
+        if (newStatus === 'delivered') {
+          setShowCelebration(true);
+          setTimeout(() => setShowCelebration(false), 5000);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [orderId]);
 
   async function enableNotifications() {
     if (typeof Notification === 'undefined') return;
@@ -144,10 +196,18 @@ export default function OrderStatusPage() {
       const resolvedMode = mode ?? 'self_service';
       setServiceMode(resolvedMode);
       serviceModeRef.current = resolvedMode;
-      setOrder(data as Order);
+      const loadedOrder = data as Order;
+      setOrder(loadedOrder);
+      orderRef.current = loadedOrder;
       setItems((data.items ?? []) as OrderItem[]);
-      setPrevStatus((data as Order).status);
+      setPrevStatus(loadedOrder.status);
       setLoading(false);
+
+      // If order is already ready when page first loads (e.g. opened via push notification),
+      // queue a chime so it plays on the user's first tap.
+      if (loadedOrder.status === 'ready' && resolvedMode === 'self_service') {
+        pendingChimeRef.current = true;
+      }
     }
 
     fetchOrder();
@@ -174,7 +234,12 @@ export default function OrderStatusPage() {
 
                 if (mode === 'self_service') {
                   // Chime + vibration for self service
-                  startReadyChimeLoop();
+                  if (audioUnlockedRef.current) {
+                    startReadyChimeLoop();
+                  } else {
+                    // Audio not yet unlocked — play as soon as user first taps
+                    pendingChimeRef.current = true;
+                  }
                   if (typeof navigator !== 'undefined' && navigator.vibrate) {
                     navigator.vibrate([400, 150, 400, 150, 400]);
                   }
