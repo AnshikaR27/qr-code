@@ -71,17 +71,22 @@ function _schedule(c: AudioContext, notes: NoteSpec[]): void {
  * Notes are scheduled relative to the moment the context is confirmed running,
  * so they never fire at stale/past timestamps (which causes instant burst playback
  * after a delayed resume).
+ *
+ * IMPORTANT: if no AudioContext exists yet (user has never clicked anything),
+ * we skip silently. Creating a new AudioContext without a prior user gesture
+ * triggers a browser warning. Only unlockAudio() — called from a real click —
+ * should ever call new AudioContext().
  */
 function _play(notes: NoteSpec[]): void {
+  if (!ctx) return; // no user gesture yet — skip silently
   try {
-    const c = getCtx();
+    const c = ctx;
     if (c.state === 'suspended') {
-      // Resume may succeed if the context was previously unlocked and then
-      // auto-suspended by the browser (tab blur etc.). Schedule notes only
-      // after the resume promise resolves so currentTime is fresh.
+      // Context was previously unlocked but auto-suspended (e.g. tab blur).
+      // Resume is allowed without a gesture in that case.
       c.resume()
         .then(() => _schedule(c, notes))
-        .catch(() => { /* browser blocked audio — silent fail */ });
+        .catch(() => { /* browser blocked — silent fail */ });
     } else {
       _schedule(c, notes);
     }
@@ -101,24 +106,6 @@ const WAITER_CALL_NOTES: NoteSpec[] = [
   { freq: 880, offset: 0.44, duration: 0.18, gain: 0.55 },
 ];
 
-/**
- * Three ascending dings repeated 3 times — used when an order auto-prints.
- * Each arpeggio (C5 → E5 → G5) takes ~1 s; total ~3.1 s.
- */
-const TRIPLE_CHIME_NOTES: NoteSpec[] = [
-  // 1st arpeggio
-  { freq: 523.25, offset: 0.00, duration: 0.55, gain: 0.4 },
-  { freq: 659.25, offset: 0.22, duration: 0.55, gain: 0.4 },
-  { freq: 784.0,  offset: 0.44, duration: 0.55, gain: 0.4 },
-  // 2nd arpeggio
-  { freq: 523.25, offset: 1.10, duration: 0.55, gain: 0.4 },
-  { freq: 659.25, offset: 1.32, duration: 0.55, gain: 0.4 },
-  { freq: 784.0,  offset: 1.54, duration: 0.55, gain: 0.4 },
-  // 3rd arpeggio
-  { freq: 523.25, offset: 2.20, duration: 0.55, gain: 0.4 },
-  { freq: 659.25, offset: 2.42, duration: 0.55, gain: 0.4 },
-  { freq: 784.0,  offset: 2.64, duration: 0.55, gain: 0.4 },
-];
 
 function _playNewOrder():   void { _play(NEW_ORDER_NOTES);    }
 function _playWaiterCall(): void { _play(WAITER_CALL_NOTES);  }
@@ -162,7 +149,46 @@ export function stopWaiterCallLoop(): void {
 export function playNewOrder(): void { _playNewOrder(); }
 
 /**
- * Three ascending dings (C5 → E5 → G5) for auto-printed orders.
- * Clearly audible even if staff aren't looking at the screen.
+ * 3-second ding-dong alert for auto-printed orders.
+ * Three ding-dong pairs spaced 1 s apart; third pair rises in pitch for urgency.
+ * Clearly audible in a noisy café.
  */
-export function playTripleChime(): void { _play(TRIPLE_CHIME_NOTES); }
+export function playOrderAlert(): void {
+  if (!ctx) return; // AudioContext not yet unlocked — skip silently
+  const c = ctx;
+  const now = c.currentTime;
+
+  const masterGain = c.createGain();
+  masterGain.gain.value = 0.4;
+  masterGain.connect(c.destination);
+
+  const pairs = [
+    { time: 0.0, highFreq: 880,  lowFreq: 660 },
+    { time: 1.0, highFreq: 880,  lowFreq: 660 },
+    { time: 2.0, highFreq: 1046, lowFreq: 784 }, // higher pitch on the last pair
+  ];
+
+  for (const { time, highFreq, lowFreq } of pairs) {
+    // Ding
+    const osc1 = c.createOscillator();
+    const g1   = c.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.value = highFreq;
+    g1.gain.setValueAtTime(0.4, now + time);
+    g1.gain.exponentialRampToValueAtTime(0.01, now + time + 0.4);
+    osc1.connect(g1).connect(masterGain);
+    osc1.start(now + time);
+    osc1.stop(now + time + 0.5);
+
+    // Dong (slightly delayed)
+    const osc2 = c.createOscillator();
+    const g2   = c.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.value = lowFreq;
+    g2.gain.setValueAtTime(0.3, now + time + 0.2);
+    g2.gain.exponentialRampToValueAtTime(0.01, now + time + 0.6);
+    osc2.connect(g2).connect(masterGain);
+    osc2.start(now + time + 0.2);
+    osc2.stop(now + time + 0.7);
+  }
+}

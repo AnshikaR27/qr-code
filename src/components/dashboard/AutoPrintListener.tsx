@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { playNewOrder, playTripleChime, unlockAudio } from '@/lib/sounds';
+import { playNewOrder, playOrderAlert, unlockAudio } from '@/lib/sounds';
 import { printKOT } from '@/lib/kot-print';
 import type { Order, PrinterConfig } from '@/types';
 
@@ -80,8 +80,7 @@ export function AutoPrintListener({ restaurantId, restaurantName, printerConfig 
           const isAutoMode = config?.kot_print_trigger === 'on_order';
 
           if (isAutoMode) {
-            // Three ascending dings so staff hear the auto-print clearly
-            playTripleChime();
+            playOrderAlert(); // 3-second ding-dong pattern
           } else {
             // Single chime in manual mode — GlobalNotifications loops the rest
             playNewOrder();
