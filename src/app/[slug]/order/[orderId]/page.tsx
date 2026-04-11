@@ -288,15 +288,15 @@ export default function OrderStatusPage() {
           >
             <span className="text-xl flex-shrink-0">🔔</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-blue-800">Get notified when your order is ready</p>
-              <p className="text-xs text-blue-600 mt-0.5">Tap to enable — works even if you lock your phone</p>
+              <p className="text-sm font-semibold text-blue-800">wanna know the second your food&apos;s ready?</p>
+              <p className="text-xs text-blue-600 mt-0.5">tap to get a ping — even if your phone&apos;s locked</p>
             </div>
           </button>
         )}
         {!isCancelled && !isCompleted && !isReady && notifPerm === 'granted' && (
           <div className="w-full flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
             <span className="text-xl flex-shrink-0">✅</span>
-            <p className="text-sm font-semibold text-green-800">Notifications enabled — we&apos;ll ping you when it&apos;s ready!</p>
+            <p className="text-sm font-semibold text-green-800">you&apos;re all set — we&apos;ll let you know when it&apos;s ready!</p>
           </div>
         )}
 
@@ -308,8 +308,8 @@ export default function OrderStatusPage() {
           >
             <span className="text-xl flex-shrink-0">🔊</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800">Tap to enable sound alert</p>
-              <p className="text-xs text-gray-500 mt-0.5">We&apos;ll chime when your order is ready</p>
+              <p className="text-sm font-semibold text-gray-800">want a sound when your order&apos;s ready?</p>
+              <p className="text-xs text-gray-500 mt-0.5">tap here so we can play it for you</p>
             </div>
           </button>
         )}
