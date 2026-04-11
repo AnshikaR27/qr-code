@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, CheckCircle2, Clock, PackageCheck } from 'lucide-react';
@@ -33,16 +33,20 @@ export default function OrderStatusPage() {
   const [error, setError] = useState('');
   const [prevStatus, setPrevStatus] = useState<OrderStatus | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
-  const notifRequested = useRef(false);
+  const [notifPerm, setNotifPerm] = useState<'default' | 'granted' | 'denied'>('default');
 
-  // Request notification permission once on mount
+  // Check notification permission on mount (don't auto-request — needs user gesture on mobile)
   useEffect(() => {
-    if (notifRequested.current) return;
-    notifRequested.current = true;
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission();
+    if (typeof Notification !== 'undefined') {
+      setNotifPerm(Notification.permission as 'default' | 'granted' | 'denied');
     }
   }, []);
+
+  async function enableNotifications() {
+    if (typeof Notification === 'undefined') return;
+    const perm = await Notification.requestPermission();
+    setNotifPerm(perm as 'default' | 'granted' | 'denied');
+  }
 
   useEffect(() => {
     const supabase = createClient();
@@ -219,6 +223,20 @@ export default function OrderStatusPage() {
             </p>
           )}
         </div>
+
+        {/* ── Enable notifications banner ── */}
+        {!isCancelled && !isCompleted && !isReady && notifPerm === 'default' && (
+          <button
+            onClick={enableNotifications}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-left transition-colors active:bg-blue-100"
+          >
+            <span className="text-xl flex-shrink-0">🔔</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-blue-800">Get notified when your order is ready</p>
+              <p className="text-xs text-blue-600 mt-0.5">Tap to enable — works even if you lock your phone</p>
+            </div>
+          </button>
+        )}
 
         {/* ── Animated status card ── */}
         {!isCancelled && !isCompleted && (
