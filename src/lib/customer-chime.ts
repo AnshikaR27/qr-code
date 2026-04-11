@@ -33,12 +33,13 @@ export function playReadyChime() {
       utterance.rate = 1;
       utterance.pitch = 1.1;
       utterance.volume = 1;
-      // Prefer a natural-sounding English voice if available
+      // Prefer a US English voice
       const voices = speechSynthesis.getVoices();
-      const englishVoice = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
-        || voices.find(v => v.lang.startsWith('en'))
+      const usVoice = voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('female'))
+        || voices.find(v => v.lang === 'en-US')
         || null;
-      if (englishVoice) utterance.voice = englishVoice;
+      if (usVoice) utterance.voice = usVoice;
+      utterance.lang = 'en-US';
       speechSynthesis.speak(utterance);
     }, 700); // wait for chime to finish
   }
