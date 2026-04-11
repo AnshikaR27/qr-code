@@ -237,6 +237,14 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-3">
+      {/* ── Auto-print info banner ── */}
+      {restaurant.printer_config?.kot_print_trigger === 'on_order' && (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+          <Printer className="w-4 h-4 flex-shrink-0 text-green-600" />
+          <span>Auto-print is <span className="font-semibold">ON</span> — orders are accepted and printed automatically</span>
+        </div>
+      )}
+
       {/* ── USB printer disconnected banner ── */}
       {disconnectedUSB.map((printer) => (
         <div key={printer.id} className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm">

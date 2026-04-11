@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import { playNewOrder, unlockAudio } from '@/lib/sounds';
+import { printKOT } from '@/lib/kot-print';
 import type { Order, PrinterConfig } from '@/types';
 
 interface Props {
@@ -30,6 +32,18 @@ export function AutoPrintListener({ restaurantId, restaurantName, printerConfig 
 
   const restaurantNameRef = useRef(restaurantName);
   restaurantNameRef.current = restaurantName;
+
+  // ── Unlock audio on first user interaction ─────────────────────────────────
+  // Web Audio API requires a user gesture before AudioContext can run.
+  // This ensures the chime works from the very first order after any click.
+  useEffect(() => {
+    function handleFirstClick() {
+      unlockAudio().catch(() => {});
+      document.removeEventListener('click', handleFirstClick, true);
+    }
+    document.addEventListener('click', handleFirstClick, true);
+    return () => document.removeEventListener('click', handleFirstClick, true);
+  }, []);
 
   // ── Reconnect USB/Serial printers on layout mount ───────────────────────────
   useEffect(() => {
@@ -62,9 +76,14 @@ export function AutoPrintListener({ restaurantId, restaurantName, printerConfig 
         async (payload) => {
           if (isFirstRender.current) return;
 
+          // Play a one-shot chime for every new order regardless of auto-print mode.
+          // (GlobalNotifications plays a looping alert in manual mode — this chime
+          // is the immediate audio cue before the loop kicks in.)
+          playNewOrder();
+
           const config = printerConfigRef.current;
-          // Only fire for 'on_order' trigger — 'on_accept' is handled by the
-          // print dialog inside KitchenDashboard when staff taps the button.
+          // Auto-print only fires for 'on_order' trigger.
+          // 'on_accept' is handled by the print dialog in KitchenDashboard.
           if (config?.kot_print_trigger !== 'on_order') return;
 
           const { data } = await supabase
@@ -101,7 +120,7 @@ export function AutoPrintListener({ restaurantId, restaurantName, printerConfig 
   return null;
 }
 
-// ── Auto-print logic (extracted from KitchenDashboard) ───────────────────────
+// ── Auto-print logic ─────────────────────────────────────────────────────────
 
 async function autoPrintKOT(
   order: Order,
@@ -109,11 +128,6 @@ async function autoPrintKOT(
   restaurantName: string,
   printerConfig: PrinterConfig | null,
 ) {
-  const items = order.items ?? [];
-  const categoriesInOrder = Array.from(
-    new Set(items.map((i) => i.category_name ?? 'Uncategorized')),
-  );
-
   // Advance to 'preparing' regardless of print outcome
   try {
     const supabase = createClient();
@@ -122,73 +136,16 @@ async function autoPrintKOT(
     console.error('[AutoPrint] Failed to advance order status:', err);
   }
 
-  // Fetch KOT number
-  let kot = 1;
   try {
-    const supabase = createClient();
-    const { data } = await supabase.rpc('get_next_kot_number', { p_restaurant_id: restaurantId });
-    kot = (data as number) ?? 1;
-  } catch { /* fallback to 1 */ }
-
-  try {
-    if (printerConfig && printerConfig.printers.length > 0) {
-      const { printerService } = await import('@/lib/printer-service');
-      const { buildKOTTicket } = await import('@/lib/escpos-kot');
-      const copies = printerConfig.copies_kot ?? 1;
-
-      if (printerConfig.kot_printer_mode !== 'station_routing') {
-        const pid = printerConfig.kot_printer_mode;
-        const printer =
-          printerConfig.printers.find((p) => p.id === pid) ?? printerConfig.printers[0];
-        if (printer.type === 'browser') {
-          const { printKitchenTicket } = await import('@/lib/printTicket');
-          printKitchenTicket(order, kot, restaurantName, categoriesInOrder);
-        } else {
-          const data = buildKOTTicket(
-            order,
-            restaurantName,
-            kot,
-            categoriesInOrder,
-            printer.paper_width,
-          );
-          for (let i = 0; i < copies; i++) await printerService.print(printer, data);
-        }
-      } else {
-        const routingMap = printerConfig.station_routing ?? {};
-        const defaultPrinterId = printerConfig.printers[0].id;
-        const printerGroups = new Map<string, string[]>();
-        for (const cat of categoriesInOrder) {
-          const pid = routingMap[cat] || defaultPrinterId;
-          if (!printerGroups.has(pid)) printerGroups.set(pid, []);
-          printerGroups.get(pid)!.push(cat);
-        }
-        await Promise.all(
-          Array.from(printerGroups.entries()).map(async ([pid, cats]) => {
-            const printer = printerConfig.printers.find((p) => p.id === pid);
-            if (!printer) return;
-            if (printer.type === 'browser') {
-              const { printKitchenTicket } = await import('@/lib/printTicket');
-              printKitchenTicket(order, kot, restaurantName, cats);
-              return;
-            }
-            const data = buildKOTTicket(
-              order,
-              restaurantName,
-              kot,
-              cats,
-              printer.paper_width,
-              categoriesInOrder.length,
-            );
-            for (let i = 0; i < copies; i++) await printerService.print(printer, data);
-          }),
-        );
-      }
-    } else {
-      const { printKitchenTicket } = await import('@/lib/printTicket');
-      printKitchenTicket(order, kot, restaurantName, categoriesInOrder);
-    }
-
-    toast.success(`KOT printed — Order #${order.order_number}`);
+    await printKOT(order, restaurantId, restaurantName, printerConfig);
+    const tableLabel = order.table
+      ? `Table ${order.table.display_name?.trim() || order.table.table_number}`
+      : order.order_type === 'parcel'
+      ? `Parcel${order.customer_name ? ` — ${order.customer_name}` : ''}`
+      : 'Dine In';
+    toast.success(`Order #${order.order_number} — ${tableLabel} — Auto-printed ✓`, {
+      duration: 4000,
+    });
   } catch (err) {
     toast.error(`Auto-print failed for #${order.order_number} — use reprint button`);
     console.error('[AutoPrint]', err);

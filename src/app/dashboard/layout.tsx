@@ -38,7 +38,7 @@ export default async function DashboardLayout({
       />
       <Sidebar restaurant={restaurant as Restaurant} />
       <main className="flex-1 overflow-auto">
-        <GlobalNotifications restaurantId={restaurant.id} restaurantName={restaurant.name} />
+        <GlobalNotifications restaurantId={restaurant.id} restaurantName={restaurant.name} printerConfig={restaurant.printer_config} />
         {children}
       </main>
     </div>

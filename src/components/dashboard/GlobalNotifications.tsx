@@ -11,22 +11,25 @@ import {
   startNewOrderLoop, stopNewOrderLoop,
   startWaiterCallLoop, stopWaiterCallLoop,
 } from '@/lib/sounds';
-import type { Order, WaiterCall } from '@/types';
+import type { Order, WaiterCall, PrinterConfig } from '@/types';
 
 const AUDIO_PREF_KEY = 'dashboard-audio-enabled';
 
 interface Props {
   restaurantId: string;
   restaurantName: string;
+  printerConfig: PrinterConfig | null;
 }
 
-export default function GlobalNotifications({ restaurantId, restaurantName }: Props) {
+export default function GlobalNotifications({ restaurantId, restaurantName, printerConfig }: Props) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [pendingNewOrders, setPendingNewOrders] = useState<Order[]>([]);
   const [waiterCalls, setWaiterCalls] = useState<WaiterCall[]>([]);
 
   const audioEnabledRef = useRef(false);
   const isFirstRender = useRef(true);
+  const printerConfigRef = useRef(printerConfig);
+  printerConfigRef.current = printerConfig;
 
   useEffect(() => { audioEnabledRef.current = audioEnabled; }, [audioEnabled]);
 
@@ -105,7 +108,13 @@ export default function GlobalNotifications({ restaurantId, restaurantName }: Pr
             .single();
           if (data) {
             const order = data as Order;
-            setPendingNewOrders((prev) => [order, ...prev]);
+            // In auto-print mode AutoPrintListener handles the notification
+            // (chime + toast). Suppress the looping Accept banner here so staff
+            // aren't shown a redundant popup for an already-accepted order.
+            const isAutoPrint = printerConfigRef.current?.kot_print_trigger === 'on_order';
+            if (!isAutoPrint) {
+              setPendingNewOrders((prev) => [order, ...prev]);
+            }
             if (document.hidden && Notification.permission === 'granted') {
               new Notification(`New order #${order.order_number}`, {
                 body: `${restaurantName} — ${order.items?.length ?? 0} item(s)`,
@@ -141,11 +150,16 @@ export default function GlobalNotifications({ restaurantId, restaurantName }: Pr
     try {
       const supabase = createClient();
       await supabase.from('orders').update({ status: 'preparing' }).eq('id', order.id);
+      // Print KOT immediately on accept (on_accept mode)
+      const config = printerConfigRef.current;
+      const { printKOT } = await import('@/lib/kot-print');
+      await printKOT(order, restaurantId, restaurantName, config);
+      toast.success(`KOT printed — Order #${order.order_number}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to accept order');
       setPendingNewOrders((prev) => [order, ...prev]);
     }
-  }, []);
+  }, [restaurantId, restaurantName]);
 
   const dismissWaiterCall = useCallback(async (callId: string) => {
     setWaiterCalls((prev) =>
