@@ -46,11 +46,11 @@ function _doReadyChime(ac: AudioContext) {
   playTone(ac, 659, now, 0.4, 0.8);
   playTone(ac, 784, now + 0.2, 0.5, 0.8);
 
-  // Speak "Your order is ready!" after the chime finishes
+  // Speak after the chime finishes
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     setTimeout(() => {
-      speakUS('Your order is ready! Please collect from the counter.');
-    }, 700); // wait for chime to finish
+      speakUS('yo, your order is ready! come grab it from the counter.');
+    }, 900); // wait for chime to finish (extra buffer for slow devices)
   }
 }
 

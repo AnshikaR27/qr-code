@@ -304,13 +304,18 @@ export default function OrderStatusPage() {
         {!isCancelled && !isCompleted && !isReady && !audioUnlocked && notifPerm !== 'default' && (
           <button
             onClick={handleFirstInteraction}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-left transition-colors active:bg-gray-100"
+            className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl text-left transition-all active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, #f97316 0%, #ec4899 100%)',
+              boxShadow: '0 4px 20px rgba(249,115,22,0.4)',
+            }}
           >
-            <span className="text-xl flex-shrink-0">🔊</span>
+            <span className="text-3xl flex-shrink-0">🔊</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800">we&apos;ll hit you with a sound when your food&apos;s done cooking</p>
-              <p className="text-xs text-gray-500 mt-0.5">just tap here and we&apos;ll handle the rest</p>
+              <p className="text-base font-bold text-white">tap for a sound alert when your food&apos;s ready</p>
+              <p className="text-xs text-white/80 mt-0.5">don&apos;t miss it — we&apos;ll call you out loud</p>
             </div>
+            <span className="text-white/80 text-lg flex-shrink-0">→</span>
           </button>
         )}
 
