@@ -7,6 +7,7 @@
 // handler before any sound can play.
 
 let ctx: AudioContext | null = null;
+let notifyAudio: HTMLAudioElement | null = null;
 
 /**
  * Unlock audio for the customer page. Must be called from a user gesture
@@ -29,6 +30,18 @@ export async function unlockCustomerAudio(): Promise<void> {
   src.connect(ctx.destination);
   src.start(0);
 
+  // Unlock the notify audio element from within this user gesture so it can
+  // be played later from a non-gesture context (realtime event).
+  if (!notifyAudio) {
+    notifyAudio = new Audio('/notify.mp3');
+    notifyAudio.load();
+  }
+  // Play + immediately pause — this "unlocks" the element on Android/iOS
+  try {
+    await notifyAudio.play();
+    notifyAudio.pause();
+    notifyAudio.currentTime = 0;
+  } catch { /* ignore */ }
 }
 
 /** Play one ready chime burst — single ding (E5). */
@@ -62,6 +75,15 @@ export function startReadyChimeLoop() {
   if (readyLoopId !== null) return;
   readyLoopId = 1 as unknown as ReturnType<typeof setInterval>; // mark as started, no repeat
   _fireReadyChime();
+  setTimeout(() => _speakReady(), 400);
+}
+
+function _speakReady() {
+  if (!notifyAudio) return;
+  try {
+    notifyAudio.currentTime = 0;
+    notifyAudio.play().catch(() => { /* blocked — chime still plays */ });
+  } catch { /* ignore */ }
 }
 
 /** Stop the ready chime loop (call when customer taps / acknowledges). */
