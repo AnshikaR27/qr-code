@@ -81,17 +81,13 @@ export function startReadyChimeLoop() {
 function _speakReady() {
   if (!('speechSynthesis' in window)) return;
   try {
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance("yo, your order's ready! come grab it 🙌");
+    const utterance = new SpeechSynthesisUtterance("yo, your order is ready! come grab it.");
     utterance.lang = 'en-US';
     utterance.rate = 1;
     utterance.pitch = 1.1;
     utterance.volume = 1;
-    const voices = speechSynthesis.getVoices();
-    const voice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en')) || null;
-    if (voice) utterance.voice = voice;
     speechSynthesis.speak(utterance);
-  } catch { /* blocked on iOS — chime still plays */ }
+  } catch { /* blocked — chime still plays */ }
 }
 
 /** Stop the ready chime loop (call when customer taps / acknowledges). */
