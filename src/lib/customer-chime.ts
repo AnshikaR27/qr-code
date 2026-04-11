@@ -73,9 +73,12 @@ let readyLoopId: ReturnType<typeof setInterval> | null = null;
  */
 export function startReadyChimeLoop() {
   if (readyLoopId !== null) return;
-  readyLoopId = 1 as unknown as ReturnType<typeof setInterval>; // mark as started, no repeat
   _fireReadyChime();
   setTimeout(() => _speakReady(), 400);
+  readyLoopId = setInterval(() => {
+    _fireReadyChime();
+    setTimeout(() => _speakReady(), 400);
+  }, 4000);
 }
 
 function _speakReady() {
