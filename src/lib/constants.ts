@@ -3,7 +3,7 @@ import type { OrderStatus, SpiceLevel } from '@/types';
 export const ORDER_STATUSES: { value: OrderStatus; label: string; color: string }[] = [
   { value: 'placed',    label: 'Placed',    color: 'bg-yellow-100 text-yellow-800' },
   { value: 'ready',     label: 'Ready',     color: 'bg-green-100 text-green-800'  },
-  { value: 'completed', label: 'Completed', color: 'bg-gray-100 text-gray-800'    },
+  { value: 'delivered', label: 'Delivered',  color: 'bg-gray-100 text-gray-800'    },
   { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800'      },
 ];
 

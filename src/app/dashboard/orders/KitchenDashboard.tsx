@@ -19,15 +19,17 @@ type FilterTab = 'active' | 'all' | 'completed';
 
 const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
   placed:    'ready',
-  ready:     'completed',
-  completed: null,
+  preparing: null,
+  ready:     'delivered',
+  delivered: null,
   cancelled: null,
 };
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   placed:    'Food Ready',
+  preparing: 'Preparing',
   ready:     'Record Payment',
-  completed: 'Completed',
+  delivered: 'Delivered',
   cancelled: 'Cancelled',
 };
 
@@ -225,7 +227,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = orders.filter((o) => {
     if (filter === 'active')    return o.status === 'placed' || o.status === 'ready';
-    if (filter === 'completed') return o.status === 'completed' || o.status === 'cancelled';
+    if (filter === 'completed') return o.status === 'delivered' || o.status === 'cancelled';
     return true;
   });
 
@@ -356,7 +358,7 @@ interface OrderCardProps {
 
 function OrderCard({ order, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
   const statusMeta = ORDER_STATUSES.find((s) => s.value === order.status);
-  const isTerminal = order.status === 'completed' || order.status === 'cancelled';
+  const isTerminal = order.status === 'delivered' || order.status === 'cancelled';
 
   return (
     <div
@@ -364,7 +366,7 @@ function OrderCard({ order, onAdvance, onCancel, onReprint, onPrintBill, isUpdat
         'bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden',
         order.status === 'placed'    && 'border-amber-300',
         order.status === 'ready'     && 'border-green-400',
-        order.status === 'completed' && 'border-gray-200 opacity-70',
+        order.status === 'delivered' && 'border-gray-200 opacity-70',
         order.status === 'cancelled' && 'border-red-200 opacity-60',
       )}
     >

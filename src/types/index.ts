@@ -87,7 +87,7 @@ export interface OrderNote {
 }
 
 export type OrderType = 'dine_in' | 'parcel';
-export type OrderStatus = 'placed' | 'ready' | 'completed' | 'cancelled';
+export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
 export type SpiceLevel = 0 | 1 | 2 | 3;
 
 export interface Restaurant {

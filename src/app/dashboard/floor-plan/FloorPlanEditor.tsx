@@ -78,7 +78,7 @@ function tableSize(capacity: FloorCapacity) {
 
 const ORDER_STATUS_FLOW: Partial<Record<OrderStatus, OrderStatus>> = {
   placed: 'ready',
-  ready:  'completed',
+  ready:  'delivered',
 };
 
 const ORDER_ACTION_LABELS: Partial<Record<OrderStatus, string>> = {
@@ -362,7 +362,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       const supabase = createClient();
       const { error } = await supabase
         .from('orders')
-        .update({ status: 'completed' })
+        .update({ status: 'delivered' })
         .in('id', orderIds);
       if (error) { toast.error('Failed to clear table'); return; }
       toast.success('Table marked as available');

@@ -12,7 +12,7 @@ import type { Order, OrderItem, OrderStatus } from '@/types';
 const STEPS: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
   { status: 'placed',    label: 'Order Placed', icon: Clock        },
   { status: 'ready',     label: 'Ready!',       icon: PackageCheck },
-  { status: 'completed', label: 'Enjoy!',       icon: CheckCircle2 },
+  { status: 'delivered', label: 'Enjoy!',       icon: CheckCircle2 },
 ];
 
 function statusIndex(s: OrderStatus) {
@@ -66,7 +66,7 @@ export default function OrderStatusPage() {
           const newStatus = (payload.new as Partial<Order>).status;
           setOrder((prev) => prev ? { ...prev, ...(payload.new as Partial<Order>) } : prev);
           setPrevStatus((prev) => {
-            if (newStatus === 'completed' && prev !== 'completed') {
+            if (newStatus === 'delivered' && prev !== 'delivered') {
               setShowCelebration(true);
               setTimeout(() => setShowCelebration(false), 5000);
             }
@@ -97,7 +97,7 @@ export default function OrderStatusPage() {
   }
 
   const currentIdx = statusIndex(order.status);
-  const isCompleted = order.status === 'completed';
+  const isCompleted = order.status === 'delivered';
   const isCancelled = order.status === 'cancelled';
   const isReady     = order.status === 'ready';
   const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
