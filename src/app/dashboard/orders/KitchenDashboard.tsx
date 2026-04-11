@@ -27,15 +27,13 @@ const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
   cancelled: null,
 };
 
-function getStatusLabels(serviceMode: 'self_service' | 'table_service'): Record<OrderStatus, string> {
-  return {
-    placed:    serviceMode === 'table_service' ? 'Send to Table' : 'Food Ready',
-    preparing: 'Preparing',
-    ready:     'Record Payment',
-    delivered: 'Delivered',
-    cancelled: 'Cancelled',
-  };
-}
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  placed:    'Food Ready',
+  preparing: 'Preparing',
+  ready:     'Record Payment',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+};
 
 export default function KitchenDashboard({ restaurant }: Props) {
   console.log('[KitchenDashboard] rendered, restaurant.id:', restaurant.id);
@@ -396,8 +394,7 @@ interface OrderCardProps {
   isUpdating: boolean;
 }
 
-function OrderCard({ order, restaurant, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
-  const STATUS_LABELS = getStatusLabels(restaurant.service_mode ?? 'self_service');
+function OrderCard({ order, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
   const statusMeta = ORDER_STATUSES.find((s) => s.value === order.status);
   const isTerminal = order.status === 'delivered' || order.status === 'cancelled';
 

@@ -111,7 +111,6 @@ export interface Restaurant {
   billing_config: BillingConfig | null;
   printer_config: PrinterConfig | null;
   ui_theme: 'classic' | 'sunday';
-  service_mode: 'self_service' | 'table_service';
   created_at: string;
   updated_at: string;
 }
