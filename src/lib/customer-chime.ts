@@ -14,17 +14,34 @@ function getCtx(): AudioContext {
 }
 
 /**
- * Pleasant two-tone "ding-ding" chime for order ready.
- * ~1 second, full volume, major third interval (E5 → G5).
+ * Speaks "Your order is ready!" using the browser Speech Synthesis API,
+ * with a short chime beforehand to grab attention.
+ * Falls back to the chime-only if speech synthesis is unavailable.
  */
 export function playReadyChime() {
   const ac = getCtx();
   const now = ac.currentTime;
 
-  // First tone — E5 (659 Hz)
+  // Attention chime first — E5 → G5
   playTone(ac, 659, now, 0.4, 0.8);
-  // Second tone — G5 (784 Hz), slightly delayed
   playTone(ac, 784, now + 0.2, 0.5, 0.8);
+
+  // Speak "Your order is ready!" after the chime finishes
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance('Your order is ready! Please collect from the counter.');
+      utterance.rate = 1;
+      utterance.pitch = 1.1;
+      utterance.volume = 1;
+      // Prefer a natural-sounding English voice if available
+      const voices = speechSynthesis.getVoices();
+      const englishVoice = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+        || voices.find(v => v.lang.startsWith('en'))
+        || null;
+      if (englishVoice) utterance.voice = englishVoice;
+      speechSynthesis.speak(utterance);
+    }, 700); // wait for chime to finish
+  }
 }
 
 /**
