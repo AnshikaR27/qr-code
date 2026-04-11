@@ -3,12 +3,14 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, CheckCircle2, Clock, PackageCheck } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, PackageCheck, UtensilsCrossed } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { startReadyChimeLoop, stopReadyChimeLoop, playPreparingChime, unlockCustomerAudio } from '@/lib/customer-chime';
 import type { Order, OrderItem, OrderStatus } from '@/types';
+
+type ServiceMode = 'self_service' | 'table_service';
 
 // Convert VAPID public key from base64 URL to Uint8Array for pushManager.subscribe
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -25,15 +27,21 @@ function isIOS() {
     /iPad|iPhone|iPod/.test(navigator.userAgent);
 }
 
-const STEPS: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
-  { status: 'placed',    label: 'Order Placed', icon: Clock        },
-  { status: 'ready',     label: 'Ready!',       icon: PackageCheck },
-  { status: 'delivered', label: 'Enjoy!',       icon: CheckCircle2 },
+const STEPS_SELF: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
+  { status: 'placed',    label: 'Order Placed',    icon: Clock        },
+  { status: 'ready',     label: 'Ready to Collect', icon: PackageCheck },
+  { status: 'delivered', label: 'Picked Up',        icon: CheckCircle2 },
 ];
 
-function statusIndex(s: OrderStatus) {
-  const idx = STEPS.findIndex((step) => step.status === s);
-  return idx === -1 ? STEPS.length : idx;
+const STEPS_TABLE: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
+  { status: 'placed',    label: 'Order Placed', icon: Clock           },
+  { status: 'ready',     label: 'On its Way',   icon: UtensilsCrossed },
+  { status: 'delivered', label: 'Served',       icon: CheckCircle2    },
+];
+
+function statusIndex(s: OrderStatus, steps: typeof STEPS_SELF) {
+  const idx = steps.findIndex((step) => step.status === s);
+  return idx === -1 ? steps.length : idx;
 }
 
 // Estimated prep time in minutes (stored so it persists across renders)
@@ -44,6 +52,8 @@ export default function OrderStatusPage() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
+  const [serviceMode, setServiceMode] = useState<ServiceMode>('self_service');
+  const serviceModeRef = useRef<ServiceMode>('self_service');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [prevStatus, setPrevStatus] = useState<OrderStatus | null>(null);
@@ -53,6 +63,7 @@ export default function OrderStatusPage() {
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [ios, setIos] = useState(false);
   useEffect(() => { setIos(isIOS()); }, []);
+  useEffect(() => { serviceModeRef.current = serviceMode; }, [serviceMode]);
 
   // Unlock audio on first tap, and stop the ready chime loop if it's ringing
   const handleFirstInteraction = useCallback(() => {
@@ -118,7 +129,7 @@ export default function OrderStatusPage() {
     async function fetchOrder() {
       const { data, error: err } = await supabase
         .from('orders')
-        .select('*, items:order_items(*)')
+        .select('*, items:order_items(*), restaurant:restaurants(service_mode)')
         .eq('id', orderId)
         .single();
 
@@ -128,6 +139,11 @@ export default function OrderStatusPage() {
         return;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mode = (data as any).restaurant?.service_mode as ServiceMode | undefined;
+      const resolvedMode = mode ?? 'self_service';
+      setServiceMode(resolvedMode);
+      serviceModeRef.current = resolvedMode;
       setOrder(data as Order);
       setItems((data.items ?? []) as OrderItem[]);
       setPrevStatus((data as Order).status);
@@ -153,15 +169,30 @@ export default function OrderStatusPage() {
             // ── Notifications on status change ──
             if (newStatus && newStatus !== prev) {
               if (newStatus === 'ready') {
-                startReadyChimeLoop();
-                if (typeof navigator !== 'undefined' && navigator.vibrate) {
-                  navigator.vibrate([400, 150, 400, 150, 400]);
+                const mode = serviceModeRef.current;
+                const orderNum = (payload.new as Partial<Order>).order_number ?? '';
+
+                if (mode === 'self_service') {
+                  // Chime + vibration for self service
+                  startReadyChimeLoop();
+                  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                    navigator.vibrate([400, 150, 400, 150, 400]);
+                  }
                 }
+
+                // Push notification for both modes — different message
                 if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                  new Notification('Your order is ready! \uD83D\uDD14', {
-                    body: `Order #${(payload.new as Partial<Order>).order_number ?? ''} — please collect from the counter.`,
-                    icon: '/favicon.ico',
-                  });
+                  new Notification(
+                    mode === 'table_service'
+                      ? 'Your food is on its way! 🍽️'
+                      : 'Your order is ready! 🔔',
+                    {
+                      body: mode === 'table_service'
+                        ? `Order #${orderNum} — your food is being brought to your table.`
+                        : `Order #${orderNum} — please collect from the counter.`,
+                      icon: '/favicon.ico',
+                    }
+                  );
                 }
               } else if (newStatus === 'preparing') {
                 playPreparingChime();
@@ -197,7 +228,9 @@ export default function OrderStatusPage() {
     );
   }
 
-  const currentIdx = statusIndex(order.status);
+  const isTableService = serviceMode === 'table_service';
+  const STEPS = isTableService ? STEPS_TABLE : STEPS_SELF;
+  const currentIdx = statusIndex(order.status, STEPS);
   const isCompleted = order.status === 'delivered';
   const isCancelled = order.status === 'cancelled';
   const isReady     = order.status === 'ready';
@@ -274,19 +307,19 @@ export default function OrderStatusPage() {
               : isCompleted
               ? '✅ Enjoy your meal!'
               : isReady
-              ? '🔔 Ready to collect!'
+              ? (isTableService ? '🍽️ On its way!' : '🔔 Ready to collect!')
               : 'Order placed!'}
           </h1>
           {!isCancelled && !isCompleted && (
             <p className="text-sm text-muted-foreground mt-1">
               {isReady
-                ? 'Your food is ready — come collect it now'
+                ? (isTableService ? 'Your food is being brought to your table' : 'Your food is ready — come collect it now')
                 : `Kitchen is working on it — usually ready in ~${EST_MINUTES} min`}
             </p>
           )}
         </div>
 
-        {/* ── Notification banner — Android only (iOS blocks Web Push) ── */}
+        {/* ── Notification banner — Android only, both service modes ── */}
         {!ios && !isCancelled && !isCompleted && !isReady && notifPerm === 'default' && (
           <button
             onClick={enableNotifications}
@@ -306,8 +339,8 @@ export default function OrderStatusPage() {
           </div>
         )}
 
-        {/* ── Sound unlock prompt — only if push not granted (otherwise push banner covers it) ── */}
-        {!isCancelled && !isCompleted && !isReady && !audioUnlocked && notifPerm !== 'granted' && (
+        {/* ── Sound unlock — only self service, only if push not granted ── */}
+        {!isTableService && !isCancelled && !isCompleted && !isReady && !audioUnlocked && notifPerm !== 'granted' && (
           <button
             onClick={handleFirstInteraction}
             className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-left transition-colors active:bg-gray-100"
@@ -325,24 +358,28 @@ export default function OrderStatusPage() {
           <div className={cn(
             'rounded-2xl border p-5 flex flex-col items-center gap-3 text-center transition-colors',
             order.status === 'placed' && 'bg-amber-50 border-amber-200',
-            isReady && 'bg-green-50 border-green-300',
+            isReady && !isTableService && 'bg-green-50 border-green-300',
+            isReady && isTableService && 'bg-blue-50 border-blue-200',
           )}>
             {order.status === 'placed' && (
               <>
-                <div style={{ fontSize: 48, animation: 'cookingBounce 1.2s ease-in-out infinite', display: 'inline-block' }}>
-                  🍳
-                </div>
+                <div style={{ fontSize: 48, animation: 'cookingBounce 1.2s ease-in-out infinite', display: 'inline-block' }}>🍳</div>
                 <p className="font-semibold text-amber-800">The kitchen is cooking your order!</p>
                 <p className="text-xs text-amber-600">Estimated wait: ~{EST_MINUTES} min</p>
               </>
             )}
-            {isReady && (
+            {isReady && !isTableService && (
               <>
-                <div style={{ fontSize: 48, animation: 'bellSwing 1s ease-in-out infinite', display: 'inline-block' }}>
-                  🔔
-                </div>
+                <div style={{ fontSize: 48, animation: 'bellSwing 1s ease-in-out infinite', display: 'inline-block' }}>🔔</div>
                 <p className="font-semibold text-green-800 text-lg">Your order is ready!</p>
                 <p className="text-xs text-green-600">Please come to the counter to collect it</p>
+              </>
+            )}
+            {isReady && isTableService && (
+              <>
+                <div style={{ fontSize: 48, display: 'inline-block' }}>🍽️</div>
+                <p className="font-semibold text-blue-800 text-lg">Your order is on its way!</p>
+                <p className="text-xs text-blue-600">Sit tight — your food is being brought to your table</p>
               </>
             )}
           </div>

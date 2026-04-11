@@ -27,13 +27,15 @@ const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
   cancelled: null,
 };
 
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  placed:    'Food Ready',
-  preparing: 'Preparing',
-  ready:     'Record Payment',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-};
+function getStatusLabels(serviceMode: 'self_service' | 'table_service'): Record<OrderStatus, string> {
+  return {
+    placed:    serviceMode === 'table_service' ? 'Send to Table' : 'Food Ready',
+    preparing: 'Preparing',
+    ready:     'Record Payment',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled',
+  };
+}
 
 export default function KitchenDashboard({ restaurant }: Props) {
   console.log('[KitchenDashboard] rendered, restaurant.id:', restaurant.id);
@@ -121,14 +123,17 @@ export default function KitchenDashboard({ restaurant }: Props) {
   }
 
   async function sendReadyPush(order: Order) {
+    const isTableService = restaurant.service_mode === 'table_service';
     try {
       await fetch('/api/push/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: order.id,
-          title: 'Your order is ready! \uD83D\uDD14',
-          body: `Order #${order.order_number} at ${restaurant.name} — please collect from the counter`,
+          title: isTableService ? 'Your food is on its way! 🍽️' : 'Your order is ready! 🔔',
+          body: isTableService
+            ? `Order #${order.order_number} — your food is being brought to your table.`
+            : `Order #${order.order_number} at ${restaurant.name} — please collect from the counter`,
           url: `/${restaurant.slug}/order/${order.id}`,
         }),
       });
@@ -394,8 +399,9 @@ interface OrderCardProps {
   isUpdating: boolean;
 }
 
-function OrderCard({ order, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
+function OrderCard({ order, restaurant, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
   const statusMeta = ORDER_STATUSES.find((s) => s.value === order.status);
+  const STATUS_LABELS = getStatusLabels(restaurant.service_mode ?? 'self_service');
   const isTerminal = order.status === 'delivered' || order.status === 'cancelled';
 
   return (

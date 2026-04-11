@@ -76,6 +76,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
   const [billing, setBilling] = useState<BillingConfig>(() => toBillingForm(restaurant));
   const [billingErrors, setBillingErrors] = useState<Record<string, string>>({});
   const [uiTheme, setUiTheme] = useState<'classic' | 'sunday'>(restaurant.ui_theme ?? 'classic');
+  const [serviceMode, setServiceMode] = useState<'self_service' | 'table_service'>(restaurant.service_mode ?? 'self_service');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -253,6 +254,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
           stitch_project_id: form.stitch_project_id.trim() || null,
           billing_config: billing,
           ui_theme: uiTheme,
+          service_mode: serviceMode,
         })
         .eq('id', restaurant.id);
 
@@ -412,6 +414,43 @@ export default function SettingsClient({ restaurant, categories }: Props) {
             </div>
           </Section>
         )}
+
+        {/* ── Service Style ── */}
+        <Section title="Service Style">
+          <p className="text-xs text-muted-foreground -mt-1">
+            How do customers receive their orders? This changes what they see on the order tracking screen.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setServiceMode('self_service')}
+              className={cn('relative rounded-xl border-2 p-4 text-left transition-colors', serviceMode === 'self_service' ? 'border-primary bg-primary/5' : 'border-border')}
+            >
+              <div className="text-2xl mb-2">🏪</div>
+              <p className="text-sm font-semibold text-foreground">Self Service</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Customers collect their order from the counter</p>
+              {serviceMode === 'self_service' && (
+                <span className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setServiceMode('table_service')}
+              className={cn('relative rounded-xl border-2 p-4 text-left transition-colors', serviceMode === 'table_service' ? 'border-primary bg-primary/5' : 'border-border')}
+            >
+              <div className="text-2xl mb-2">🍽️</div>
+              <p className="text-sm font-semibold text-foreground">Table Service</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Staff delivers orders to the customer&apos;s table</p>
+              {serviceMode === 'table_service' && (
+                <span className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </span>
+              )}
+            </button>
+          </div>
+        </Section>
 
         {/* ── Menu Style ── */}
         <Section title="Menu Style">
