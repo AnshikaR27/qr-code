@@ -171,7 +171,7 @@ export default function OrderStatusPage() {
       }
     }
 
-    fetchOrder().catch(() => {});
+    void fetchOrder();
 
     // Lightweight re-fetch of just the status — used when the realtime channel
     // reconnects after Chrome resumes from background (WebSocket was suspended).
