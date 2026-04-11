@@ -101,11 +101,23 @@ const WAITER_CALL_NOTES: NoteSpec[] = [
   { freq: 880, offset: 0.44, duration: 0.18, gain: 0.55 },
 ];
 
-/** Three ascending dings — used when an order auto-prints. */
+/**
+ * Three ascending dings repeated 3 times — used when an order auto-prints.
+ * Each arpeggio (C5 → E5 → G5) takes ~1 s; total ~3.1 s.
+ */
 const TRIPLE_CHIME_NOTES: NoteSpec[] = [
-  { freq: 523.25, offset: 0,    duration: 0.55, gain: 0.4 }, // C5
-  { freq: 659.25, offset: 0.22, duration: 0.55, gain: 0.4 }, // E5
-  { freq: 784.0,  offset: 0.44, duration: 0.55, gain: 0.4 }, // G5
+  // 1st arpeggio
+  { freq: 523.25, offset: 0.00, duration: 0.55, gain: 0.4 },
+  { freq: 659.25, offset: 0.22, duration: 0.55, gain: 0.4 },
+  { freq: 784.0,  offset: 0.44, duration: 0.55, gain: 0.4 },
+  // 2nd arpeggio
+  { freq: 523.25, offset: 1.10, duration: 0.55, gain: 0.4 },
+  { freq: 659.25, offset: 1.32, duration: 0.55, gain: 0.4 },
+  { freq: 784.0,  offset: 1.54, duration: 0.55, gain: 0.4 },
+  // 3rd arpeggio
+  { freq: 523.25, offset: 2.20, duration: 0.55, gain: 0.4 },
+  { freq: 659.25, offset: 2.42, duration: 0.55, gain: 0.4 },
+  { freq: 784.0,  offset: 2.64, duration: 0.55, gain: 0.4 },
 ];
 
 function _playNewOrder():   void { _play(NEW_ORDER_NOTES);    }
