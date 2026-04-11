@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronLeft, Utensils, Check } from 'lucide-react';
+import { ChevronLeft, Utensils, Check, MessageSquare, X } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
@@ -30,6 +30,7 @@ export default function DishDetailSheetV2({
   const reduced = useReducedMotion();
   const [localQty, setLocalQty] = useState(1);
   const [notes, setNotes] = useState('');
+  const [showNotes, setShowNotes] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set());
 
   // Swipe-to-close
@@ -75,7 +76,9 @@ export default function DishDetailSheetV2({
     setImgOffset(0);
     setDragY(0);
     const existing = items.find((i) => i.product_id === product.id);
-    setNotes(existing?.notes ?? '');
+    const existingNotes = existing?.notes ?? '';
+    setNotes(existingNotes);
+    setShowNotes(existingNotes.length > 0);
     setSelectedAddons(new Set(existing?.addons.map((a) => a.product_id) ?? []));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
@@ -335,30 +338,61 @@ export default function DishDetailSheetV2({
             )}
 
             {/* Special instructions */}
-            <div className="mb-5">
-              <h3
-                className="font-bold mb-2"
-                style={{ fontSize: typeScale.sm, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+            {!showNotes ? (
+              <button
+                type="button"
+                onClick={() => setShowNotes(true)}
+                className="flex items-center gap-2 mb-5 border-none bg-transparent cursor-pointer active:opacity-70 transition-opacity"
+                style={{ padding: 0 }}
               >
-                Special instructions
-              </h3>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. less spicy, no onions…"
-                rows={2}
-                className="w-full resize-none outline-none border transition-colors"
-                style={{
-                  fontSize: typeScale.sm,
-                  padding: spacingScale.cardPad,
-                  borderRadius: 'var(--sunday-radius, 12px)',
-                  borderColor: 'var(--sunday-border, #E8D5B0)',
-                  backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
-                  color: 'var(--sunday-text, #1c1c17)',
-                  fontFamily: 'var(--sunday-font-body)',
-                }}
-              />
-            </div>
+                <MessageSquare size={16} style={{ color: 'var(--sunday-accent, #b12d00)' }} />
+                <span
+                  className="font-medium"
+                  style={{ fontSize: typeScale.sm, color: 'var(--sunday-accent, #b12d00)', fontFamily: 'var(--sunday-font-body)' }}
+                >
+                  Add a note
+                </span>
+              </button>
+            ) : (
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare size={14} style={{ color: 'var(--sunday-text-muted, #7A6040)' }} />
+                    <span
+                      className="font-bold"
+                      style={{ fontSize: typeScale.sm, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+                    >
+                      Note to kitchen
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setNotes(''); setShowNotes(false); }}
+                    className="p-1 rounded-full bg-transparent border-none cursor-pointer"
+                    style={{ color: 'var(--sunday-text-muted, #7A6040)' }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <textarea
+                  autoFocus
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. less spicy, no onions…"
+                  rows={2}
+                  className="w-full resize-none outline-none border transition-colors"
+                  style={{
+                    fontSize: typeScale.sm,
+                    padding: spacingScale.cardPad,
+                    borderRadius: 'var(--sunday-radius, 12px)',
+                    borderColor: 'var(--sunday-border, #E8D5B0)',
+                    backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+                    color: 'var(--sunday-text, #1c1c17)',
+                    fontFamily: 'var(--sunday-font-body)',
+                  }}
+                />
+              </div>
+            )}
 
             {/* Allergens */}
             {dish.allergens && dish.allergens.length > 0 && (
