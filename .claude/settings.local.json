@@ -33,7 +33,11 @@
       "Bash(git stash:*)",
       "Bash(git checkout:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(ls -la public/)",
+      "Bash(ls favicon.ico)",
+      "Bash(ls -la -- \"-\" \"Implement\")",
+      "Bash(file -- \"-\" \"Implement\")"
     ]
   }
 }

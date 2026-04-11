@@ -35,24 +35,11 @@ export async function unlockCustomerAudio(): Promise<void> {
   }
 }
 
-/** Returns the existing AudioContext, or null if not yet unlocked. */
-function getCtx(): AudioContext | null {
-  if (!ctx || ctx.state === 'closed') return null;
-  if (ctx.state === 'suspended') {
-    ctx.resume().catch(() => {});
-  }
-  return ctx;
-}
-
 /**
- * Speaks "Your order is ready!" using the browser Speech Synthesis API,
- * with a short chime beforehand to grab attention.
- * Falls back to chime-only if speech synthesis is unavailable or blocked.
+ * Schedule and speak the ready chime on an already-running AudioContext.
+ * Internal helper — always receives a running ctx.
  */
-export function playReadyChime() {
-  const ac = getCtx();
-  if (!ac) return; // not unlocked yet — skip silently
-
+function _doReadyChime(ac: AudioContext) {
   const now = ac.currentTime;
 
   // Attention chime first — E5 → G5
@@ -64,6 +51,28 @@ export function playReadyChime() {
     setTimeout(() => {
       speakUS('Your order is ready! Please collect from the counter.');
     }, 700); // wait for chime to finish
+  }
+}
+
+/**
+ * Speaks "Your order is ready!" using the browser Speech Synthesis API,
+ * with a short chime beforehand to grab attention.
+ * Falls back to chime-only if speech synthesis is unavailable or blocked.
+ *
+ * Properly handles a suspended AudioContext by awaiting resume() before
+ * scheduling tones — avoids the silent-burst bug where notes are scheduled
+ * on a paused context and fire instantly at t=0 (or not at all).
+ */
+export function playReadyChime() {
+  if (!ctx || ctx.state === 'closed') return; // not unlocked yet — skip silently
+  const c = ctx;
+  if (c.state === 'suspended') {
+    // Tab was backgrounded — resume first, then schedule
+    c.resume()
+      .then(() => _doReadyChime(c))
+      .catch(() => { /* browser blocked — silent fail */ });
+  } else {
+    _doReadyChime(c);
   }
 }
 
@@ -127,11 +136,14 @@ function speakUS(text: string) {
  * ~0.5 second, lower volume, gentle.
  */
 export function playPreparingChime() {
-  const ac = getCtx();
-  if (!ac) return; // not unlocked yet — skip silently
-
-  const now = ac.currentTime;
-  playTone(ac, 523, now, 0.35, 0.3); // C5, soft
+  if (!ctx || ctx.state === 'closed') return;
+  const c = ctx;
+  const doPlay = (ac: AudioContext) => playTone(ac, 523, ac.currentTime, 0.35, 0.3);
+  if (c.state === 'suspended') {
+    c.resume().then(() => doPlay(c)).catch(() => {});
+  } else {
+    doPlay(c);
+  }
 }
 
 function playTone(

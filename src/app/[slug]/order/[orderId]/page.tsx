@@ -45,11 +45,13 @@ export default function OrderStatusPage() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [notifPerm, setNotifPerm] = useState<'default' | 'granted' | 'denied'>('default');
   const audioUnlockedRef = useRef(false);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
 
   // Unlock audio on any tap/click — runs once
   const handleFirstInteraction = useCallback(() => {
     if (audioUnlockedRef.current) return;
     audioUnlockedRef.current = true;
+    setAudioUnlocked(true);
     unlockCustomerAudio().catch(() => {});
   }, []);
 
@@ -226,7 +228,7 @@ export default function OrderStatusPage() {
         }
       `}</style>
 
-      <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto px-4 py-6 gap-5" onClick={handleFirstInteraction}>
+      <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto px-4 py-6 gap-5" onClick={handleFirstInteraction} onTouchStart={handleFirstInteraction}>
         {/* ── Celebration overlay ── */}
         {showCelebration && (
           <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 pointer-events-none">
@@ -296,6 +298,20 @@ export default function OrderStatusPage() {
             <span className="text-xl flex-shrink-0">✅</span>
             <p className="text-sm font-semibold text-green-800">Notifications enabled — we&apos;ll ping you when it&apos;s ready!</p>
           </div>
+        )}
+
+        {/* ── Sound unlock prompt — shown until user taps anywhere ── */}
+        {!isCancelled && !isCompleted && !isReady && !audioUnlocked && notifPerm !== 'default' && (
+          <button
+            onClick={handleFirstInteraction}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-left transition-colors active:bg-gray-100"
+          >
+            <span className="text-xl flex-shrink-0">🔊</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">Tap to enable sound alert</p>
+              <p className="text-xs text-gray-500 mt-0.5">We&apos;ll chime when your order is ready</p>
+            </div>
+          </button>
         )}
 
         {/* ── Animated status card ── */}
