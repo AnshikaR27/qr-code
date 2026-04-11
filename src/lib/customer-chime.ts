@@ -1,7 +1,20 @@
-// Web Audio API chime tones for customer order status page.
-// No audio files needed — tones are generated programmatically.
+// Web Audio API chime tones + speech for customer order status page.
+// No audio files needed — tones are generated programmatically,
+// and speech uses the browser's built-in Speech Synthesis API.
 
 let ctx: AudioContext | null = null;
+
+// Pre-load voices — browsers load them asynchronously, so getVoices()
+// returns [] on the first call. This ensures they're ready when needed.
+let voicesLoaded = false;
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  speechSynthesis.getVoices(); // kick off loading
+  speechSynthesis.addEventListener('voiceschanged', () => {
+    voicesLoaded = true;
+  });
+  // Some browsers (Firefox) load voices synchronously
+  if (speechSynthesis.getVoices().length > 0) voicesLoaded = true;
+}
 
 function getCtx(): AudioContext {
   if (!ctx || ctx.state === 'closed') {
@@ -29,19 +42,50 @@ export function playReadyChime() {
   // Speak "Your order is ready!" after the chime finishes
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     setTimeout(() => {
-      const utterance = new SpeechSynthesisUtterance('Your order is ready! Please collect from the counter.');
-      utterance.rate = 1;
-      utterance.pitch = 1.1;
-      utterance.volume = 1;
-      // Prefer a US English voice
-      const voices = speechSynthesis.getVoices();
-      const usVoice = voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('female'))
-        || voices.find(v => v.lang === 'en-US')
-        || null;
-      if (usVoice) utterance.voice = usVoice;
-      utterance.lang = 'en-US';
-      speechSynthesis.speak(utterance);
+      speakUS('Your order is ready! Please collect from the counter.');
     }, 700); // wait for chime to finish
+  }
+}
+
+/** Speak text in a US English accent. Handles async voice loading. */
+function speakUS(text: string) {
+  // Cancel any in-progress speech to avoid overlap
+  speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'en-US';
+  utterance.rate = 1;
+  utterance.pitch = 1.1;
+  utterance.volume = 1;
+
+  const pickVoice = () => {
+    const voices = speechSynthesis.getVoices();
+    return voices.find(v => v.lang === 'en-US')
+      || voices.find(v => v.lang.startsWith('en'))
+      || null;
+  };
+
+  const voice = pickVoice();
+  if (voice) {
+    utterance.voice = voice;
+    speechSynthesis.speak(utterance);
+  } else {
+    // Voices not loaded yet — wait for them, then speak
+    const onVoices = () => {
+      const v = pickVoice();
+      if (v) utterance.voice = v;
+      speechSynthesis.speak(utterance);
+      speechSynthesis.removeEventListener('voiceschanged', onVoices);
+    };
+    speechSynthesis.addEventListener('voiceschanged', onVoices);
+    // Fallback: if voiceschanged never fires (some browsers), speak anyway after 500ms
+    setTimeout(() => {
+      speechSynthesis.removeEventListener('voiceschanged', onVoices);
+      // Only speak if not already speaking (the event handler may have fired)
+      if (!speechSynthesis.speaking) {
+        speechSynthesis.speak(utterance);
+      }
+    }, 500);
   }
 }
 
