@@ -5,7 +5,6 @@ import { ChevronLeft, Utensils, Check } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
-import PairingSuggestions from './PairingSuggestions';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product, Category, CartAddon } from '@/types';
 
@@ -86,14 +85,6 @@ export default function DishDetailSheetV2({
     return () => { document.body.style.overflow = ''; };
   }, [product]);
 
-  // Pairing suggestions — different category
-  const suggestions = useMemo(() => {
-    if (!product?.category_id) return [];
-    return allProducts
-      .filter((p) => p.category_id !== product.category_id && p.is_available && p.image_url)
-      .sort((a, b) => b.order_count - a.order_count)
-      .slice(0, 6);
-  }, [product?.category_id, allProducts]);
 
   if (!product) return null;
 
@@ -361,8 +352,6 @@ export default function DishDetailSheetV2({
               </div>
             )}
 
-            {/* Pairing suggestions */}
-            <PairingSuggestions suggestions={suggestions} />
           </div>
 
           {/* Bottom add bar */}

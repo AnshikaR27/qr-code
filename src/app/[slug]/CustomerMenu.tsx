@@ -122,34 +122,11 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
     } catch { /* ignore */ }
   }, [restaurant.slug]);
 
-  // Combo suggestion toast — fires when a new main-course item is added
+  // Track previous cart for change detection
   const prevCartRef = useRef<CartItem[]>([]);
   useEffect(() => {
-    const prev = prevCartRef.current;
-    const newlyAdded = cartItems.filter((item) => !prev.find((p) => p.product_id === item.product_id));
-    if (newlyAdded.length > 0) {
-      for (const added of newlyAdded) {
-        const product = products.find((p) => p.id === added.product_id);
-        if (!product?.category_id) continue;
-        const cat = categories.find((c) => c.id === product.category_id);
-        if (!cat) continue;
-        const isMain = /\b(main|mains|curry|dal|rice|biryani|thali|sabji|sabzi|entree)\b/i.test(cat.name);
-        if (!isMain) continue;
-        const drinkCat = categories.find((c) => /\b(drink|drinks|beverage|juice|shake|lassi|chai|tea|coffee|soda)\b/i.test(c.name));
-        if (!drinkCat) continue;
-        const drinks = products.filter((p) => p.category_id === drinkCat.id && p.is_available);
-        if (drinks.length === 0) continue;
-        const suggestion = drinks[Math.floor(Math.random() * drinks.length)];
-        toast(`🥤 Pair it with a drink?`, {
-          description: `${suggestion.name} · ₹${suggestion.price}`,
-          action: { label: 'Add', onClick: () => addItem(suggestion) },
-          duration: 7000,
-        });
-        break;
-      }
-    }
     prevCartRef.current = cartItems;
-  }, [cartItems, products, categories, addItem]);
+  }, [cartItems]);
 
   function handleRepeatOrder() {
     if (!repeatOrder) return;

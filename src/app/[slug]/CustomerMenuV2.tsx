@@ -188,29 +188,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     if (newlyAdded.length > 0) {
       const added = newlyAdded[0];
       setToastMessage(`1 ${added.name} has been added`);
-
-      // Combo suggestion
-      for (const item of newlyAdded) {
-        const product = products.find((p) => p.id === item.product_id);
-        if (!product?.category_id) continue;
-        const cat = categories.find((c) => c.id === product.category_id);
-        if (!cat) continue;
-        const isMain = /\b(main|mains|curry|dal|rice|biryani|thali|sabji|sabzi|entree)\b/i.test(cat.name);
-        if (!isMain) continue;
-        const drinkCat = categories.find((c) =>
-          /\b(drink|drinks|beverage|juice|shake|lassi|chai|tea|coffee|soda)\b/i.test(c.name)
-        );
-        if (!drinkCat) continue;
-        const drinks = products.filter((p) => p.category_id === drinkCat.id && p.is_available);
-        if (drinks.length === 0) continue;
-        const suggestion = drinks[Math.floor(Math.random() * drinks.length)];
-        toast(`Pair it with a drink?`, {
-          description: `${suggestion.name} · ₹${suggestion.price}`,
-          action: { label: 'Add', onClick: () => addItem(suggestion) },
-          duration: 7000,
-        });
-        break;
-      }
     }
     prevCartRef.current = cartItems;
   }, [cartItems, products, categories, addItem]);
