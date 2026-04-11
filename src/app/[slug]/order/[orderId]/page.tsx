@@ -99,46 +99,6 @@ export default function OrderStatusPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-fetch order when tab comes back to foreground.
-  // This catches status changes that happened while Chrome was backgrounded/suspended
-  // (WebSocket is paused by the browser, so realtime events are missed).
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState !== 'visible') return;
-      const supabase = createClient();
-      supabase
-        .from('orders')
-        .select('*')
-        .eq('id', orderId)
-        .single()
-        .then(({ data, error }) => {
-          if (error || !data) return;
-          const newStatus = (data as Order).status;
-          const prevOrder = orderRef.current;
-          if (!prevOrder || prevOrder.status === newStatus) return;
-          setOrder((prev) => prev ? { ...prev, ...(data as Order) } : prev);
-          orderRef.current = data as Order;
-          if (newStatus === 'ready' && serviceModeRef.current === 'self_service') {
-            if (audioUnlockedRef.current) {
-              startReadyChimeLoop();
-            } else {
-              pendingChimeRef.current = true;
-            }
-            if (typeof navigator !== 'undefined' && navigator.vibrate) {
-              navigator.vibrate([400, 150, 400, 150, 400]);
-            }
-          }
-          if (newStatus === 'delivered') {
-            setShowCelebration(true);
-            setTimeout(() => setShowCelebration(false), 5000);
-          }
-        })
-        .catch(() => { /* network not ready yet — silently ignore */ });
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [orderId]);
-
   async function enableNotifications() {
     if (typeof Notification === 'undefined') return;
     // Also unlock audio from this user gesture
@@ -211,8 +171,37 @@ export default function OrderStatusPage() {
       }
     }
 
-    fetchOrder();
+    fetchOrder().catch(() => {});
 
+    // Lightweight re-fetch of just the status — used when the realtime channel
+    // reconnects after Chrome resumes from background (WebSocket was suspended).
+    function refreshStatus() {
+      supabase
+        .from('orders')
+        .select('status')
+        .eq('id', orderId)
+        .single()
+        .then(({ data }) => {
+          if (!data) return;
+          const newStatus = (data as { status: OrderStatus }).status;
+          const prev = orderRef.current?.status;
+          if (!prev || prev === newStatus) return;
+          setOrder((o) => o ? { ...o, status: newStatus } : o);
+          if (orderRef.current) orderRef.current = { ...orderRef.current, status: newStatus };
+          if (newStatus === 'ready' && serviceModeRef.current === 'self_service') {
+            if (audioUnlockedRef.current) startReadyChimeLoop();
+            else pendingChimeRef.current = true;
+            navigator.vibrate?.([400, 150, 400, 150, 400]);
+          }
+          if (newStatus === 'delivered') {
+            setShowCelebration(true);
+            setTimeout(() => setShowCelebration(false), 5000);
+          }
+        })
+        .catch(() => {});
+    }
+
+    let subscribedOnce = false;
     const channel = supabase
       .channel(`order-status-${orderId}`)
       .on(
@@ -269,7 +258,16 @@ export default function OrderStatusPage() {
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          if (!subscribedOnce) {
+            subscribedOnce = true; // skip first subscription — fetchOrder already ran
+          } else {
+            // Reconnected after Chrome resumed from background — re-fetch to catch missed events
+            refreshStatus();
+          }
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
