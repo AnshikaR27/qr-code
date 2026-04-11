@@ -42,101 +42,49 @@ export async function unlockCustomerAudio(): Promise<void> {
   }
 }
 
-/**
- * Schedule and speak the ready chime on an already-running AudioContext.
- * Internal helper — always receives a running ctx.
- */
+/** Play one ready chime burst — E5 → G5 → B5 ascending arpeggio. */
 function _doReadyChime(ac: AudioContext) {
   const now = ac.currentTime;
-
-  // Attention chime first — E5 → G5
-  playTone(ac, 659, now, 0.4, 0.8);
-  playTone(ac, 784, now + 0.2, 0.5, 0.8);
-
-  // Speak after the chime finishes
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    setTimeout(() => {
-      speakUS('yo, your order is ready! come grab it from the counter.');
-    }, 900); // wait for chime to finish (extra buffer for slow devices)
-  }
+  playTone(ac, 659, now,        0.35, 0.9); // E5
+  playTone(ac, 784, now + 0.18, 0.35, 0.9); // G5
+  playTone(ac, 988, now + 0.36, 0.5,  0.9); // B5
 }
 
-/**
- * Speaks "Your order is ready!" using the browser Speech Synthesis API,
- * with a short chime beforehand to grab attention.
- * Falls back to chime-only if speech synthesis is unavailable or blocked.
- *
- * Properly handles a suspended AudioContext by awaiting resume() before
- * scheduling tones — avoids the silent-burst bug where notes are scheduled
- * on a paused context and fire instantly at t=0 (or not at all).
- */
-export function playReadyChime() {
-  if (!ctx || ctx.state === 'closed') return; // not unlocked yet — skip silently
+function _fireReadyChime() {
+  if (!ctx || ctx.state === 'closed') return;
   const c = ctx;
   if (c.state === 'suspended') {
-    // Tab was backgrounded — resume first, then schedule
-    c.resume()
-      .then(() => _doReadyChime(c))
-      .catch(() => { /* browser blocked — silent fail */ });
+    c.resume().then(() => _doReadyChime(c)).catch(() => {});
   } else {
     _doReadyChime(c);
   }
 }
 
-/** Speak text in a US English accent. Handles async voice loading. */
-function speakUS(text: string) {
-  try {
-    // Cancel any in-progress speech to avoid overlap
-    speechSynthesis.cancel();
+// ── Ready chime loop ───────────────────────────────────────────────────────────
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    utterance.rate = 1;
-    utterance.pitch = 1.1;
-    utterance.volume = 1;
+let readyLoopId: ReturnType<typeof setInterval> | null = null;
 
-    const pickVoice = () => {
-      const voices = speechSynthesis.getVoices();
-      return voices.find(v => v.lang === 'en-US')
-        || voices.find(v => v.lang.startsWith('en'))
-        || null;
-    };
+/**
+ * Start looping the ready chime every 4 seconds until stopReadyChimeLoop() is
+ * called. Plays once immediately, then repeats. No-op if already looping.
+ * Use this instead of the one-shot playReadyChime so the customer can't miss it.
+ */
+export function startReadyChimeLoop() {
+  if (readyLoopId !== null) return;
+  _fireReadyChime();
+  readyLoopId = setInterval(_fireReadyChime, 4000);
+}
 
-    const voice = pickVoice();
-    if (voice) {
-      utterance.voice = voice;
-      speechSynthesis.speak(utterance);
-    } else {
-      // Voices not loaded yet — wait for them, then speak
-      const onVoices = () => {
-        const v = pickVoice();
-        if (v) utterance.voice = v;
-        try {
-          speechSynthesis.speak(utterance);
-        } catch (e) {
-          console.warn('[customer-chime] speech blocked after voiceschanged:', e);
-        }
-        speechSynthesis.removeEventListener('voiceschanged', onVoices);
-      };
-      speechSynthesis.addEventListener('voiceschanged', onVoices);
-      // Fallback: if voiceschanged never fires, speak anyway after 500ms
-      setTimeout(() => {
-        speechSynthesis.removeEventListener('voiceschanged', onVoices);
-        if (!speechSynthesis.speaking) {
-          try {
-            speechSynthesis.speak(utterance);
-          } catch (e) {
-            console.warn('[customer-chime] speech fallback blocked:', e);
-          }
-        }
-      }, 500);
-    }
-  } catch (e) {
-    // Chrome on Android may block speechSynthesis.speak() entirely
-    // if not in a direct user gesture chain — fall back to chime-only
-    console.warn('[customer-chime] speechSynthesis blocked, falling back to chime-only:', e);
+/** Stop the ready chime loop (call when customer taps / acknowledges). */
+export function stopReadyChimeLoop() {
+  if (readyLoopId !== null) {
+    clearInterval(readyLoopId);
+    readyLoopId = null;
   }
 }
+
+/** One-shot ready chime (kept for backward compat). */
+export function playReadyChime() { _fireReadyChime(); }
 
 /**
  * Soft single-tone "boop" for preparing status.

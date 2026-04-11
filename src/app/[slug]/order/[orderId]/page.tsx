@@ -7,7 +7,7 @@ import { Loader2, CheckCircle2, Clock, PackageCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import { playReadyChime, playPreparingChime, unlockCustomerAudio } from '@/lib/customer-chime';
+import { startReadyChimeLoop, stopReadyChimeLoop, playPreparingChime, unlockCustomerAudio } from '@/lib/customer-chime';
 import type { Order, OrderItem, OrderStatus } from '@/types';
 
 // Convert VAPID public key from base64 URL to Uint8Array for pushManager.subscribe
@@ -47,8 +47,9 @@ export default function OrderStatusPage() {
   const audioUnlockedRef = useRef(false);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
 
-  // Unlock audio on any tap/click — runs once
+  // Unlock audio on first tap, and stop the ready chime loop if it's ringing
   const handleFirstInteraction = useCallback(() => {
+    stopReadyChimeLoop();
     if (audioUnlockedRef.current) return;
     audioUnlockedRef.current = true;
     setAudioUnlocked(true);
@@ -145,8 +146,13 @@ export default function OrderStatusPage() {
             // ── Notifications on status change ──
             if (newStatus && newStatus !== prev) {
               if (newStatus === 'ready') {
-                // Sound chime
-                playReadyChime();
+                // Loop the chime every 4 s until the customer taps the screen
+                startReadyChimeLoop();
+
+                // Repeat vibration pattern
+                if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                  navigator.vibrate([400, 150, 400, 150, 400]);
+                }
 
                 // Browser notification
                 if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
@@ -154,11 +160,6 @@ export default function OrderStatusPage() {
                     body: `Order #${(payload.new as Partial<Order>).order_number ?? ''} — please collect from the counter.`,
                     icon: '/favicon.ico',
                   });
-                }
-
-                // Vibration
-                if (typeof navigator !== 'undefined' && navigator.vibrate) {
-                  navigator.vibrate([300, 100, 300]);
                 }
               } else if (newStatus === 'preparing') {
                 playPreparingChime();
@@ -171,7 +172,10 @@ export default function OrderStatusPage() {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+      stopReadyChimeLoop();
+    };
   }, [orderId]);
 
   if (loading) {
@@ -304,18 +308,13 @@ export default function OrderStatusPage() {
         {!isCancelled && !isCompleted && !isReady && !audioUnlocked && notifPerm !== 'default' && (
           <button
             onClick={handleFirstInteraction}
-            className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl text-left transition-all active:scale-95"
-            style={{
-              background: 'linear-gradient(135deg, #f97316 0%, #ec4899 100%)',
-              boxShadow: '0 4px 20px rgba(249,115,22,0.4)',
-            }}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-left transition-colors active:bg-gray-100"
           >
-            <span className="text-3xl flex-shrink-0">🔊</span>
+            <span className="text-xl flex-shrink-0">🔊</span>
             <div className="flex-1 min-w-0">
-              <p className="text-base font-bold text-white">tap for a sound alert when your food&apos;s ready</p>
-              <p className="text-xs text-white/80 mt-0.5">don&apos;t miss it — we&apos;ll call you out loud</p>
+              <p className="text-sm font-semibold text-gray-800">we&apos;ll hit you with a sound when your food&apos;s done cooking</p>
+              <p className="text-xs text-gray-500 mt-0.5">just tap here and we&apos;ll handle the rest</p>
             </div>
-            <span className="text-white/80 text-lg flex-shrink-0">→</span>
           </button>
         )}
 
