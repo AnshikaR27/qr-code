@@ -44,12 +44,10 @@ export async function unlockCustomerAudio(): Promise<void> {
   } catch { /* ignore */ }
 }
 
-/** Play one ready chime burst — E5 → G5 → B5 ascending arpeggio. */
+/** Play one ready chime burst — single ding (E5). */
 function _doReadyChime(ac: AudioContext) {
   const now = ac.currentTime;
-  playTone(ac, 659, now,        0.35, 0.9); // E5
-  playTone(ac, 784, now + 0.18, 0.35, 0.9); // G5
-  playTone(ac, 988, now + 0.36, 0.5,  0.9); // B5
+  playTone(ac, 659, now, 0.35, 0.9); // E5
 }
 
 function _fireReadyChime() {
@@ -76,7 +74,7 @@ export function startReadyChimeLoop() {
   _fireReadyChime();
   // Speak once after the chime finishes — primed by the silent utterance in
   // unlockCustomerAudio(), so it works on Android Chrome and most mobile browsers
-  setTimeout(() => _speakReady(), 900);
+  setTimeout(() => _speakReady(), 400);
   readyLoopId = setInterval(_fireReadyChime, 4000);
 }
 
