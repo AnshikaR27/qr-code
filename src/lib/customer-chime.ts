@@ -67,12 +67,31 @@ let readyLoopId: ReturnType<typeof setInterval> | null = null;
 /**
  * Start looping the ready chime every 4 seconds until stopReadyChimeLoop() is
  * called. Plays once immediately, then repeats. No-op if already looping.
- * Use this instead of the one-shot playReadyChime so the customer can't miss it.
+ * Also speaks the ready message once via TTS (requires prior unlockCustomerAudio()).
  */
 export function startReadyChimeLoop() {
   if (readyLoopId !== null) return;
   _fireReadyChime();
+  // Speak once after the chime finishes — primed by the silent utterance in
+  // unlockCustomerAudio(), so it works on Android Chrome and most mobile browsers
+  setTimeout(() => _speakReady(), 900);
   readyLoopId = setInterval(_fireReadyChime, 4000);
+}
+
+function _speakReady() {
+  if (!('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance("yo, your order's ready! come grab it 🙌");
+    utterance.lang = 'en-US';
+    utterance.rate = 1;
+    utterance.pitch = 1.1;
+    utterance.volume = 1;
+    const voices = speechSynthesis.getVoices();
+    const voice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en')) || null;
+    if (voice) utterance.voice = voice;
+    speechSynthesis.speak(utterance);
+  } catch { /* blocked on iOS — chime still plays */ }
 }
 
 /** Stop the ready chime loop (call when customer taps / acknowledges). */
