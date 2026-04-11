@@ -36,12 +36,11 @@ export async function unlockCustomerAudio(): Promise<void> {
     notifyAudio = new Audio('/notify.mp3');
     notifyAudio.load();
   }
-  // Play + immediately pause — this "unlocks" the element on Android/iOS
-  try {
-    await notifyAudio.play();
-    notifyAudio.pause();
-    notifyAudio.currentTime = 0;
-  } catch { /* ignore */ }
+  // Play + immediately pause — this "unlocks" the element on Android/iOS.
+  // Don't await — let it unlock in the background so callers aren't delayed.
+  notifyAudio.play()
+    .then(() => { notifyAudio!.pause(); notifyAudio!.currentTime = 0; })
+    .catch(() => { /* ignore */ });
 }
 
 /** Play one ready chime burst — single ding (E5). */
