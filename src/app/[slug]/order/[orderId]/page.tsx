@@ -308,8 +308,8 @@ export default function OrderStatusPage() {
           >
             <span className="text-xl flex-shrink-0">🔊</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800">want a sound when your order&apos;s ready?</p>
-              <p className="text-xs text-gray-500 mt-0.5">tap here so we can play it for you</p>
+              <p className="text-sm font-semibold text-gray-800">we&apos;ll hit you with a sound when your food&apos;s done cooking</p>
+              <p className="text-xs text-gray-500 mt-0.5">just tap here and we&apos;ll handle the rest</p>
             </div>
           </button>
         )}
