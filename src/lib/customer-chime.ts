@@ -7,6 +7,7 @@
 // handler before any sound can play.
 
 let ctx: AudioContext | null = null;
+let notifyAudio: HTMLAudioElement | null = null;
 
 /**
  * Unlock audio for the customer page. Must be called from a user gesture
@@ -29,17 +30,18 @@ export async function unlockCustomerAudio(): Promise<void> {
   src.connect(ctx.destination);
   src.start(0);
 
-  // Unlock speech synthesis with a silent utterance — mobile browsers (iOS Safari,
-  // Android Chrome) block speechSynthesis.speak() from non-gesture contexts unless
-  // it has been "primed" from a real user tap first. This is the equivalent of the
-  // silent AudioContext buffer above, but for the Speech API.
-  if ('speechSynthesis' in window) {
-    speechSynthesis.getVoices();
-    const silent = new SpeechSynthesisUtterance('');
-    silent.volume = 0;
-    silent.lang = 'en-US';
-    speechSynthesis.speak(silent);
+  // Unlock the notify audio element from within this user gesture so it can
+  // be played later from a non-gesture context (realtime event).
+  if (!notifyAudio) {
+    notifyAudio = new Audio('/notify.mp3');
+    notifyAudio.load();
   }
+  // Play + immediately pause — this "unlocks" the element on Android/iOS
+  try {
+    await notifyAudio.play();
+    notifyAudio.pause();
+    notifyAudio.currentTime = 0;
+  } catch { /* ignore */ }
 }
 
 /** Play one ready chime burst — E5 → G5 → B5 ascending arpeggio. */
@@ -79,15 +81,11 @@ export function startReadyChimeLoop() {
 }
 
 function _speakReady() {
-  if (!('speechSynthesis' in window)) return;
+  if (!notifyAudio) return;
   try {
-    const utterance = new SpeechSynthesisUtterance("yo, your order is ready! come grab it.");
-    utterance.lang = 'en-US';
-    utterance.rate = 1;
-    utterance.pitch = 1.1;
-    utterance.volume = 1;
-    speechSynthesis.speak(utterance);
-  } catch { /* blocked — chime still plays */ }
+    notifyAudio.currentTime = 0;
+    notifyAudio.play().catch(() => { /* blocked — chime still plays */ });
+  } catch { /* ignore */ }
 }
 
 /** Stop the ready chime loop (call when customer taps / acknowledges). */
