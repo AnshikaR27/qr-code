@@ -34,60 +34,89 @@ export function isAudioReady(): boolean {
   return ctx !== null && ctx.state === 'running';
 }
 
+// ── Internal scheduling helper ─────────────────────────────────────────────────
+
+interface NoteSpec {
+  freq: number;
+  /** Seconds after scheduling start */
+  offset: number;
+  duration: number;
+  gain: number;
+}
+
+/**
+ * Schedule notes on an already-running context.
+ * All times are relative to c.currentTime at the moment of call.
+ */
+function _schedule(c: AudioContext, notes: NoteSpec[]): void {
+  const now = c.currentTime;
+  for (const { freq, offset, duration, gain: peakGain } of notes) {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const t = now + offset;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(peakGain, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc.start(t);
+    osc.stop(t + duration);
+  }
+}
+
+/**
+ * Play notes, resuming the context first if it is suspended.
+ * Notes are scheduled relative to the moment the context is confirmed running,
+ * so they never fire at stale/past timestamps (which causes instant burst playback
+ * after a delayed resume).
+ */
+function _play(notes: NoteSpec[]): void {
+  try {
+    const c = getCtx();
+    if (c.state === 'suspended') {
+      // Resume may succeed if the context was previously unlocked and then
+      // auto-suspended by the browser (tab blur etc.). Schedule notes only
+      // after the resume promise resolves so currentTime is fresh.
+      c.resume()
+        .then(() => _schedule(c, notes))
+        .catch(() => { /* browser blocked audio — silent fail */ });
+    } else {
+      _schedule(c, notes);
+    }
+  } catch { /* AudioContext unavailable */ }
+}
+
 // ── One-shot sounds ────────────────────────────────────────────────────────────
 
-/** Warm two-note ding for a new order. */
-function _playNewOrder(): void {
-  try {
-    const c = getCtx();
-    const notes = [523.25, 659.25]; // C5 → E5
-    notes.forEach((freq, i) => {
-      const osc = c.createOscillator();
-      const gain = c.createGain();
-      osc.connect(gain);
-      gain.connect(c.destination);
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const t = c.currentTime + i * 0.22;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.4, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      osc.start(t);
-      osc.stop(t + 0.55);
-    });
-  } catch { /* audio context not ready */ }
-}
+const NEW_ORDER_NOTES: NoteSpec[] = [
+  { freq: 523.25, offset: 0,    duration: 0.55, gain: 0.4 }, // C5
+  { freq: 659.25, offset: 0.22, duration: 0.55, gain: 0.4 }, // E5
+];
 
-/** Urgent triple-ring for a waiter call. */
-function _playWaiterCall(): void {
-  try {
-    const c = getCtx();
-    for (let i = 0; i < 3; i++) {
-      const osc = c.createOscillator();
-      const gain = c.createGain();
-      osc.connect(gain);
-      gain.connect(c.destination);
-      osc.type = 'sine';
-      osc.frequency.value = 880; // A5
-      const t = c.currentTime + i * 0.22;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.55, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-      osc.start(t);
-      osc.stop(t + 0.18);
-    }
-  } catch { /* ignore */ }
-}
+const WAITER_CALL_NOTES: NoteSpec[] = [
+  { freq: 880, offset: 0,    duration: 0.18, gain: 0.55 }, // A5
+  { freq: 880, offset: 0.22, duration: 0.18, gain: 0.55 },
+  { freq: 880, offset: 0.44, duration: 0.18, gain: 0.55 },
+];
+
+/** Three ascending dings — used when an order auto-prints. */
+const TRIPLE_CHIME_NOTES: NoteSpec[] = [
+  { freq: 523.25, offset: 0,    duration: 0.55, gain: 0.4 }, // C5
+  { freq: 659.25, offset: 0.22, duration: 0.55, gain: 0.4 }, // E5
+  { freq: 784.0,  offset: 0.44, duration: 0.55, gain: 0.4 }, // G5
+];
+
+function _playNewOrder():   void { _play(NEW_ORDER_NOTES);    }
+function _playWaiterCall(): void { _play(WAITER_CALL_NOTES);  }
 
 // ── Loop control ───────────────────────────────────────────────────────────────
 
-let orderLoopId: ReturnType<typeof setInterval> | null = null;
+let orderLoopId:  ReturnType<typeof setInterval> | null = null;
 let waiterLoopId: ReturnType<typeof setInterval> | null = null;
 
-/**
- * Start looping the new-order sound every 4 seconds.
- * No-op if already looping.
- */
+/** Start looping the new-order sound every 4 seconds. No-op if already looping. */
 export function startNewOrderLoop(): void {
   if (orderLoopId !== null) return;
   _playNewOrder();
@@ -102,10 +131,7 @@ export function stopNewOrderLoop(): void {
   }
 }
 
-/**
- * Start looping the waiter-call sound every 3 seconds.
- * No-op if already looping.
- */
+/** Start looping the waiter-call sound every 3 seconds. No-op if already looping. */
 export function startWaiterCallLoop(): void {
   if (waiterLoopId !== null) return;
   _playWaiterCall();
@@ -120,31 +146,11 @@ export function stopWaiterCallLoop(): void {
   }
 }
 
-/** Play the new-order sound once (for the Enable preview). */
+/** Play the new-order sound once (e.g. for the Enable Sound preview). */
 export function playNewOrder(): void { _playNewOrder(); }
 
 /**
- * Three ascending dings — used when an order is auto-printed so staff
- * clearly hear it even without looking at the screen.
+ * Three ascending dings (C5 → E5 → G5) for auto-printed orders.
+ * Clearly audible even if staff aren't looking at the screen.
  */
-export function playTripleChime(): void {
-  try {
-    const c = getCtx();
-    // Three notes: C5 → E5 → G5 (a C major arpeggio)
-    const notes = [523.25, 659.25, 784.0];
-    notes.forEach((freq, i) => {
-      const osc = c.createOscillator();
-      const gain = c.createGain();
-      osc.connect(gain);
-      gain.connect(c.destination);
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const t = c.currentTime + i * 0.22;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.4, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      osc.start(t);
-      osc.stop(t + 0.55);
-    });
-  } catch { /* audio context not ready */ }
-}
+export function playTripleChime(): void { _play(TRIPLE_CHIME_NOTES); }
