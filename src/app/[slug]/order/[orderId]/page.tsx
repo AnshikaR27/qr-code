@@ -306,8 +306,8 @@ export default function OrderStatusPage() {
           </div>
         )}
 
-        {/* ── Sound unlock prompt ── */}
-        {!isCancelled && !isCompleted && !isReady && !audioUnlocked && (
+        {/* ── Sound unlock prompt — only if push not granted (otherwise push banner covers it) ── */}
+        {!isCancelled && !isCompleted && !isReady && !audioUnlocked && notifPerm !== 'granted' && (
           <button
             onClick={handleFirstInteraction}
             className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-left transition-colors active:bg-gray-100"
