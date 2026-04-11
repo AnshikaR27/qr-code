@@ -29,9 +29,16 @@ export async function unlockCustomerAudio(): Promise<void> {
   src.connect(ctx.destination);
   src.start(0);
 
-  // Pre-warm speech synthesis voices
+  // Unlock speech synthesis with a silent utterance — mobile browsers (iOS Safari,
+  // Android Chrome) block speechSynthesis.speak() from non-gesture contexts unless
+  // it has been "primed" from a real user tap first. This is the equivalent of the
+  // silent AudioContext buffer above, but for the Speech API.
   if ('speechSynthesis' in window) {
     speechSynthesis.getVoices();
+    const silent = new SpeechSynthesisUtterance('');
+    silent.volume = 0;
+    silent.lang = 'en-US';
+    speechSynthesis.speak(silent);
   }
 }
 
