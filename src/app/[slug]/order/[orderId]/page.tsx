@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, CheckCircle2, Clock, PackageCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { playReadyChime, playPreparingChime } from '@/lib/customer-chime';
 import type { Order, OrderItem, OrderStatus } from '@/types';
 
 const STEPS: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
@@ -32,6 +33,16 @@ export default function OrderStatusPage() {
   const [error, setError] = useState('');
   const [prevStatus, setPrevStatus] = useState<OrderStatus | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
+  const notifRequested = useRef(false);
+
+  // Request notification permission once on mount
+  useEffect(() => {
+    if (notifRequested.current) return;
+    notifRequested.current = true;
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -70,6 +81,30 @@ export default function OrderStatusPage() {
               setShowCelebration(true);
               setTimeout(() => setShowCelebration(false), 5000);
             }
+
+            // ── Notifications on status change ──
+            if (newStatus && newStatus !== prev) {
+              if (newStatus === 'ready') {
+                // Sound chime
+                playReadyChime();
+
+                // Browser notification
+                if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                  new Notification('Your order is ready! \uD83D\uDD14', {
+                    body: `Order #${(payload.new as Partial<Order>).order_number ?? ''} — please collect from the counter.`,
+                    icon: '/favicon.ico',
+                  });
+                }
+
+                // Vibration
+                if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                  navigator.vibrate([300, 100, 300]);
+                }
+              } else if (newStatus === 'preparing') {
+                playPreparingChime();
+              }
+            }
+
             return newStatus ?? prev;
           });
         }
