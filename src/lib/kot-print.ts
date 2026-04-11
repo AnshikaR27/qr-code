@@ -19,12 +19,19 @@ export async function printKOT(
     new Set(items.map((i) => i.category_name ?? 'Uncategorized')),
   );
 
-  // Fetch KOT number (sequential within today)
+  // Derive KOT number: count of today's orders for this restaurant + 1.
+  // Uses a plain select so no database function is required.
   let kot = 1;
   try {
     const supabase = createClient();
-    const { data } = await supabase.rpc('get_next_kot_number', { p_restaurant_id: restaurantId });
-    kot = (data as number) ?? 1;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', todayStart.toISOString());
+    kot = (count ?? 0) + 1;
   } catch { /* fallback to 1 */ }
 
   if (printerConfig && printerConfig.printers.length > 0) {

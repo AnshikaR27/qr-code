@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { playNewOrder, unlockAudio } from '@/lib/sounds';
+import { playNewOrder, playTripleChime, unlockAudio } from '@/lib/sounds';
 import { printKOT } from '@/lib/kot-print';
 import type { Order, PrinterConfig } from '@/types';
 
@@ -76,15 +76,20 @@ export function AutoPrintListener({ restaurantId, restaurantName, printerConfig 
         async (payload) => {
           if (isFirstRender.current) return;
 
-          // Play a one-shot chime for every new order regardless of auto-print mode.
-          // (GlobalNotifications plays a looping alert in manual mode — this chime
-          // is the immediate audio cue before the loop kicks in.)
-          playNewOrder();
-
           const config = printerConfigRef.current;
+          const isAutoMode = config?.kot_print_trigger === 'on_order';
+
+          if (isAutoMode) {
+            // Three ascending dings so staff hear the auto-print clearly
+            playTripleChime();
+          } else {
+            // Single chime in manual mode — GlobalNotifications loops the rest
+            playNewOrder();
+          }
+
           // Auto-print only fires for 'on_order' trigger.
-          // 'on_accept' is handled by the print dialog in KitchenDashboard.
-          if (config?.kot_print_trigger !== 'on_order') return;
+          // 'on_accept' printing is handled by GlobalNotifications acceptOrder.
+          if (!isAutoMode) return;
 
           const { data } = await supabase
             .from('orders')

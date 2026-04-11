@@ -122,3 +122,29 @@ export function stopWaiterCallLoop(): void {
 
 /** Play the new-order sound once (for the Enable preview). */
 export function playNewOrder(): void { _playNewOrder(); }
+
+/**
+ * Three ascending dings — used when an order is auto-printed so staff
+ * clearly hear it even without looking at the screen.
+ */
+export function playTripleChime(): void {
+  try {
+    const c = getCtx();
+    // Three notes: C5 → E5 → G5 (a C major arpeggio)
+    const notes = [523.25, 659.25, 784.0];
+    notes.forEach((freq, i) => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = c.currentTime + i * 0.22;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.4, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      osc.start(t);
+      osc.stop(t + 0.55);
+    });
+  } catch { /* audio context not ready */ }
+}
