@@ -150,15 +150,13 @@ export default function GlobalNotifications({ restaurantId, restaurantName, prin
   const acceptOrder = useCallback(async (order: Order) => {
     setPendingNewOrders((prev) => prev.filter((o) => o.id !== order.id));
     try {
-      const supabase = createClient();
-      await supabase.from('orders').update({ status: 'preparing' }).eq('id', order.id);
-      // Print KOT immediately on accept (on_accept mode)
+      // Print KOT. Status stays 'placed' — kitchen taps "Food Ready" when done.
       const config = printerConfigRef.current;
       const { printKOT } = await import('@/lib/kot-print');
       await printKOT(order, restaurantId, restaurantName, config);
       toast.success(`KOT printed — Order #${order.order_number}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to accept order');
+      toast.error(err instanceof Error ? err.message : 'Failed to print KOT');
       setPendingNewOrders((prev) => [order, ...prev]);
     }
   }, [restaurantId, restaurantName]);

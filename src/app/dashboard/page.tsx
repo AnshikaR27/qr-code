@@ -32,9 +32,7 @@ export default async function DashboardPage() {
   const orders = todayOrders ?? [];
   const totalOrders = orders.length;
   const revenue = orders.reduce((s, o) => s + (o.total ?? 0), 0);
-  const activeOrders = orders.filter(
-    (o) => o.status === 'placed' || o.status === 'preparing'
-  ).length;
+  const activeOrders = orders.filter((o) => o.status === 'placed').length;
 
   // Most ordered dish today
   const { data: topItems } = await supabase

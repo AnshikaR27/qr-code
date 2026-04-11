@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { BellRing, ChefHat, PackageCheck, CheckCheck, XCircle, Printer, ReceiptText, Usb, AlertTriangle } from 'lucide-react';
+import { BellRing, ChefHat, CheckCheck, IndianRupee, XCircle, Printer, ReceiptText, Usb, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
 import { ORDER_STATUSES } from '@/lib/constants';
@@ -18,18 +18,16 @@ interface Props {
 type FilterTab = 'active' | 'all' | 'completed';
 
 const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
-  placed:    'preparing',
-  preparing: 'ready',
-  ready:     'delivered',
-  delivered: null,
+  placed:    'ready',
+  ready:     'completed',
+  completed: null,
   cancelled: null,
 };
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
-  placed:    'Start Preparing',
-  preparing: 'Mark Ready',
-  ready:     'Mark Delivered',
-  delivered: 'Delivered',
+  placed:    'Food Ready',
+  ready:     'Record Payment',
+  completed: 'Completed',
   cancelled: 'Cancelled',
 };
 
@@ -226,14 +224,13 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = orders.filter((o) => {
-    if (filter === 'active')    return o.status === 'placed' || o.status === 'preparing' || o.status === 'ready';
-    if (filter === 'completed') return o.status === 'delivered' || o.status === 'cancelled';
+    if (filter === 'active')    return o.status === 'placed' || o.status === 'ready';
+    if (filter === 'completed') return o.status === 'completed' || o.status === 'cancelled';
     return true;
   });
 
-  const activeCount = orders.filter(
-    (o) => o.status === 'placed' || o.status === 'preparing' || o.status === 'ready',
-  ).length;
+  // Only 'placed' orders are urgent (kitchen hasn't finished yet)
+  const activeCount = orders.filter((o) => o.status === 'placed').length;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-3">
@@ -321,14 +318,7 @@ export default function KitchenDashboard({ restaurant, initialOrders }: Props) {
               key={order.id}
               order={order}
               restaurant={restaurant}
-              onAdvance={
-                order.status === 'placed'
-                  // 'on_order' mode: KOT already printed on arrival, so just advance status directly
-                  ? restaurantRef.current.printer_config?.kot_print_trigger === 'on_order'
-                    ? () => advanceStatus(order)
-                    : () => openAcceptDialog(order)  // 'on_accept' mode: show print dialog first
-                  : () => advanceStatus(order)
-              }
+              onAdvance={() => advanceStatus(order)}
               onCancel={() => cancelOrder(order)}
               onReprint={() => openReprintDialog(order)}
               onPrintBill={() => handlePrintBill(order)}
@@ -366,16 +356,15 @@ interface OrderCardProps {
 
 function OrderCard({ order, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
   const statusMeta = ORDER_STATUSES.find((s) => s.value === order.status);
-  const isTerminal = order.status === 'delivered' || order.status === 'cancelled';
+  const isTerminal = order.status === 'completed' || order.status === 'cancelled';
 
   return (
     <div
       className={cn(
         'bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden',
-        order.status === 'placed'    && 'border-yellow-300',
-        order.status === 'preparing' && 'border-blue-300',
+        order.status === 'placed'    && 'border-amber-300',
         order.status === 'ready'     && 'border-green-400',
-        order.status === 'delivered' && 'border-gray-200 opacity-70',
+        order.status === 'completed' && 'border-gray-200 opacity-70',
         order.status === 'cancelled' && 'border-red-200 opacity-60',
       )}
     >
@@ -458,16 +447,14 @@ function OrderCard({ order, onAdvance, onCancel, onReprint, onPrintBill, isUpdat
             disabled={isUpdating}
             className={cn(
               'flex-1 py-2 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-50',
-              order.status === 'placed'    && 'bg-blue-500 hover:bg-blue-600',
-              order.status === 'preparing' && 'bg-green-500 hover:bg-green-600',
-              order.status === 'ready'     && 'bg-gray-700 hover:bg-gray-800',
+              order.status === 'placed' && 'bg-green-500 hover:bg-green-600',
+              order.status === 'ready'  && 'bg-indigo-600 hover:bg-indigo-700',
             )}
           >
             {isUpdating ? '…' : (
               <span className="flex items-center justify-center gap-1.5">
-                {order.status === 'placed'    && <ChefHat className="w-4 h-4" />}
-                {order.status === 'preparing' && <PackageCheck className="w-4 h-4" />}
-                {order.status === 'ready'     && <CheckCheck className="w-4 h-4" />}
+                {order.status === 'placed' && <CheckCheck className="w-4 h-4" />}
+                {order.status === 'ready'  && <IndianRupee className="w-4 h-4" />}
                 {STATUS_LABELS[order.status]}
               </span>
             )}

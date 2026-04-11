@@ -132,14 +132,7 @@ async function autoPrintKOT(
   restaurantName: string,
   printerConfig: PrinterConfig | null,
 ) {
-  // Advance to 'preparing' regardless of print outcome
-  try {
-    const supabase = createClient();
-    await supabase.from('orders').update({ status: 'preparing' }).eq('id', order.id);
-  } catch (err) {
-    console.error('[AutoPrint] Failed to advance order status:', err);
-  }
-
+  // Status intentionally stays 'placed' — kitchen taps "Food Ready" when done.
   try {
     await printKOT(order, restaurantId, restaurantName, printerConfig);
     const tableLabel = order.table

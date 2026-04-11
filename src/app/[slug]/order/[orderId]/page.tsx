@@ -3,16 +3,16 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, CheckCircle2, Clock, ChefHat, PackageCheck } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, PackageCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import type { Order, OrderItem, OrderStatus } from '@/types';
 
 const STEPS: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
-  { status: 'placed',    label: 'Order Placed',  icon: Clock },
-  { status: 'preparing', label: 'Preparing',      icon: ChefHat },
-  { status: 'ready',     label: 'Ready!',         icon: PackageCheck },
+  { status: 'placed',    label: 'Order Placed', icon: Clock        },
+  { status: 'ready',     label: 'Ready!',       icon: PackageCheck },
+  { status: 'completed', label: 'Enjoy!',       icon: CheckCircle2 },
 ];
 
 function statusIndex(s: OrderStatus) {
@@ -66,7 +66,7 @@ export default function OrderStatusPage() {
           const newStatus = (payload.new as Partial<Order>).status;
           setOrder((prev) => prev ? { ...prev, ...(payload.new as Partial<Order>) } : prev);
           setPrevStatus((prev) => {
-            if (newStatus === 'delivered' && prev !== 'delivered') {
+            if (newStatus === 'completed' && prev !== 'completed') {
               setShowCelebration(true);
               setTimeout(() => setShowCelebration(false), 5000);
             }
@@ -97,10 +97,9 @@ export default function OrderStatusPage() {
   }
 
   const currentIdx = statusIndex(order.status);
-  const isDelivered = order.status === 'delivered';
+  const isCompleted = order.status === 'completed';
   const isCancelled = order.status === 'cancelled';
-  const isPreparing = order.status === 'preparing';
-  const isReady = order.status === 'ready';
+  const isReady     = order.status === 'ready';
   const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
   return (
@@ -171,34 +170,29 @@ export default function OrderStatusPage() {
           <h1 className="text-2xl font-bold mt-1">
             {isCancelled
               ? '❌ Order Cancelled'
-              : isDelivered
+              : isCompleted
               ? '✅ Enjoy your meal!'
               : isReady
               ? '🔔 Ready to collect!'
-              : isPreparing
-              ? '👨‍🍳 Being prepared'
               : 'Order placed!'}
           </h1>
-          {!isCancelled && !isDelivered && (
+          {!isCancelled && !isCompleted && (
             <p className="text-sm text-muted-foreground mt-1">
               {isReady
                 ? 'Your food is ready — come collect it now'
-                : isPreparing
-                ? `Usually ready in ~${EST_MINUTES} min`
-                : 'Kitchen will start soon…'}
+                : `Kitchen is working on it — usually ready in ~${EST_MINUTES} min`}
             </p>
           )}
         </div>
 
         {/* ── Animated status card ── */}
-        {!isCancelled && !isDelivered && (
+        {!isCancelled && !isCompleted && (
           <div className={cn(
             'rounded-2xl border p-5 flex flex-col items-center gap-3 text-center transition-colors',
-            isPreparing && 'bg-amber-50 border-amber-200',
+            order.status === 'placed' && 'bg-amber-50 border-amber-200',
             isReady && 'bg-green-50 border-green-300',
-            !isPreparing && !isReady && 'bg-white border-gray-200',
           )}>
-            {isPreparing && (
+            {order.status === 'placed' && (
               <>
                 <div style={{ fontSize: 48, animation: 'cookingBounce 1.2s ease-in-out infinite', display: 'inline-block' }}>
                   🍳
@@ -218,12 +212,6 @@ export default function OrderStatusPage() {
                   Your order is ready!
                 </p>
                 <p className="text-xs text-green-600">Please come to the counter to collect it</p>
-              </>
-            )}
-            {order.status === 'placed' && (
-              <>
-                <div style={{ fontSize: 40 }}>⏳</div>
-                <p className="font-semibold text-gray-700">Waiting for kitchen to accept…</p>
               </>
             )}
           </div>

@@ -77,15 +77,13 @@ function tableSize(capacity: FloorCapacity) {
 // ─── Live status ──────────────────────────────────────────────────────────────
 
 const ORDER_STATUS_FLOW: Partial<Record<OrderStatus, OrderStatus>> = {
-  placed:    'preparing',
-  preparing: 'ready',
-  ready:     'delivered',
+  placed: 'ready',
+  ready:  'completed',
 };
 
 const ORDER_ACTION_LABELS: Partial<Record<OrderStatus, string>> = {
-  placed:    'Start Preparing',
-  preparing: 'Mark Ready',
-  ready:     'Mark Delivered',
+  placed: 'Food Ready',
+  ready:  'Record Payment',
 };
 
 type TableLiveStatus = 'available' | 'occupied' | 'ready' | 'needs_attention';
@@ -223,7 +221,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         .from('orders')
         .select('*, items:order_items(*), table:tables(id, table_number)')
         .eq('restaurant_id', restaurant.id)
-        .in('status', ['placed', 'preparing', 'ready']),
+        .in('status', ['placed', 'ready']),
       supabase
         .from('waiter_calls')
         .select('*, table:tables(id, table_number)')
@@ -364,7 +362,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       const supabase = createClient();
       const { error } = await supabase
         .from('orders')
-        .update({ status: 'delivered' })
+        .update({ status: 'completed' })
         .in('id', orderIds);
       if (error) { toast.error('Failed to clear table'); return; }
       toast.success('Table marked as available');
@@ -1156,10 +1154,9 @@ function TableDetailSheet({
 // ─── OrderCard ────────────────────────────────────────────────────────────────
 
 const ORDER_STATUS_STYLE: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  placed:    { bg: '#fef9c3', text: '#854d0e', border: '#fde047', label: 'Placed' },
-  preparing: { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd', label: 'Preparing' },
-  ready:     { bg: '#dcfce7', text: '#15803d', border: '#86efac', label: 'Ready' },
-  delivered: { bg: '#f3f4f6', text: '#374151', border: '#d1d5db', label: 'Delivered' },
+  placed:    { bg: '#fef9c3', text: '#854d0e', border: '#fde047', label: 'Placed'    },
+  ready:     { bg: '#dcfce7', text: '#15803d', border: '#86efac', label: 'Ready'     },
+  completed: { bg: '#f3f4f6', text: '#374151', border: '#d1d5db', label: 'Completed' },
   cancelled: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5', label: 'Cancelled' },
 };
 
