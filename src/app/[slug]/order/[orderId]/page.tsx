@@ -10,6 +10,16 @@ import { cn } from '@/lib/utils';
 import { playReadyChime, playPreparingChime, unlockCustomerAudio } from '@/lib/customer-chime';
 import type { Order, OrderItem, OrderStatus } from '@/types';
 
+// Convert VAPID public key from base64 URL to Uint8Array for pushManager.subscribe
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
 const STEPS: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
   { status: 'placed',    label: 'Order Placed', icon: Clock        },
   { status: 'ready',     label: 'Ready!',       icon: PackageCheck },
@@ -44,10 +54,15 @@ export default function OrderStatusPage() {
   }, []);
 
   // Check notification permission on mount (don't auto-request — needs user gesture on mobile)
+  // If already granted, auto-subscribe to Web Push
   useEffect(() => {
     if (typeof Notification !== 'undefined') {
       setNotifPerm(Notification.permission as 'default' | 'granted' | 'denied');
+      if (Notification.permission === 'granted') {
+        subscribeToPush();
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function enableNotifications() {
@@ -56,6 +71,35 @@ export default function OrderStatusPage() {
     handleFirstInteraction();
     const perm = await Notification.requestPermission();
     setNotifPerm(perm as 'default' | 'granted' | 'denied');
+
+    // Subscribe to Web Push if permission granted
+    if (perm === 'granted') {
+      subscribeToPush();
+    }
+  }
+
+  async function subscribeToPush() {
+    try {
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey).buffer as ArrayBuffer,
+      });
+
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, subscription: subscription.toJSON() }),
+      });
+    } catch (err) {
+      // Push not supported or blocked — fall back to chime silently
+      console.warn('[push] subscription failed:', err);
+    }
   }
 
   useEffect(() => {

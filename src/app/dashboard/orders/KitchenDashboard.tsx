@@ -108,10 +108,32 @@ export default function KitchenDashboard({ restaurant }: Props) {
         .update({ status: nextStatus })
         .eq('id', order.id);
       if (error) throw error;
+
+      // Send Web Push notification when order becomes ready
+      if (nextStatus === 'ready') {
+        sendReadyPush(order).catch(() => {});
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to update order');
     } finally {
       setUpdating(null);
+    }
+  }
+
+  async function sendReadyPush(order: Order) {
+    try {
+      await fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          title: 'Your order is ready! \uD83D\uDD14',
+          body: `Order #${order.order_number} at ${restaurant.name} — please collect from the counter`,
+          url: `/${restaurant.slug}/order/${order.id}`,
+        }),
+      });
+    } catch (err) {
+      console.warn('[push] failed to send ready notification:', err);
     }
   }
 
@@ -136,6 +158,11 @@ export default function KitchenDashboard({ restaurant }: Props) {
       }
       toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
 
+      // Clean up push subscriptions for delivered orders
+      for (const id of orderIds) {
+        supabase.from('push_subscriptions').delete().eq('order_id', id).then(() => {});
+      }
+
       // Auto-print bill if printer configured
       const order = orders.find(o => o.id === orderIds[0]);
       if (order) {
@@ -158,6 +185,8 @@ export default function KitchenDashboard({ restaurant }: Props) {
         .update({ status: 'cancelled' })
         .eq('id', order.id);
       if (error) throw error;
+      // Clean up push subscription
+      supabase.from('push_subscriptions').delete().eq('order_id', order.id).then(() => {});
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel order');
     } finally {
