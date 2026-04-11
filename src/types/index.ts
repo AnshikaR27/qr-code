@@ -161,6 +161,10 @@ export interface Order {
   customer_phone: string | null;
   status: OrderStatus;
   payment_method: PaymentMethod | null;
+  payment_methods: SplitPayment[] | null;
+  discount_amount: number | null;
+  discount_type: 'flat' | 'percentage' | null;
+  discount_before_tax: boolean;
   total: number;
   notes: string | null;
   internal_notes?: OrderNote[];
@@ -170,6 +174,11 @@ export interface Order {
   // joined
   items?: OrderItem[];
   table?: Table;
+}
+
+export interface SplitPayment {
+  method: PaymentMethod;
+  amount: number;
 }
 
 export interface OrderItem {

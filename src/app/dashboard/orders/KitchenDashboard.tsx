@@ -9,8 +9,8 @@ import { cn, formatPrice } from '@/lib/utils';
 import { ORDER_STATUSES } from '@/lib/constants';
 import { useOrders } from '@/contexts/OrdersContext';
 import PrintOrderDialog from '@/components/dashboard/PrintOrderDialog';
-import PaymentDialog from '@/components/dashboard/PaymentDialog';
-import type { Order, OrderStatus, PaymentMethod, Restaurant, PrinterDevice } from '@/types';
+import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
+import type { Order, OrderStatus, Restaurant, PrinterDevice } from '@/types';
 
 interface Props {
   restaurant: Restaurant;
@@ -115,17 +115,32 @@ export default function KitchenDashboard({ restaurant }: Props) {
     }
   }
 
-  async function recordPayment(order: Order, method: PaymentMethod) {
+  async function handleBillingConfirm(orderIds: string[], data: BillingConfirmData) {
     setPaymentOrder(null);
-    setUpdating(order.id);
+    setUpdating(orderIds[0]);
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: 'delivered' as OrderStatus, payment_method: method })
-        .eq('id', order.id);
-      if (error) throw error;
-      toast.success(`Payment recorded — ${method.toUpperCase()}`);
+      for (const id of orderIds) {
+        const { error } = await supabase
+          .from('orders')
+          .update({
+            status: 'delivered' as OrderStatus,
+            payment_method: data.payment_method,
+            payment_methods: data.payment_methods,
+            discount_amount: data.discount_amount,
+            discount_type: data.discount_type,
+            discount_before_tax: data.discount_before_tax,
+          })
+          .eq('id', id);
+        if (error) throw error;
+      }
+      toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
+
+      // Auto-print bill if printer configured
+      const order = orders.find(o => o.id === orderIds[0]);
+      if (order) {
+        try { await handlePrintBill(order); } catch { /* silent */ }
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to record payment');
     } finally {
@@ -327,10 +342,11 @@ export default function KitchenDashboard({ restaurant }: Props) {
         printerConfig={restaurant.printer_config}
       />
 
-      {/* ── Payment method dialog ── */}
-      <PaymentDialog
-        order={paymentOrder}
-        onConfirm={recordPayment}
+      {/* ── Billing sheet ── */}
+      <BillingSheet
+        orders={paymentOrder ? [paymentOrder] : null}
+        restaurant={restaurant}
+        onConfirm={handleBillingConfirm}
         onClose={() => setPaymentOrder(null)}
       />
     </div>

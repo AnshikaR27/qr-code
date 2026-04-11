@@ -16,6 +16,7 @@ import {
   Trash2,
   Eye,
   Undo2,
+  IndianRupee,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -38,7 +39,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import PaymentDialog from '@/components/dashboard/PaymentDialog';
+import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import type {
   FloorCapacity,
   FloorLabel,
@@ -48,7 +49,6 @@ import type {
   Order,
   OrderNote,
   OrderStatus,
-  PaymentMethod,
   Restaurant,
   WaiterCall,
 } from '@/types';
@@ -166,6 +166,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [acknowledging, setAcknowledging]         = useState(false);
   const [markingAvailable, setMarkingAvailable]   = useState(false);
   const [paymentOrder, setPaymentOrder]           = useState<Order | null>(null);
+  const [billingOrders, setBillingOrders]         = useState<Order[] | null>(null);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const canvasRef            = useRef<HTMLDivElement>(null);
@@ -408,15 +409,25 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     fetchLiveData();
   }
 
-  async function recordPayment(order: Order, method: PaymentMethod) {
+  async function handleBillingConfirm(orderIds: string[], data: BillingConfirmData) {
     setPaymentOrder(null);
+    setBillingOrders(null);
     const supabase = createClient();
-    const { error } = await supabase
-      .from('orders')
-      .update({ status: 'delivered' as OrderStatus, payment_method: method })
-      .eq('id', order.id);
-    if (error) { toast.error('Failed to record payment'); return; }
-    toast.success(`Payment recorded — ${method.toUpperCase()}`);
+    for (const id of orderIds) {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'delivered' as OrderStatus,
+          payment_method: data.payment_method,
+          payment_methods: data.payment_methods,
+          discount_amount: data.discount_amount,
+          discount_type: data.discount_type,
+          discount_before_tax: data.discount_before_tax,
+        })
+        .eq('id', id);
+      if (error) { toast.error('Failed to record payment'); return; }
+    }
+    toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
     fetchLiveData();
   }
 
@@ -630,6 +641,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           markingAvailable={markingAvailable}
           onRefresh={fetchLiveData}
           onAdvanceStatus={advanceOrderStatus}
+          onGenerateBill={(tableOrders) => { setSheetTableId(null); setBillingOrders(tableOrders); }}
         />
       </div>
     );
@@ -925,15 +937,17 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         onAcknowledge={acknowledgeWaiterCall}
         acknowledging={acknowledging}
         markingAvailable={markingAvailable}
+        onGenerateBill={(tableOrders) => { setSheetTableId(null); setBillingOrders(tableOrders); }}
         onRefresh={fetchLiveData}
         onAdvanceStatus={advanceOrderStatus}
       />
 
-      {/* ── Payment method dialog ── */}
-      <PaymentDialog
-        order={paymentOrder}
-        onConfirm={recordPayment}
-        onClose={() => setPaymentOrder(null)}
+      {/* ── Billing sheet ── */}
+      <BillingSheet
+        orders={billingOrders ?? (paymentOrder ? [paymentOrder] : null)}
+        restaurant={restaurant}
+        onConfirm={handleBillingConfirm}
+        onClose={() => { setPaymentOrder(null); setBillingOrders(null); }}
       />
     </div>
   );
@@ -1071,6 +1085,7 @@ interface TableDetailSheetProps {
   markingAvailable: boolean;
   onRefresh: () => void;
   onAdvanceStatus: (orderId: string, currentStatus: OrderStatus) => Promise<void>;
+  onGenerateBill: (orders: Order[]) => void;
 }
 
 function TableDetailSheet({
@@ -1083,6 +1098,7 @@ function TableDetailSheet({
   markingAvailable,
   onRefresh,
   onAdvanceStatus,
+  onGenerateBill,
 }: TableDetailSheetProps) {
   const open = !!table && !!statusInfo;
   if (!open) return <Sheet open={false} onOpenChange={o => { if (!o) onClose(); }} />;
@@ -1157,16 +1173,25 @@ function TableDetailSheet({
 
         <SheetFooter className="border-t bg-gray-50 p-4 flex-col gap-2 flex-shrink-0">
           {statusInfo.orders.length > 0 && (
-            <Button
-              variant="outline"
-              className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-              onClick={() => onMarkAvailable(table.table_number)}
-              disabled={markingAvailable}
-            >
-              {markingAvailable
-                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Clearing table…</>
-                : 'Mark Available'}
-            </Button>
+            <>
+              <Button
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => onGenerateBill(statusInfo.orders)}
+              >
+                <IndianRupee className="w-4 h-4 mr-2" />
+                Generate Bill ({statusInfo.orders.length} order{statusInfo.orders.length > 1 ? 's' : ''})
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                onClick={() => onMarkAvailable(table.table_number)}
+                disabled={markingAvailable}
+              >
+                {markingAvailable
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Clearing table…</>
+                  : 'Mark Available'}
+              </Button>
+            </>
           )}
           <Button variant="outline" className="w-full" asChild>
             <Link href="/dashboard/orders">View Full Orders Dashboard</Link>
@@ -1182,7 +1207,7 @@ function TableDetailSheet({
 const ORDER_STATUS_STYLE: Record<string, { bg: string; text: string; border: string; label: string }> = {
   placed:    { bg: '#fef9c3', text: '#854d0e', border: '#fde047', label: 'Placed'    },
   ready:     { bg: '#dcfce7', text: '#15803d', border: '#86efac', label: 'Ready'     },
-  completed: { bg: '#f3f4f6', text: '#374151', border: '#d1d5db', label: 'Completed' },
+  delivered: { bg: '#f3f4f6', text: '#374151', border: '#d1d5db', label: 'Delivered' },
   cancelled: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5', label: 'Cancelled' },
 };
 
