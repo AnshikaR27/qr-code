@@ -51,13 +51,15 @@ function _doReadyChime(ac: AudioContext) {
 }
 
 function _fireReadyChime() {
-  if (!ctx || ctx.state === 'closed') return;
-  const c = ctx;
-  if (c.state === 'suspended') {
-    c.resume().then(() => _doReadyChime(c)).catch(() => {});
-  } else {
-    _doReadyChime(c);
-  }
+  try {
+    if (!ctx || ctx.state === 'closed') return;
+    const c = ctx;
+    if (c.state === 'suspended') {
+      c.resume().then(() => _doReadyChime(c)).catch(() => {});
+    } else {
+      _doReadyChime(c);
+    }
+  } catch { /* AudioContext may be invalid after tab freeze/restore */ }
 }
 
 // ── Ready chime loop ───────────────────────────────────────────────────────────
@@ -100,14 +102,16 @@ export function playReadyChime() { _fireReadyChime(); }
  * ~0.5 second, lower volume, gentle.
  */
 export function playPreparingChime() {
-  if (!ctx || ctx.state === 'closed') return;
-  const c = ctx;
-  const doPlay = (ac: AudioContext) => playTone(ac, 523, ac.currentTime, 0.35, 0.3);
-  if (c.state === 'suspended') {
-    c.resume().then(() => doPlay(c)).catch(() => {});
-  } else {
-    doPlay(c);
-  }
+  try {
+    if (!ctx || ctx.state === 'closed') return;
+    const c = ctx;
+    const doPlay = (ac: AudioContext) => playTone(ac, 523, ac.currentTime, 0.35, 0.3);
+    if (c.state === 'suspended') {
+      c.resume().then(() => doPlay(c)).catch(() => {});
+    } else {
+      doPlay(c);
+    }
+  } catch { /* AudioContext may be invalid after tab freeze/restore */ }
 }
 
 function playTone(

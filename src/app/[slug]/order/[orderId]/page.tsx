@@ -189,16 +189,18 @@ export default function OrderStatusPage() {
           setOrder((o) => o ? { ...o, status: newStatus } : o);
           if (orderRef.current) orderRef.current = { ...orderRef.current, status: newStatus };
           if (newStatus === 'ready' && serviceModeRef.current === 'self_service') {
-            if (audioUnlockedRef.current) startReadyChimeLoop();
-            else pendingChimeRef.current = true;
-            navigator.vibrate?.([400, 150, 400, 150, 400]);
+            try {
+              if (audioUnlockedRef.current) startReadyChimeLoop();
+              else pendingChimeRef.current = true;
+              navigator.vibrate?.([400, 150, 400, 150, 400]);
+            } catch { /* audio/vibrate may fail after tab restore */ }
           }
           if (newStatus === 'delivered') {
             setShowCelebration(true);
             setTimeout(() => setShowCelebration(false), 5000);
           }
         })
-        .catch(() => {});
+        .then(undefined, () => {});
     }
 
     let subscribedOnce = false;
@@ -218,40 +220,42 @@ export default function OrderStatusPage() {
 
             // ── Notifications on status change ──
             if (newStatus && newStatus !== prev) {
-              if (newStatus === 'ready') {
-                const mode = serviceModeRef.current;
-                const orderNum = (payload.new as Partial<Order>).order_number ?? '';
+              try {
+                if (newStatus === 'ready') {
+                  const mode = serviceModeRef.current;
+                  const orderNum = (payload.new as Partial<Order>).order_number ?? '';
 
-                if (mode === 'self_service') {
-                  // Chime + vibration for self service
-                  if (audioUnlockedRef.current) {
-                    startReadyChimeLoop();
-                  } else {
-                    // Audio not yet unlocked — play as soon as user first taps
-                    pendingChimeRef.current = true;
-                  }
-                  if (typeof navigator !== 'undefined' && navigator.vibrate) {
-                    navigator.vibrate([400, 150, 400, 150, 400]);
-                  }
-                }
-
-                // Push notification for both modes — different message
-                if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                  new Notification(
-                    mode === 'table_service'
-                      ? 'Your food is on its way! 🍽️'
-                      : 'Your order is ready! 🔔',
-                    {
-                      body: mode === 'table_service'
-                        ? `Order #${orderNum} — your food is being brought to your table.`
-                        : `Order #${orderNum} — please collect from the counter.`,
-                      icon: '/favicon.ico',
+                  if (mode === 'self_service') {
+                    // Chime + vibration for self service
+                    if (audioUnlockedRef.current) {
+                      startReadyChimeLoop();
+                    } else {
+                      // Audio not yet unlocked — play as soon as user first taps
+                      pendingChimeRef.current = true;
                     }
-                  );
+                    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                      navigator.vibrate([400, 150, 400, 150, 400]);
+                    }
+                  }
+
+                  // Push notification for both modes — different message
+                  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                    new Notification(
+                      mode === 'table_service'
+                        ? 'Your food is on its way! 🍽️'
+                        : 'Your order is ready! 🔔',
+                      {
+                        body: mode === 'table_service'
+                          ? `Order #${orderNum} — your food is being brought to your table.`
+                          : `Order #${orderNum} — please collect from the counter.`,
+                        icon: '/favicon.ico',
+                      }
+                    );
+                  }
+                } else if (newStatus === 'preparing') {
+                  playPreparingChime();
                 }
-              } else if (newStatus === 'preparing') {
-                playPreparingChime();
-              }
+              } catch { /* browser APIs may throw after tab freeze/restore */ }
             }
 
             return newStatus ?? prev;
