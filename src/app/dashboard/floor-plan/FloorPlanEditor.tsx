@@ -758,8 +758,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
     // Sync merge_group_id to active orders at these tables so the
     // KitchenDashboard picks it up via its realtime subscription on orders.
-    // Also sync to the tables DB so the kitchen dashboard's tables listener
-    // picks it up.
+    // Also sync to the tables DB.
     const supabase = createClient();
     supabase
       .from('orders')
@@ -768,7 +767,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       .in('table_id', tableIds)
       .is('payment_method', null)
       .or('status.eq.placed,status.eq.ready')
-      .then(({ error }) => { if (error) console.error('[FloorPlan] merge orders sync error:', error); });
+      .select('id, table_id, merge_group_id')
+      .then(({ data, error }) => {
+        console.log('[FloorPlan] merge orders sync result:', { data, error, tableIds, groupId });
+      });
     supabase
       .from('tables')
       .update({ merge_group_id: groupId, merged_with: tableIds })
