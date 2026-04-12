@@ -355,6 +355,7 @@ export default function KitchenDashboard({ restaurant }: Props) {
               key={order.id}
               order={order}
               restaurant={restaurant}
+              allOrders={orders}
               onAdvance={() => advanceStatus(order)}
               onCancel={() => cancelOrder(order)}
               onReprint={() => openReprintDialog(order)}
@@ -389,9 +390,34 @@ export default function KitchenDashboard({ restaurant }: Props) {
 
 // ── OrderCard ──────────────────────────────────────────────────────────────────
 
+/** Build a merged table label like "Table 1 + Table 3" for orders in a merge group. */
+function mergedTableLabel(order: Order, allOrders: Order[]): string {
+  const table = order.table;
+  if (!table) return '🪑 Dine In';
+  const singleLabel = `🪑 Table ${table.display_name?.trim() || table.table_number}`;
+  if (!table.merge_group_id) return singleLabel;
+
+  // Collect unique table names from all orders sharing this merge_group_id
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  for (const o of allOrders) {
+    if (!o.table || o.table.merge_group_id !== table.merge_group_id) continue;
+    const key = o.table.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    labels.push(o.table.display_name?.trim() || String(o.table.table_number));
+  }
+  // Ensure current table is included even if no other orders
+  if (!seen.has(table.id)) {
+    labels.push(table.display_name?.trim() || String(table.table_number));
+  }
+  return labels.length > 1 ? `🔗 Table ${labels.join(' + ')}` : singleLabel;
+}
+
 interface OrderCardProps {
   order: Order;
   restaurant: Restaurant;
+  allOrders: Order[];
   onAdvance: () => void;
   onCancel: () => void;
   onReprint: () => void;
@@ -399,7 +425,7 @@ interface OrderCardProps {
   isUpdating: boolean;
 }
 
-function OrderCard({ order, restaurant, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
+function OrderCard({ order, restaurant, allOrders, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
   const statusMeta = ORDER_STATUSES.find((s) => s.value === order.status);
   const STATUS_LABELS = getStatusLabels(restaurant.service_mode ?? 'self_service');
   const isTerminal = order.status === 'delivered' || order.status === 'cancelled';
@@ -454,7 +480,7 @@ function OrderCard({ order, restaurant, onAdvance, onCancel, onReprint, onPrintB
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium">
             {order.order_type === 'dine_in'
-              ? order.table ? `🪑 Table ${order.table.display_name?.trim() || order.table.table_number}` : '🪑 Dine In'
+              ? mergedTableLabel(order, allOrders)
               : `🛍️ Parcel${order.customer_name ? ` — ${order.customer_name}` : ''}`}
           </p>
           {order.payment_method && (

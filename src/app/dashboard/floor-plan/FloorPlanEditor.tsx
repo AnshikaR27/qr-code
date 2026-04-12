@@ -17,6 +17,7 @@ import {
   Eye,
   Undo2,
   IndianRupee,
+  Link2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -61,6 +62,83 @@ const CANVAS_H = 900;
 
 function snap(v: number) {
   return Math.round(v / GRID) * GRID;
+}
+
+const MERGE_PROXIMITY = 20;
+const UNMERGE_DISTANCE = 40;
+
+/** Check if two table rects are within a given proximity. Returns the closest edge info. */
+function getTableProximity(
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number },
+  threshold: number,
+): { close: boolean; snapX: number; snapY: number } {
+  // Calculate gaps between edges
+  const gapRight  = b.x - (a.x + a.w); // a's right edge to b's left edge
+  const gapLeft   = a.x - (b.x + b.w); // b's right edge to a's left edge
+  const gapBottom = b.y - (a.y + a.h); // a's bottom to b's top
+  const gapTop    = a.y - (b.y + b.h); // b's bottom to a's top
+
+  // Vertical overlap check
+  const vOverlap = a.y < b.y + b.h && a.y + a.h > b.y;
+  // Horizontal overlap check
+  const hOverlap = a.x < b.x + b.w && a.x + a.w > b.x;
+
+  let snapX = a.x;
+  let snapY = a.y;
+
+  // Snap to right of b
+  if (vOverlap && gapRight >= -threshold && gapRight <= threshold) {
+    snapX = b.x + b.w;
+    snapY = snap(Math.max(b.y, Math.min(b.y + b.h - a.h, a.y))); // align vertically
+    return { close: true, snapX, snapY };
+  }
+  // Snap to left of b
+  if (vOverlap && gapLeft >= -threshold && gapLeft <= threshold) {
+    snapX = b.x - a.w;
+    snapY = snap(Math.max(b.y, Math.min(b.y + b.h - a.h, a.y)));
+    return { close: true, snapX, snapY };
+  }
+  // Snap below b
+  if (hOverlap && gapBottom >= -threshold && gapBottom <= threshold) {
+    snapY = b.y + b.h;
+    snapX = snap(Math.max(b.x, Math.min(b.x + b.w - a.w, a.x)));
+    return { close: true, snapX, snapY };
+  }
+  // Snap above b
+  if (hOverlap && gapTop >= -threshold && gapTop <= threshold) {
+    snapY = b.y - a.h;
+    snapX = snap(Math.max(b.x, Math.min(b.x + b.w - a.w, a.x)));
+    return { close: true, snapX, snapY };
+  }
+
+  return { close: false, snapX: a.x, snapY: a.y };
+}
+
+/** Check if a table is far enough from ALL tables in its merge group to unmerge. */
+function shouldUnmerge(
+  table: FloorTable,
+  groupTables: FloorTable[],
+  threshold: number,
+): boolean {
+  const aSize = tableSize(table.capacity);
+  for (const other of groupTables) {
+    if (other.id === table.id) continue;
+    const bSize = tableSize(other.capacity);
+    const { close } = getTableProximity(
+      { x: table.x, y: table.y, w: aSize.w, h: aSize.h },
+      { x: other.x, y: other.y, w: bSize.w, h: bSize.h },
+      threshold,
+    );
+    if (close) return false;
+  }
+  return true;
+}
+
+/** Get all tables in the same merge group as the given table. */
+function getMergeGroup(table: FloorTable, allTables: FloorTable[]): FloorTable[] {
+  if (!table.merge_group_id) return [table];
+  return allTables.filter(t => t.merge_group_id === table.merge_group_id);
 }
 
 /** Prefer display_name when set, fall back to #table_number. */
@@ -328,6 +406,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               restaurant_id: restaurant.id,
               table_number: t.table_number,
               display_name: t.display_name ?? null,
+              merged_with: t.merged_with ?? null,
+              merge_group_id: t.merge_group_id ?? null,
             })),
             { onConflict: 'id' },
           );
@@ -356,11 +436,11 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   }
 
   // ── Quick live-status actions (from detail sheet) ─────────────────────────
-  async function markTableAvailable(tableNumber: number) {
+  async function markTableAvailable(tableNumbers: number[]) {
     setMarkingAvailable(true);
     try {
       const orderIds = activeOrders
-        .filter(o => o.table?.table_number === tableNumber)
+        .filter(o => tableNumbers.includes(o.table?.table_number ?? -1))
         .map(o => o.id);
       if (orderIds.length === 0) { setSheetTableId(null); return; }
       const supabase = createClient();
@@ -369,7 +449,22 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         .update({ status: 'delivered' })
         .in('id', orderIds);
       if (error) { toast.error('Failed to clear table'); return; }
-      toast.success('Table marked as available');
+
+      // Auto-unmerge tables when clearing a merge group
+      const mergeGroupId = plan.tables.find(t => tableNumbers.includes(t.table_number))?.merge_group_id;
+      if (mergeGroupId) {
+        updatePlan(prev => ({
+          ...prev,
+          tables: prev.tables.map(t =>
+            t.merge_group_id === mergeGroupId
+              ? { ...t, merge_group_id: null, merged_with: null }
+              : t,
+          ),
+        }));
+        toast.success('Tables cleared & unmerged');
+      } else {
+        toast.success('Table marked as available');
+      }
       setSheetTableId(null);
       fetchLiveData();
     } finally {
@@ -570,11 +665,108 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       // tap — select the table (or ignore for labels)
       if (isTable) setEditSelectedId(id);
     } else {
-      // drag ended — save new position
+      // drag ended — check for merge/unmerge if it's a table
       setPlan(prev => {
         previousPlan.current = prev;
-        scheduleSave(prev);
-        return prev;
+        let next = { ...prev, tables: [...prev.tables] };
+
+        if (isTable) {
+          const draggedIdx = next.tables.findIndex(t => t.id === id);
+          if (draggedIdx !== -1) {
+            const dragged = next.tables[draggedIdx];
+            const draggedSize = tableSize(dragged.capacity);
+
+            // Check if this table is already in a merge group and should unmerge
+            if (dragged.merge_group_id) {
+              const groupTables = next.tables.filter(t => t.merge_group_id === dragged.merge_group_id);
+              if (shouldUnmerge(dragged, groupTables, UNMERGE_DISTANCE)) {
+                // Unmerge this table
+                const groupId = dragged.merge_group_id;
+                next.tables = next.tables.map(t => {
+                  if (t.id === id) {
+                    return { ...t, merge_group_id: null, merged_with: null };
+                  }
+                  if (t.merge_group_id === groupId) {
+                    const newMerged = (t.merged_with ?? []).filter(mid => mid !== id);
+                    // If only one table left in group, clear it too
+                    const remaining = next.tables.filter(
+                      ot => ot.id !== id && ot.merge_group_id === groupId,
+                    );
+                    if (remaining.length <= 1) {
+                      return { ...t, merge_group_id: null, merged_with: null };
+                    }
+                    return { ...t, merged_with: newMerged.length > 0 ? newMerged : null };
+                  }
+                  return t;
+                });
+                toast(`Table ${tableLabel(dragged)} unmerged`);
+              }
+            }
+
+            // Check for new merge with nearby tables
+            if (!next.tables[draggedIdx]?.merge_group_id || !next.tables.find(t => t.id === id)?.merge_group_id) {
+              // Re-find after possible unmerge update
+              const currentDragged = next.tables.find(t => t.id === id)!;
+              for (const other of next.tables) {
+                if (other.id === id) continue;
+                const otherSize = tableSize(other.capacity);
+                const proximity = getTableProximity(
+                  { x: currentDragged.x, y: currentDragged.y, w: draggedSize.w, h: draggedSize.h },
+                  { x: other.x, y: other.y, w: otherSize.w, h: otherSize.h },
+                  MERGE_PROXIMITY,
+                );
+
+                if (proximity.close) {
+                  // Snap the dragged table
+                  next.tables = next.tables.map(t =>
+                    t.id === id ? { ...t, x: proximity.snapX, y: proximity.snapY } : t,
+                  );
+
+                  // Determine the merge group ID
+                  const groupId = other.merge_group_id ?? currentDragged.merge_group_id ?? crypto.randomUUID();
+
+                  // Get all tables that should be in this group
+                  const existingGroupIds = new Set(
+                    next.tables
+                      .filter(t => t.merge_group_id === groupId || t.id === id || t.id === other.id)
+                      .map(t => t.id),
+                  );
+
+                  // Also include tables from dragged table's old group (if merging two groups)
+                  if (currentDragged.merge_group_id && currentDragged.merge_group_id !== groupId) {
+                    next.tables
+                      .filter(t => t.merge_group_id === currentDragged.merge_group_id)
+                      .forEach(t => existingGroupIds.add(t.id));
+                  }
+
+                  const groupIds = Array.from(existingGroupIds);
+
+                  // Update all tables in the group
+                  next.tables = next.tables.map(t => {
+                    if (existingGroupIds.has(t.id)) {
+                      return {
+                        ...t,
+                        merge_group_id: groupId,
+                        merged_with: groupIds.filter(gid => gid !== t.id),
+                      };
+                    }
+                    return t;
+                  });
+
+                  const mergedLabels = next.tables
+                    .filter(t => existingGroupIds.has(t.id))
+                    .map(t => tableLabel(t))
+                    .join(' + ');
+                  toast(`${mergedLabels} merged`);
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        scheduleSave(next);
+        return next;
       });
     }
   }
@@ -608,7 +800,21 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     : null;
 
   const sheetTable      = sheetTableId ? plan.tables.find(t => t.id === sheetTableId) ?? null : null;
-  const sheetStatusInfo = sheetTable ? getTableStatusInfo(sheetTable.table_number) : null;
+  const sheetMergeGroup = sheetTable?.merge_group_id
+    ? plan.tables.filter(t => t.merge_group_id === sheetTable.merge_group_id)
+    : sheetTable ? [sheetTable] : [];
+  const sheetStatusInfo = sheetTable ? (() => {
+    // Combine status info from all tables in merge group
+    const tableNumbers = sheetMergeGroup.map(t => t.table_number);
+    const orders = activeOrders.filter(o => tableNumbers.includes(o.table?.table_number ?? -1));
+    const waiterCall = activeWaiterCalls.find(wc => tableNumbers.includes(wc.table?.table_number ?? -1)) ?? null;
+    let status: TableLiveStatus;
+    if (waiterCall) status = 'needs_attention';
+    else if (orders.some(o => o.status === 'ready')) status = 'ready';
+    else if (orders.length > 0) status = 'occupied';
+    else status = 'available';
+    return { status, orders, waiterCall } as TableStatusInfo;
+  })() : null;
 
   const tableStatusMap = new Map(plan.tables.map(t => [t.table_number, getTableStatusInfo(t.table_number)]));
 
@@ -633,6 +839,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         </div>
         <TableDetailSheet
           table={sheetTable}
+          mergeGroup={sheetMergeGroup}
           statusInfo={sheetStatusInfo}
           onClose={() => setSheetTableId(null)}
           onMarkAvailable={markTableAvailable}
@@ -830,6 +1037,9 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             />
           ))}
 
+          {/* Merge connectors — rendered behind tables */}
+          <MergeConnectors tables={plan.tables} />
+
           {plan.tables.map(table => {
             const { w, h } = tableSize(table.capacity);
             return (
@@ -839,6 +1049,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 statusInfo={tableStatusMap.get(table.table_number)}
                 isDragging={draggingId === table.id}
                 isSelected={editSelectedId === table.id}
+                isMerged={!!table.merge_group_id}
                 onPointerDown={e => handlePointerDown(e, table.id, table.x, table.y)}
                 onPointerMove={e => handlePointerMove(e, table.id, w, h)}
                 onPointerUp={e => handlePointerUp(e, table.id, true)}
@@ -931,6 +1142,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       {/* ── Live status sheet ── */}
       <TableDetailSheet
         table={sheetTable}
+        mergeGroup={sheetMergeGroup}
         statusInfo={sheetStatusInfo}
         onClose={() => setSheetTableId(null)}
         onMarkAvailable={markTableAvailable}
@@ -1077,9 +1289,10 @@ function FloatingToolbar({
 
 interface TableDetailSheetProps {
   table: FloorTable | null;
+  mergeGroup?: FloorTable[];
   statusInfo: TableStatusInfo | null;
   onClose: () => void;
-  onMarkAvailable: (tableNumber: number) => Promise<void>;
+  onMarkAvailable: (tableNumbers: number[]) => Promise<void>;
   onAcknowledge: (callId: string) => Promise<void>;
   acknowledging: boolean;
   markingAvailable: boolean;
@@ -1090,6 +1303,7 @@ interface TableDetailSheetProps {
 
 function TableDetailSheet({
   table,
+  mergeGroup,
   statusInfo,
   onClose,
   onMarkAvailable,
@@ -1104,24 +1318,34 @@ function TableDetailSheet({
   if (!open) return <Sheet open={false} onOpenChange={o => { if (!o) onClose(); }} />;
 
   const colors = STATUS_COLORS[statusInfo.status];
+  const isMerged = mergeGroup && mergeGroup.length > 1;
+  const mergedTitle = isMerged
+    ? mergeGroup.map(t => tableLabel(t)).join(' + ')
+    : `Table ${tableLabel(table)}`;
+  const totalCapacity = isMerged
+    ? mergeGroup.reduce((sum, t) => sum + t.capacity, 0)
+    : table.capacity;
+  const tableNumbers = isMerged
+    ? mergeGroup.map(t => t.table_number)
+    : [table.table_number];
 
   return (
     <Sheet open onOpenChange={o => { if (!o) onClose(); }}>
       <SheetContent side="right" className="flex flex-col p-0 gap-0 overflow-hidden sm:max-w-md">
         <SheetHeader
           className="border-b p-4 flex-shrink-0"
-          style={{ borderLeftColor: colors.border, borderLeftWidth: 4 }}
+          style={{ borderLeftColor: isMerged ? '#8b5cf6' : colors.border, borderLeftWidth: 4 }}
         >
           <div className="flex items-center gap-3 pr-8">
             <div
               className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0"
-              style={{ background: colors.bg, color: colors.text }}
+              style={{ background: isMerged ? 'rgba(139,92,246,0.12)' : colors.bg, color: isMerged ? '#7c3aed' : colors.text }}
             >
-              {tableLabel(table)}
+              {isMerged ? <Link2 size={18} /> : tableLabel(table)}
             </div>
             <div className="flex-1 min-w-0">
-              <SheetTitle>Table {tableLabel(table)}</SheetTitle>
-              <SheetDescription>{table.capacity} seats · {table.shape}</SheetDescription>
+              <SheetTitle>{mergedTitle}{isMerged ? ' (merged)' : ''}</SheetTitle>
+              <SheetDescription>{totalCapacity} seats{isMerged ? ` · ${mergeGroup.length} tables` : ` · ${table.shape}`}</SheetDescription>
             </div>
             <span
               className="text-xs font-medium px-2 py-1 rounded-full flex-shrink-0"
@@ -1184,7 +1408,7 @@ function TableDetailSheet({
               <Button
                 variant="outline"
                 className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                onClick={() => onMarkAvailable(table.table_number)}
+                onClick={() => onMarkAvailable(tableNumbers)}
                 disabled={markingAvailable}
               >
                 {markingAvailable
@@ -1372,12 +1596,14 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
       className="bg-white"
     >
       {plan.labels.map(l => <LabelElement key={l.id} label={l} viewOnly />)}
+      <MergeConnectors tables={plan.tables} />
       {plan.tables.map(t => (
         <TableElement
           key={t.id}
           table={t}
           viewOnly
           statusInfo={tableStatusMap.get(t.table_number)}
+          isMerged={!!t.merge_group_id}
           onClick={() => onTableClick(t)}
         />
       ))}
@@ -1393,6 +1619,7 @@ interface TableElementProps {
   statusInfo?: TableStatusInfo;
   isDragging?: boolean;
   isSelected?: boolean;
+  isMerged?: boolean;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
@@ -1401,7 +1628,7 @@ interface TableElementProps {
 }
 
 function TableElement({
-  table, viewOnly, statusInfo, isDragging, isSelected,
+  table, viewOnly, statusInfo, isDragging, isSelected, isMerged,
   onClick, onPointerDown, onPointerMove, onPointerUp, onContextMenu,
 }: TableElementProps) {
   const { w, h } = tableSize(table.capacity);
@@ -1464,7 +1691,71 @@ function TableElement({
           {table.capacity}p
         </span>
       </div>
+
+      {/* Merge chain icon */}
+      {isMerged && !isDragging && (
+        <div style={{
+          position: 'absolute', top: -6, right: -6,
+          width: 18, height: 18, borderRadius: '50%',
+          background: '#8b5cf6', border: '2px solid white',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 5, boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        }}>
+          <Link2 size={10} color="white" />
+        </div>
+      )}
     </div>
+  );
+}
+
+// ─── MergeConnectors ─────────────────────────────────────────────────────────
+
+function MergeConnectors({ tables }: { tables: FloorTable[] }) {
+  // Find unique merge groups
+  const groups = new Map<string, FloorTable[]>();
+  for (const t of tables) {
+    if (!t.merge_group_id) continue;
+    const list = groups.get(t.merge_group_id) ?? [];
+    list.push(t);
+    groups.set(t.merge_group_id, list);
+  }
+
+  const lines: { x1: number; y1: number; x2: number; y2: number; key: string }[] = [];
+
+  groups.forEach((groupTables, groupId) => {
+    // Draw lines between each consecutive pair
+    for (let i = 0; i < groupTables.length - 1; i++) {
+      const a = groupTables[i];
+      const b = groupTables[i + 1];
+      const aSize = tableSize(a.capacity);
+      const bSize = tableSize(b.capacity);
+      lines.push({
+        x1: a.x + aSize.w / 2,
+        y1: a.y + aSize.h / 2,
+        x2: b.x + bSize.w / 2,
+        y2: b.y + bSize.h / 2,
+        key: `${groupId}-${i}`,
+      });
+    }
+  });
+
+  if (lines.length === 0) return null;
+
+  return (
+    <svg
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}
+    >
+      {lines.map(({ x1, y1, x2, y2, key }) => (
+        <line
+          key={key}
+          x1={x1} y1={y1} x2={x2} y2={y2}
+          stroke="#8b5cf6"
+          strokeWidth={3}
+          strokeDasharray="6 4"
+          opacity={0.5}
+        />
+      ))}
+    </svg>
   );
 }
 

@@ -64,6 +64,10 @@ export interface FloorTable {
   y: number;
   shape: FloorShape;
   capacity: FloorCapacity;
+  /** IDs of other tables this table is merged with */
+  merged_with?: string[] | null;
+  /** Shared UUID for all tables in a merge group */
+  merge_group_id?: string | null;
 }
 
 export interface FloorLabel {
@@ -151,6 +155,8 @@ export interface Table {
   table_number: number;
   display_name?: string | null;
   qr_code_url: string | null;
+  merged_with?: string[] | null;
+  merge_group_id?: string | null;
 }
 
 export interface Order {

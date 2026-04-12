@@ -169,9 +169,24 @@ export default function BillingSheet({ orders, restaurant, onConfirm, onClose }:
 
   if (!open) return null;
 
-  const orderLabel = orders.length === 1
-    ? `Order #${orders[0].order_number}`
-    : `${orders.length} Orders Combined`;
+  // Detect if orders span multiple tables (merge group billing)
+  const uniqueTableIds = new Set(orders.filter(o => o.table_id).map(o => o.table_id!));
+  const isMultiTable = uniqueTableIds.size > 1;
+
+  const orderLabel = isMultiTable
+    ? (() => {
+        const tableLabels = orders
+          .filter(o => o.table)
+          .reduce((acc, o) => {
+            const label = o.table!.display_name?.trim() || String(o.table!.table_number);
+            if (!acc.includes(label)) acc.push(label);
+            return acc;
+          }, [] as string[]);
+        return `Table ${tableLabels.join(' + ')} · ${orders.length} Orders`;
+      })()
+    : orders.length === 1
+      ? `Order #${orders[0].order_number}`
+      : `${orders.length} Orders Combined`;
 
   return (
     <Sheet open onOpenChange={o => { if (!o) onClose(); }}>
@@ -185,16 +200,42 @@ export default function BillingSheet({ orders, restaurant, onConfirm, onClose }:
           {/* ── Items ── */}
           <div className="px-4 pt-4 pb-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Items</p>
-            <div className="space-y-1">
-              {allItems.map((item, i) => (
-                <div key={item.id ?? i} className="flex justify-between text-sm">
-                  <span className="text-gray-700">
-                    <span className="font-medium">{item.quantity}×</span> {item.name}
-                  </span>
-                  <span className="text-gray-500 flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
-                </div>
-              ))}
-            </div>
+            {isMultiTable ? (
+              // Group items by table for merged billing
+              <div className="space-y-3">
+                {orders.map(order => {
+                  const tLabel = order.table
+                    ? `Table ${order.table.display_name?.trim() || order.table.table_number}`
+                    : `Order #${order.order_number}`;
+                  return (
+                    <div key={order.id}>
+                      <p className="text-xs font-medium text-indigo-600 mb-1">{tLabel}</p>
+                      <div className="space-y-1 pl-2 border-l-2 border-indigo-100">
+                        {(order.items ?? []).map((item, i) => (
+                          <div key={item.id ?? i} className="flex justify-between text-sm">
+                            <span className="text-gray-700">
+                              <span className="font-medium">{item.quantity}×</span> {item.name}
+                            </span>
+                            <span className="text-gray-500 flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {allItems.map((item, i) => (
+                  <div key={item.id ?? i} className="flex justify-between text-sm">
+                    <span className="text-gray-700">
+                      <span className="font-medium">{item.quantity}×</span> {item.name}
+                    </span>
+                    <span className="text-gray-500 flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="mx-4 border-t my-2" />
