@@ -356,8 +356,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               restaurant_id: restaurant.id,
               table_number: t.table_number,
               display_name: t.display_name ?? null,
-              merged_with: t.merged_with ?? null,
-              merge_group_id: t.merge_group_id ?? null,
             })),
             { onConflict: 'id' },
           );
