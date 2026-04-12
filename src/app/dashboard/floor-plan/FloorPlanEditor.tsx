@@ -448,6 +448,23 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         .eq('id', id);
       if (error) { toast.error('Failed to record payment'); return; }
     }
+    // Auto-unmerge tables after billing is complete
+    const billedTableIds = new Set(
+      activeOrders
+        .filter(o => orderIds.includes(o.id) && o.table?.merge_group_id)
+        .map(o => o.table!.merge_group_id!),
+    );
+    if (billedTableIds.size > 0) {
+      updatePlan(prev => ({
+        ...prev,
+        tables: prev.tables.map(t =>
+          t.merge_group_id && billedTableIds.has(t.merge_group_id)
+            ? { ...t, merge_group_id: null, merged_with: null }
+            : t,
+        ),
+      }));
+    }
+
     toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
     fetchLiveData();
   }
