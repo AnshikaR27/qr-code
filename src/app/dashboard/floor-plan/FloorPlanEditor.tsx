@@ -277,19 +277,35 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         });
       }
     });
-    setPlan(prev => ({
-      ...prev,
-      tables: prev.tables.map(t => {
-        const m = tableMerge.get(t.id);
-        if (m) {
-          if (t.merge_group_id === m.merge_group_id) return t;
-          return { ...t, merge_group_id: m.merge_group_id, merged_with: m.merged_with };
-        }
-        // No active merged orders → clear merge state if it was set
-        if (t.merge_group_id) return { ...t, merge_group_id: null, merged_with: null };
-        return t;
-      }),
-    }));
+
+    console.log('[FloorPlan] fetchLiveData — orders:', (orders ?? []).length,
+      'with merge_group_id:', (orders ?? []).filter(o => o.merge_group_id).length,
+      'tableMerge size:', tableMerge.size);
+
+    if (tableMerge.size > 0) {
+      console.log('[FloorPlan] tableMerge entries:', JSON.stringify(Array.from(tableMerge.entries())));
+    }
+
+    setPlan(prev => {
+      const next = {
+        ...prev,
+        tables: prev.tables.map(t => {
+          const m = tableMerge.get(t.id);
+          if (m) {
+            if (t.merge_group_id === m.merge_group_id) return t;
+            return { ...t, merge_group_id: m.merge_group_id, merged_with: m.merged_with };
+          }
+          // No active merged orders → clear merge state if it was set
+          if (t.merge_group_id) return { ...t, merge_group_id: null, merged_with: null };
+          return t;
+        }),
+      };
+      const mergedTables = next.tables.filter(t => t.merge_group_id);
+      if (mergedTables.length > 0) {
+        console.log('[FloorPlan] plan tables with merge_group_id after update:', mergedTables.map(t => ({ id: t.id, table_number: t.table_number, merge_group_id: t.merge_group_id })));
+      }
+      return next;
+    });
   }
 
   // ── Realtime subscription + fallback poll ──────────────────────────────────
