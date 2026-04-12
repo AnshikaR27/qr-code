@@ -256,7 +256,40 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     ]);
     setActiveOrders(orders ?? []);
     setActiveWaiterCalls(calls ?? []);
-    await syncMergeState();
+
+    // Derive table merge state directly from orders (no extra DB call,
+    // no race condition — the orders already carry merge_group_id).
+    const mergeGroups = new Map<string, Set<string>>();
+    for (const o of (orders ?? [])) {
+      if (o.merge_group_id && o.table_id) {
+        const set = mergeGroups.get(o.merge_group_id) ?? new Set<string>();
+        set.add(o.table_id);
+        mergeGroups.set(o.merge_group_id, set);
+      }
+    }
+    // Build tableId → merge info lookup
+    const tableMerge = new Map<string, { merge_group_id: string; merged_with: string[] }>();
+    Array.from(mergeGroups.entries()).forEach(([groupId, tableIdSet]) => {
+      const ids = Array.from(tableIdSet) as string[];
+      if (ids.length >= 2) {
+        ids.forEach(tid => {
+          tableMerge.set(tid, { merge_group_id: groupId, merged_with: ids.filter(id => id !== tid) });
+        });
+      }
+    });
+    setPlan(prev => ({
+      ...prev,
+      tables: prev.tables.map(t => {
+        const m = tableMerge.get(t.id);
+        if (m) {
+          if (t.merge_group_id === m.merge_group_id) return t;
+          return { ...t, merge_group_id: m.merge_group_id, merged_with: m.merged_with };
+        }
+        // No active merged orders → clear merge state if it was set
+        if (t.merge_group_id) return { ...t, merge_group_id: null, merged_with: null };
+        return t;
+      }),
+    }));
   }
 
   // ── Realtime subscription + fallback poll ──────────────────────────────────
