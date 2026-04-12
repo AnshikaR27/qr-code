@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Minus, Plus, Trash2, ShoppingBag, X } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
@@ -20,6 +20,7 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
   const router = useRouter();
   const { items, updateQuantity, removeItem, getTotal } = useCart();
   const total = getTotal();
+  const [customerName, setCustomerName] = useState('');
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
@@ -50,7 +51,7 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
       restaurant_id: restaurant.id,
       table_id: tableId,
       order_type: 'dine_in',
-      customer_name: null,
+      customer_name: customerName.trim() || null,
       customer_phone: null,
       items: items.map((i) => ({
         product_id: i.product_id,
@@ -276,6 +277,29 @@ export default function CartSheet({ open, onClose, restaurant, tableId, tokens }
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* ── Customer name ── */}
+              <div style={{ flexShrink: 0, padding: '8px 20px 0' }}>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Your name (optional)"
+                  maxLength={60}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: 14,
+                    border: `1.5px solid ${tokens.border ?? '#e5e7eb'}`,
+                    backgroundColor: tokens.cardBg,
+                    fontFamily: tokens.fontBody,
+                    fontSize: 14,
+                    color: tokens.text,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
               </div>
 
               {/* ── Footer: total + CTA ── */}
