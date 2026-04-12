@@ -445,17 +445,41 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         .eq('id', id);
       if (error) { toast.error('Failed to record payment'); return; }
     }
-    // Auto-unmerge tables after billing is complete
-    const billedTableIds = new Set(
-      activeOrders
-        .filter(o => orderIds.includes(o.id) && o.table?.merge_group_id)
-        .map(o => o.table!.merge_group_id!),
+    // Determine which merge groups were touched by this payment.
+    // Read merge_group_id from plan.tables (always current in memory) rather
+    // than activeOrders.table.merge_group_id, which is stale until the next
+    // fetchLiveData fires — it won't have merge_group_id if fetchLiveData
+    // ran before the 1-second scheduleSave wrote the merge to the tables table.
+    const billedTableNumbers = activeOrders
+      .filter(o => orderIds.includes(o.id))
+      .map(o => o.table?.table_number ?? -1)
+      .filter(n => n !== -1);
+
+    const mergeGroupsToCheck = new Set(
+      plan.tables
+        .filter(t => billedTableNumbers.includes(t.table_number) && t.merge_group_id)
+        .map(t => t.merge_group_id!),
     );
-    if (billedTableIds.size > 0) {
+
+    // Only dissolve a merge group when NO other active orders remain at any
+    // table in that group after this payment. This prevents premature dissolution
+    // when only one table in a merged pair pays while the other is still open.
+    const groupsToDissolve: string[] = [];
+    for (const mergeGroupId of mergeGroupsToCheck) {
+      const groupTableNumbers = plan.tables
+        .filter(t => t.merge_group_id === mergeGroupId)
+        .map(t => t.table_number);
+      const remainingOrders = activeOrders.filter(
+        o => !orderIds.includes(o.id) && groupTableNumbers.includes(o.table?.table_number ?? -1),
+      );
+      if (remainingOrders.length === 0) groupsToDissolve.push(mergeGroupId);
+    }
+
+    if (groupsToDissolve.length > 0) {
       updatePlan(prev => ({
         ...prev,
         tables: prev.tables.map(t =>
-          t.merge_group_id && billedTableIds.has(t.merge_group_id)
+          t.merge_group_id && groupsToDissolve.includes(t.merge_group_id)
             ? { ...t, merge_group_id: null, merged_with: null }
             : t,
         ),
