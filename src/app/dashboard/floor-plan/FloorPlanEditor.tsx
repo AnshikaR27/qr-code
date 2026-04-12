@@ -224,15 +224,12 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   // ── Live data fetch ────────────────────────────────────────────────────────
   async function fetchLiveData() {
     const supabase = createClient();
-    // Only show recent active orders — ignore stale orders older than 6 hours
-    const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
     const [{ data: orders }, { data: calls }] = await Promise.all([
       supabase
         .from('orders')
         .select('*, items:order_items(*), table:tables(id, table_number, merge_group_id)')
         .eq('restaurant_id', restaurant.id)
-        .in('status', ['placed', 'ready'])
-        .gte('created_at', cutoff),
+        .in('status', ['placed', 'ready']),
       supabase
         .from('waiter_calls')
         .select('*, table:tables(id, table_number)')
