@@ -465,7 +465,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     // table in that group after this payment. This prevents premature dissolution
     // when only one table in a merged pair pays while the other is still open.
     const groupsToDissolve: string[] = [];
-    for (const mergeGroupId of mergeGroupsToCheck) {
+    for (const mergeGroupId of Array.from(mergeGroupsToCheck)) {
       const groupTableNumbers = plan.tables
         .filter(t => t.merge_group_id === mergeGroupId)
         .map(t => t.table_number);
