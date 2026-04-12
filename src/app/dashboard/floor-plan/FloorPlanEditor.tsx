@@ -407,7 +407,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               table_number: t.table_number,
               display_name: t.display_name ?? null,
             })),
-            { onConflict: 'id' },
+            { onConflict: 'restaurant_id,table_number' },
           );
         // Reconcile errors are non-fatal — layout is already saved
       }
