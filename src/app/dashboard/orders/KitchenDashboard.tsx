@@ -58,6 +58,10 @@ export default function KitchenDashboard({ restaurant }: Props) {
   const [selectMode, setSelectMode]         = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
+  // Drag-to-merge state (pointer-events based, no library)
+  const [draggingOrderId, setDraggingOrderId]     = useState<string | null>(null);
+  const [dropTargetOrderId, setDropTargetOrderId] = useState<string | null>(null);
+
   // USB printer connection state
   const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
   const [connectingUSB, setConnectingUSB]     = useState<string | null>(null);
@@ -313,6 +317,52 @@ export default function KitchenDashboard({ restaurant }: Props) {
     setSelectedOrderIds([]);
   }
 
+  // ── Drag-to-merge ─────────────────────────────────────────────────────────
+
+  async function mergeTwoOrders(sourceId: string, targetId: string) {
+    const sourceOrder = orders.find(o => o.id === sourceId);
+    const targetOrder = orders.find(o => o.id === targetId);
+    if (!sourceOrder || !targetOrder) return;
+
+    // Validate: both must be active and unpaid
+    const bothEligible = [sourceOrder, targetOrder].every(
+      o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method,
+    );
+    if (!bothEligible) {
+      toast.error('Cannot merge — both orders must be active and unpaid');
+      return;
+    }
+
+    // Reuse an existing merge group UUID if either order is already in one,
+    // so dragging a third card onto a merged group just extends it.
+    const existingGroupId = sourceOrder.merge_group_id || targetOrder.merge_group_id;
+    const groupId = existingGroupId ?? crypto.randomUUID();
+
+    const supabase = createClient();
+    const idsToUpdate = existingGroupId
+      ? [sourceId, targetId]
+      : [sourceId, targetId];
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ merge_group_id: groupId })
+      .in('id', idsToUpdate);
+    if (error) { toast.error('Failed to merge orders'); return; }
+
+    // Sync to tables so the floor plan purple outline appears
+    const tableIds = Array.from(new Set(
+      [sourceOrder, targetOrder].filter(o => o.table_id).map(o => o.table_id!),
+    ));
+    if (tableIds.length > 0) {
+      await supabase.from('tables').update({ merge_group_id: groupId }).in('id', tableIds);
+    }
+
+    toast.success('Orders merged', {
+      action: { label: 'Undo', onClick: () => unmergeGroup(groupId) },
+      duration: 5000,
+    });
+  }
+
   async function unmergeGroup(mergeGroupId: string) {
     const grouped = orders.filter(o => o.merge_group_id === mergeGroupId);
     const supabase = createClient();
@@ -488,6 +538,15 @@ export default function KitchenDashboard({ restaurant }: Props) {
         </p>
       )}
 
+      {/* ── Drag-to-merge instruction overlay ── */}
+      {draggingOrderId && (
+        <div className="fixed top-4 inset-x-0 flex justify-center z-50 pointer-events-none">
+          <div className="bg-gray-900/90 text-white text-sm font-medium px-4 py-2 rounded-full shadow-xl backdrop-blur-sm">
+            Drop on another order to merge
+          </div>
+        </div>
+      )}
+
       {/* ── Orders grid ── */}
       {displayItems.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
@@ -513,6 +572,16 @@ export default function KitchenDashboard({ restaurant }: Props) {
                 selectMode={selectMode}
                 isSelected={selectedOrderIds.includes(item.order.id)}
                 onSelect={() => toggleSelect(item.order.id)}
+                draggingOrderId={draggingOrderId}
+                dropTargetOrderId={dropTargetOrderId}
+                onDragStart={(id) => { setDraggingOrderId(id); setDropTargetOrderId(null); }}
+                onDragOver={setDropTargetOrderId}
+                onDragDrop={(srcId, tgtId) => {
+                  setDraggingOrderId(null);
+                  setDropTargetOrderId(null);
+                  mergeTwoOrders(srcId, tgtId);
+                }}
+                onDragCancel={() => { setDraggingOrderId(null); setDropTargetOrderId(null); }}
               />
             ) : (
               <MergedOrderCard
@@ -722,18 +791,129 @@ interface OrderCardProps {
   selectMode: boolean;
   isSelected: boolean;
   onSelect: () => void;
+  // Drag-to-merge
+  draggingOrderId: string | null;
+  dropTargetOrderId: string | null;
+  onDragStart: (orderId: string) => void;
+  onDragOver: (targetOrderId: string | null) => void;
+  onDragDrop: (sourceId: string, targetId: string) => void;
+  onDragCancel: () => void;
 }
 
 function OrderCard({
   order, restaurant, allOrders, onAdvance, onCancel, onReprint, onPrintBill,
   isUpdating, selectMode, isSelected, onSelect,
+  draggingOrderId, dropTargetOrderId, onDragStart, onDragOver, onDragDrop, onDragCancel,
 }: OrderCardProps) {
   const statusMeta  = ORDER_STATUSES.find((s) => s.value === order.status);
   const STATUS_LABELS = getStatusLabels(restaurant.service_mode ?? 'self_service');
   const isTerminal  = order.status === 'delivered' || order.status === 'cancelled';
 
+  // Drag state
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const longPressTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerStartPos = useRef({ x: 0, y: 0 });
+  const cardRef         = useRef<HTMLDivElement>(null);
+
+  const isDragging   = draggingOrderId === order.id;
+  const isDropTarget = dropTargetOrderId === order.id;
+  // Only unmerged, active, unpaid orders may be dragged (merged groups have their own card)
+  const canDrag = !isTerminal && !selectMode && !order.merge_group_id && !order.payment_method;
+
+  function handlePointerDown(e: React.PointerEvent) {
+    if (!canDrag) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointerStartPos.current = { x: e.clientX, y: e.clientY };
+    // Start drag after 300 ms hold without significant movement
+    longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = null;
+      cardRef.current?.setPointerCapture(e.pointerId);
+      setDragOffset({ x: 0, y: 0 });
+      onDragStart(order.id);
+    }, 300);
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    const dx = e.clientX - pointerStartPos.current.x;
+    const dy = e.clientY - pointerStartPos.current.y;
+
+    // Cancel long-press if the finger moved before threshold
+    if (longPressTimer.current && Math.hypot(dx, dy) > 8) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+
+    if (!isDragging) return;
+    setDragOffset({ x: dx, y: dy });
+
+    // Find the card under the pointer by temporarily making the dragged card
+    // non-interactive so elementFromPoint can see through it.
+    const card = cardRef.current;
+    if (card) {
+      card.style.pointerEvents = 'none';
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      card.style.pointerEvents = '';
+      const targetEl = el?.closest('[data-order-id]') as HTMLElement | null;
+      const targetId = targetEl?.dataset.orderId ?? null;
+      onDragOver(targetId && targetId !== order.id ? targetId : null);
+    }
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    if (!isDragging) return;
+
+    const card = cardRef.current;
+    let targetId: string | null = null;
+    if (card) {
+      card.style.pointerEvents = 'none';
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      card.style.pointerEvents = '';
+      const targetEl = el?.closest('[data-order-id]') as HTMLElement | null;
+      targetId = targetEl?.dataset.orderId ?? null;
+    }
+
+    setDragOffset({ x: 0, y: 0 });
+    if (targetId && targetId !== order.id) {
+      onDragDrop(order.id, targetId);
+    } else {
+      onDragCancel();
+    }
+  }
+
+  function handlePointerCancel() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    if (isDragging) onDragCancel();
+    setDragOffset({ x: 0, y: 0 });
+  }
+
   return (
     <div
+      ref={cardRef}
+      data-order-id={order.id}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      style={{
+        // Lift the card while dragging; scale target slightly on hover
+        transform: isDragging
+          ? `translate(${dragOffset.x}px, ${dragOffset.y}px) scale(1.04) rotate(2deg)`
+          : isDropTarget ? 'scale(1.02)' : undefined,
+        // Smooth snap-back when drag ends; no transition during active drag
+        transition: isDragging
+          ? 'box-shadow 0.15s'
+          : 'transform 0.25s ease, box-shadow 0.25s ease',
+        boxShadow: isDragging ? '0 20px 40px rgba(0,0,0,0.22)' : undefined,
+        zIndex:     isDragging ? 50 : undefined,
+        // Prevent browser from intercepting touch events as scroll
+        touchAction: canDrag ? 'none' : undefined,
+        cursor: isDragging ? 'grabbing' : (canDrag ? 'grab' : 'default'),
+        willChange: isDragging ? 'transform' : undefined,
+      }}
       className={cn(
         'bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden relative',
         order.status === 'placed'    && 'border-amber-300',
@@ -741,6 +921,8 @@ function OrderCard({
         order.status === 'delivered' && 'border-gray-200 opacity-70',
         order.status === 'cancelled' && 'border-red-200 opacity-60',
         selectMode && isSelected && 'ring-2 ring-violet-500 border-violet-400',
+        // Drop target: dashed violet outline
+        isDropTarget && 'outline outline-2 outline-dashed outline-violet-500 outline-offset-2',
       )}
     >
       {/* Checkbox overlay in select mode */}
