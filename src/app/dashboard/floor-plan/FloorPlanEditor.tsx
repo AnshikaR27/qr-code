@@ -18,6 +18,7 @@ import {
   Undo2,
   IndianRupee,
   Link2,
+  Unlink,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -217,6 +218,12 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [saveStatus, setSaveStatus]   = useState<SaveStatus>('saved');
   const [draggingId, setDraggingId]   = useState<string | null>(null);
   const [isMobile, setIsMobile]       = useState(false);
+
+  // Merge UX animation state
+  const [mergePreview, setMergePreview] = useState<{ sourceId: string; targetId: string } | null>(null);
+  const [unmergeFlash, setUnmergeFlash] = useState<string | null>(null);  // group ID flashing red
+  const [mergeBounce, setMergeBounce]   = useState<string | null>(null);  // group ID bouncing
+  const [snapTransition, setSnapTransition] = useState<string | null>(null); // table ID sliding into snap
 
   // Pending shape/capacity/name for the "Add Table" placement flow
   const [pendingShape, setPendingShape]           = useState<FloorShape>('round');
@@ -604,7 +611,31 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   }
 
   function removeTable(tableId: string) {
-    updatePlan(prev => ({ ...prev, tables: prev.tables.filter(t => t.id !== tableId) }));
+    updatePlan(prev => {
+      const deleted = prev.tables.find(t => t.id === tableId);
+      let tables = prev.tables.filter(t => t.id !== tableId);
+
+      // Clean up merge group when a member is deleted
+      if (deleted?.merge_group_id) {
+        const groupId = deleted.merge_group_id;
+        const remaining = tables.filter(t => t.merge_group_id === groupId);
+        if (remaining.length <= 1) {
+          // Only 0 or 1 left — dissolve the group
+          tables = tables.map(t =>
+            t.merge_group_id === groupId ? { ...t, merge_group_id: null, merged_with: null } : t,
+          );
+        } else {
+          // 2+ remain — just remove deleted ID from their merged_with
+          tables = tables.map(t =>
+            t.merge_group_id === groupId
+              ? { ...t, merged_with: (t.merged_with ?? []).filter(mid => mid !== tableId) }
+              : t,
+          );
+        }
+      }
+
+      return { ...prev, tables };
+    });
   }
 
   function removeLabel(labelId: string) {
@@ -652,15 +683,44 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const x    = snap(Math.max(0, Math.min(CANVAS_W - elemW, rawX)));
     const y    = snap(Math.max(0, Math.min(CANVAS_H - elemH, rawY)));
 
-    setPlan(prev => ({
-      tables: prev.tables.map(t => t.id === id ? { ...t, x, y } : t),
-      labels: prev.labels.map(l => l.id === id ? { ...l, x, y } : l),
-    }));
+    setPlan(prev => {
+      const next = {
+        tables: prev.tables.map(t => t.id === id ? { ...t, x, y } : t),
+        labels: prev.labels.map(l => l.id === id ? { ...l, x, y } : l),
+      };
+
+      // Check merge preview while dragging a table
+      const draggedTable = next.tables.find(t => t.id === id);
+      if (draggedTable) {
+        const draggedSize = tableSize(draggedTable.capacity);
+        let foundPreview = false;
+        for (const other of next.tables) {
+          if (other.id === id) continue;
+          // Don't preview with tables already in the same merge group
+          if (draggedTable.merge_group_id && other.merge_group_id === draggedTable.merge_group_id) continue;
+          const otherSize = tableSize(other.capacity);
+          const { close } = getTableProximity(
+            { x, y, w: draggedSize.w, h: draggedSize.h },
+            { x: other.x, y: other.y, w: otherSize.w, h: otherSize.h },
+            MERGE_PROXIMITY + 20, // slightly larger zone for preview
+          );
+          if (close) {
+            setMergePreview({ sourceId: id, targetId: other.id });
+            foundPreview = true;
+            break;
+          }
+        }
+        if (!foundPreview) setMergePreview(null);
+      }
+
+      return next;
+    });
   }
 
   function handlePointerUp(e: React.PointerEvent, id: string, isTable: boolean) {
     if (draggingId !== id) return;
     setDraggingId(null);
+    setMergePreview(null);
     if (!dragMoved.current) {
       // tap — select the table (or ignore for labels)
       if (isTable) setEditSelectedId(id);
@@ -680,6 +740,11 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             if (dragged.merge_group_id) {
               const groupTables = next.tables.filter(t => t.merge_group_id === dragged.merge_group_id);
               if (shouldUnmerge(dragged, groupTables, UNMERGE_DISTANCE)) {
+                // Flash red on the group before it disappears
+                const flashGroupId = dragged.merge_group_id;
+                setUnmergeFlash(flashGroupId);
+                setTimeout(() => setUnmergeFlash(null), 400);
+
                 // Unmerge this table
                 const groupId = dragged.merge_group_id;
                 next.tables = next.tables.map(t => {
@@ -688,7 +753,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                   }
                   if (t.merge_group_id === groupId) {
                     const newMerged = (t.merged_with ?? []).filter(mid => mid !== id);
-                    // If only one table left in group, clear it too
                     const remaining = next.tables.filter(
                       ot => ot.id !== id && ot.merge_group_id === groupId,
                     );
@@ -699,13 +763,12 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                   }
                   return t;
                 });
-                toast(`Table ${tableLabel(dragged)} unmerged`);
+                toast(`Table ${tableLabel(dragged)} separated from group`);
               }
             }
 
             // Check for new merge with nearby tables
             if (!next.tables[draggedIdx]?.merge_group_id || !next.tables.find(t => t.id === id)?.merge_group_id) {
-              // Re-find after possible unmerge update
               const currentDragged = next.tables.find(t => t.id === id)!;
               for (const other of next.tables) {
                 if (other.id === id) continue;
@@ -717,31 +780,27 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 );
 
                 if (proximity.close) {
-                  // Snap the dragged table
+                  // Animate snap
+                  setSnapTransition(id);
+                  setTimeout(() => setSnapTransition(null), 250);
+
                   next.tables = next.tables.map(t =>
                     t.id === id ? { ...t, x: proximity.snapX, y: proximity.snapY } : t,
                   );
 
-                  // Determine the merge group ID
                   const groupId = other.merge_group_id ?? currentDragged.merge_group_id ?? crypto.randomUUID();
-
-                  // Get all tables that should be in this group
                   const existingGroupIds = new Set(
                     next.tables
                       .filter(t => t.merge_group_id === groupId || t.id === id || t.id === other.id)
                       .map(t => t.id),
                   );
-
-                  // Also include tables from dragged table's old group (if merging two groups)
                   if (currentDragged.merge_group_id && currentDragged.merge_group_id !== groupId) {
                     next.tables
                       .filter(t => t.merge_group_id === currentDragged.merge_group_id)
                       .forEach(t => existingGroupIds.add(t.id));
                   }
-
                   const groupIds = Array.from(existingGroupIds);
 
-                  // Update all tables in the group
                   next.tables = next.tables.map(t => {
                     if (existingGroupIds.has(t.id)) {
                       return {
@@ -753,11 +812,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                     return t;
                   });
 
+                  // Trigger bounce animation on the merge group
+                  setMergeBounce(groupId);
+                  setTimeout(() => setMergeBounce(null), 350);
+
+                  const totalSeats = next.tables
+                    .filter(t => existingGroupIds.has(t.id))
+                    .reduce((s, t) => s + t.capacity, 0);
                   const mergedLabels = next.tables
                     .filter(t => existingGroupIds.has(t.id))
                     .map(t => tableLabel(t))
                     .join(' + ');
-                  toast(`${mergedLabels} merged`);
+                  toast(`Tables ${mergedLabels} merged · ${totalSeats} seats combined`);
                   break;
                 }
               }
@@ -769,6 +835,36 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         return next;
       });
     }
+  }
+
+  /** Programmatic unmerge — used by the toolbar button */
+  function unmergeTable(tableId: string) {
+    updatePlan(prev => {
+      const table = prev.tables.find(t => t.id === tableId);
+      if (!table?.merge_group_id) return prev;
+
+      const groupId = table.merge_group_id;
+      setUnmergeFlash(groupId);
+      setTimeout(() => setUnmergeFlash(null), 400);
+
+      const updated = prev.tables.map(t => {
+        if (t.id === tableId) {
+          return { ...t, merge_group_id: null, merged_with: null };
+        }
+        if (t.merge_group_id === groupId) {
+          const newMerged = (t.merged_with ?? []).filter(mid => mid !== tableId);
+          const remaining = prev.tables.filter(ot => ot.id !== tableId && ot.merge_group_id === groupId);
+          if (remaining.length <= 1) {
+            return { ...t, merge_group_id: null, merged_with: null };
+          }
+          return { ...t, merged_with: newMerged.length > 0 ? newMerged : null };
+        }
+        return t;
+      });
+
+      toast(`Table ${tableLabel(table)} separated from group`);
+      return { ...prev, tables: updated };
+    });
   }
 
   // ── Context menu ─────────────────────────────────────────────────────────
@@ -1037,11 +1133,32 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             />
           ))}
 
-          {/* Merge connectors — rendered behind tables */}
-          <MergeConnectors tables={plan.tables} />
+          {/* Merge group backgrounds — rendered behind tables */}
+          <MergeGroupBackgrounds tables={plan.tables} unmergeFlash={unmergeFlash} />
+
+          {/* Merge preview connector while dragging */}
+          {mergePreview && (() => {
+            const src = plan.tables.find(t => t.id === mergePreview.sourceId);
+            const tgt = plan.tables.find(t => t.id === mergePreview.targetId);
+            if (!src || !tgt) return null;
+            const sSize = tableSize(src.capacity);
+            const tSize = tableSize(tgt.capacity);
+            return (
+              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
+                <line
+                  x1={src.x + sSize.w / 2} y1={src.y + sSize.h / 2}
+                  x2={tgt.x + tSize.w / 2} y2={tgt.y + tSize.h / 2}
+                  stroke="rgba(139,92,246,0.35)" strokeWidth={8} strokeLinecap="round"
+                />
+              </svg>
+            );
+          })()}
 
           {plan.tables.map(table => {
             const { w, h } = tableSize(table.capacity);
+            const isBouncing = mergeBounce != null && table.merge_group_id === mergeBounce;
+            const isPreviewTarget = mergePreview?.targetId === table.id;
+            const isSnapping = snapTransition === table.id;
             return (
               <TableElement
                 key={table.id}
@@ -1049,7 +1166,9 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 statusInfo={tableStatusMap.get(table.table_number)}
                 isDragging={draggingId === table.id}
                 isSelected={editSelectedId === table.id}
-                isMerged={!!table.merge_group_id}
+                isBouncing={isBouncing}
+                isPreviewTarget={isPreviewTarget}
+                isSnapping={isSnapping}
                 onPointerDown={e => handlePointerDown(e, table.id, table.x, table.y)}
                 onPointerMove={e => handlePointerMove(e, table.id, w, h)}
                 onPointerUp={e => handlePointerUp(e, table.id, true)}
@@ -1067,6 +1186,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               onDisplayNameCommit={(name) => commitDisplayName(editSelectedTable.id, name)}
               onDelete={() => { removeTable(editSelectedTable.id); setEditSelectedId(null); }}
               onViewStatus={() => setSheetTableId(editSelectedTable.id)}
+              onUnmerge={editSelectedTable.merge_group_id ? () => unmergeTable(editSelectedTable.id) : undefined}
             />
           )}
         </div>
@@ -1174,6 +1294,7 @@ interface FloatingToolbarProps {
   onDisplayNameCommit: (name: string) => void;
   onDelete: () => void;
   onViewStatus: () => void;
+  onUnmerge?: () => void;
 }
 
 function FloatingToolbar({
@@ -1183,6 +1304,7 @@ function FloatingToolbar({
   onDisplayNameCommit,
   onDelete,
   onViewStatus,
+  onUnmerge,
 }: FloatingToolbarProps) {
   const [nameVal, setNameVal] = useState(table.display_name ?? '');
 
@@ -1271,6 +1393,20 @@ function FloatingToolbar({
         >
           <Eye className="w-3.5 h-3.5" />
         </button>
+
+        {/* Unmerge (only shown for merged tables) */}
+        {onUnmerge && (
+          <>
+            <div className="w-px h-4 bg-gray-200 mx-0.5" />
+            <button
+              onClick={onUnmerge}
+              className="p-1 rounded-md hover:bg-purple-50 text-purple-400 hover:text-purple-600 transition-colors"
+              title="Unmerge from group"
+            >
+              <Unlink className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
 
         {/* Delete */}
         <button
@@ -1596,14 +1732,13 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
       className="bg-white"
     >
       {plan.labels.map(l => <LabelElement key={l.id} label={l} viewOnly />)}
-      <MergeConnectors tables={plan.tables} />
+      <MergeGroupBackgrounds tables={plan.tables} />
       {plan.tables.map(t => (
         <TableElement
           key={t.id}
           table={t}
           viewOnly
           statusInfo={tableStatusMap.get(t.table_number)}
-          isMerged={!!t.merge_group_id}
           onClick={() => onTableClick(t)}
         />
       ))}
@@ -1619,7 +1754,9 @@ interface TableElementProps {
   statusInfo?: TableStatusInfo;
   isDragging?: boolean;
   isSelected?: boolean;
-  isMerged?: boolean;
+  isBouncing?: boolean;
+  isPreviewTarget?: boolean;
+  isSnapping?: boolean;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
@@ -1628,7 +1765,8 @@ interface TableElementProps {
 }
 
 function TableElement({
-  table, viewOnly, statusInfo, isDragging, isSelected, isMerged,
+  table, viewOnly, statusInfo, isDragging, isSelected,
+  isBouncing, isPreviewTarget, isSnapping,
   onClick, onPointerDown, onPointerMove, onPointerUp, onContextMenu,
 }: TableElementProps) {
   const { w, h } = tableSize(table.capacity);
@@ -1650,6 +1788,10 @@ function TableElement({
         cursor: viewOnly ? 'pointer' : isDragging ? 'grabbing' : 'grab',
         touchAction: 'none',
         zIndex: isDragging ? 50 : isSelected ? 10 : 2,
+        // Smooth snap animation when merging
+        transition: isSnapping ? 'left 200ms ease-out, top 200ms ease-out' : (isDragging ? 'none' : undefined),
+        // Scale bounce when group gains a member
+        transform: isBouncing ? 'scale(1.05)' : undefined,
       }}
       className={needsAttention ? 'animate-pulse' : undefined}
       onClick={viewOnly ? onClick : undefined}
@@ -1669,20 +1811,35 @@ function TableElement({
         }} />
       )}
 
+      {/* Merge preview glow */}
+      {isPreviewTarget && (
+        <div style={{
+          position: 'absolute', inset: -6,
+          borderRadius: isRound ? '50%' : 16,
+          background: 'rgba(139,92,246,0.12)',
+          border: '2px solid rgba(139,92,246,0.4)',
+          pointerEvents: 'none',
+          animation: 'mergeGlow 1s ease-in-out infinite',
+        }} />
+      )}
+
       <div style={{
         width: '100%', height: '100%',
         borderRadius: isRound ? '50%' : 10,
         background: bg,
         border: `2px solid ${border}`,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        boxShadow: isDragging
-          ? '0 8px 24px rgba(79,70,229,0.25)'
-          : isSelected
-            ? '0 0 0 3px rgba(37,99,235,0.2), 0 2px 8px rgba(0,0,0,0.12)'
-            : needsAttention
-              ? '0 0 0 3px rgba(239,68,68,0.25)'
-              : '0 2px 6px rgba(0,0,0,0.08)',
-        transition: isDragging ? 'none' : 'box-shadow 0.15s, background 0.25s, border-color 0.25s',
+        boxShadow: isPreviewTarget
+          ? '0 0 16px rgba(139,92,246,0.4)'
+          : isDragging
+            ? '0 8px 24px rgba(79,70,229,0.25)'
+            : isSelected
+              ? '0 0 0 3px rgba(37,99,235,0.2), 0 2px 8px rgba(0,0,0,0.12)'
+              : needsAttention
+                ? '0 0 0 3px rgba(239,68,68,0.25)'
+                : '0 2px 6px rgba(0,0,0,0.08)',
+        transition: isDragging ? 'none' : 'box-shadow 0.2s, background 0.25s, border-color 0.25s, transform 0.3s ease-out',
+        transform: isBouncing ? 'scale(1.05)' : 'scale(1)',
       }}>
         <span style={{ fontWeight: 700, fontSize: 13, color: text, lineHeight: 1 }}>
           {tableLabel(table)}
@@ -1691,27 +1848,14 @@ function TableElement({
           {table.capacity}p
         </span>
       </div>
-
-      {/* Merge chain icon */}
-      {isMerged && !isDragging && (
-        <div style={{
-          position: 'absolute', top: -6, right: -6,
-          width: 18, height: 18, borderRadius: '50%',
-          background: '#8b5cf6', border: '2px solid white',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 5, boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-        }}>
-          <Link2 size={10} color="white" />
-        </div>
-      )}
     </div>
   );
 }
 
-// ─── MergeConnectors ─────────────────────────────────────────────────────────
+// ─── MergeGroupBackgrounds ──────────────────────────────────────────────────
 
-function MergeConnectors({ tables }: { tables: FloorTable[] }) {
-  // Find unique merge groups
+function MergeGroupBackgrounds({ tables, unmergeFlash }: { tables: FloorTable[]; unmergeFlash?: string | null }) {
+  // Collect unique merge groups
   const groups = new Map<string, FloorTable[]>();
   for (const t of tables) {
     if (!t.merge_group_id) continue;
@@ -1720,43 +1864,62 @@ function MergeConnectors({ tables }: { tables: FloorTable[] }) {
     groups.set(t.merge_group_id, list);
   }
 
-  const lines: { x1: number; y1: number; x2: number; y2: number; key: string }[] = [];
+  const rects: React.ReactNode[] = [];
+  const PAD = 12;
 
   groups.forEach((groupTables, groupId) => {
-    // Draw lines between each consecutive pair
-    for (let i = 0; i < groupTables.length - 1; i++) {
-      const a = groupTables[i];
-      const b = groupTables[i + 1];
-      const aSize = tableSize(a.capacity);
-      const bSize = tableSize(b.capacity);
-      lines.push({
-        x1: a.x + aSize.w / 2,
-        y1: a.y + aSize.h / 2,
-        x2: b.x + bSize.w / 2,
-        y2: b.y + bSize.h / 2,
-        key: `${groupId}-${i}`,
-      });
+    if (groupTables.length < 2) return;
+
+    // Compute bounding box
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let totalSeats = 0;
+    for (const t of groupTables) {
+      const s = tableSize(t.capacity);
+      minX = Math.min(minX, t.x);
+      minY = Math.min(minY, t.y);
+      maxX = Math.max(maxX, t.x + s.w);
+      maxY = Math.max(maxY, t.y + s.h);
+      totalSeats += t.capacity;
     }
+
+    const isFlashing = unmergeFlash === groupId;
+
+    rects.push(
+      <div
+        key={groupId}
+        style={{
+          position: 'absolute',
+          left: minX - PAD,
+          top: minY - PAD - 18, // extra space for label
+          width: maxX - minX + PAD * 2,
+          height: maxY - minY + PAD * 2 + 18,
+          borderRadius: 16,
+          background: isFlashing ? 'rgba(239,68,68,0.1)' : 'rgba(139,92,246,0.06)',
+          border: isFlashing ? '1.5px solid rgba(239,68,68,0.4)' : '1.5px solid rgba(139,92,246,0.25)',
+          pointerEvents: 'none',
+          zIndex: 0,
+          transition: 'background 0.2s, border-color 0.2s',
+        }}
+      >
+        <div style={{
+          position: 'absolute',
+          top: 3,
+          left: 10,
+          fontSize: 10,
+          fontWeight: 600,
+          color: isFlashing ? 'rgba(239,68,68,0.7)' : 'rgba(139,92,246,0.6)',
+          whiteSpace: 'nowrap',
+          letterSpacing: '0.02em',
+          transition: 'color 0.2s',
+        }}>
+          Merged · {groupTables.length} tables · {totalSeats} seats
+        </div>
+      </div>,
+    );
   });
 
-  if (lines.length === 0) return null;
-
-  return (
-    <svg
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}
-    >
-      {lines.map(({ x1, y1, x2, y2, key }) => (
-        <line
-          key={key}
-          x1={x1} y1={y1} x2={x2} y2={y2}
-          stroke="#8b5cf6"
-          strokeWidth={3}
-          strokeDasharray="6 4"
-          opacity={0.5}
-        />
-      ))}
-    </svg>
-  );
+  if (rects.length === 0) return null;
+  return <>{rects}</>;
 }
 
 // ─── LabelElement ─────────────────────────────────────────────────────────────

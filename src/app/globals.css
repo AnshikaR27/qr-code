@@ -210,6 +210,13 @@ input, textarea, [contenteditable] {
 .sunday-toast-out  { animation: sundayToastOut   0.3s ease-in both; }
 .sunday-btn-pulse  { animation: sundayBtnPulse   0.2s ease-out; }
 
+/* ── Merge preview glow ─────────────────────────────────────────────── */
+@keyframes mergeGlow {
+  0%   { opacity: 0.5; transform: scale(1); }
+  50%  { opacity: 1;   transform: scale(1.04); }
+  100% { opacity: 0.5; transform: scale(1); }
+}
+
 /* ── iOS input zoom prevention (font-size must be ≥16px) ────────────── */
 input, select, textarea {
   font-size: 16px !important;
