@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { BellRing, ChefHat, CheckCheck, IndianRupee, XCircle, Printer, ReceiptText, Usb, AlertTriangle } from 'lucide-react';
+import {
+  BellRing, ChefHat, CheckCheck, IndianRupee, XCircle, Printer, ReceiptText,
+  Usb, AlertTriangle, GitMerge, Unlink2, CheckSquare, Square,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
 import { ORDER_STATUSES } from '@/lib/constants';
@@ -40,19 +43,24 @@ function getStatusLabels(serviceMode: 'self_service' | 'table_service'): Record<
 export default function KitchenDashboard({ restaurant }: Props) {
   console.log('[KitchenDashboard] rendered, restaurant.id:', restaurant.id);
   const { orders } = useOrders();
-  const [filter, setFilter]   = useState<FilterTab>('active');
+  const [filter, setFilter]     = useState<FilterTab>('active');
   const [updating, setUpdating] = useState<string | null>(null);
 
   // Print dialog state
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
   const [printMode, setPrintMode]   = useState<'accept' | 'reprint'>('accept');
 
-  // Payment dialog state
-  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+  // Payment / billing state
+  const [paymentOrder, setPaymentOrder]     = useState<Order | null>(null);
+  const [billingOrders, setBillingOrders]   = useState<Order[] | null>(null);
 
-  // USB printer connection state — tracks which USB printers failed to auto-reconnect
+  // Merge-select mode state
+  const [selectMode, setSelectMode]         = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+
+  // USB printer connection state
   const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
-  const [connectingUSB, setConnectingUSB] = useState<string | null>(null);
+  const [connectingUSB, setConnectingUSB]     = useState<string | null>(null);
 
   // Always holds the latest restaurant prop so async closures never read stale data
   const restaurantRef = useRef(restaurant);
@@ -95,7 +103,6 @@ export default function KitchenDashboard({ restaurant }: Props) {
 
   // ── Status helpers ─────────────────────────────────────────────────────────
   async function advanceStatus(order: Order) {
-    // For "ready" orders, open payment dialog instead of advancing directly
     if (order.status === 'ready') {
       setPaymentOrder(order);
       return;
@@ -110,8 +117,6 @@ export default function KitchenDashboard({ restaurant }: Props) {
         .update({ status: nextStatus })
         .eq('id', order.id);
       if (error) throw error;
-
-      // Send Web Push notification when order becomes ready
       if (nextStatus === 'ready') {
         sendReadyPush(order).catch(() => {});
       }
@@ -144,9 +149,14 @@ export default function KitchenDashboard({ restaurant }: Props) {
 
   async function handleBillingConfirm(orderIds: string[], data: BillingConfirmData) {
     setPaymentOrder(null);
+    setBillingOrders(null);
     setUpdating(orderIds[0]);
     try {
       const supabase = createClient();
+
+      // Check whether these orders belong to a merge group (so we can dissolve it)
+      const isMergedBilling = orderIds.some(id => orders.find(o => o.id === id)?.merge_group_id);
+
       for (const id of orderIds) {
         const { error } = await supabase
           .from('orders')
@@ -157,21 +167,41 @@ export default function KitchenDashboard({ restaurant }: Props) {
             discount_amount: data.discount_amount,
             discount_type: data.discount_type,
             discount_before_tax: data.discount_before_tax,
+            merge_group_id: null,   // dissolve merge on payment
           })
           .eq('id', id);
         if (error) throw error;
       }
-      toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
+
+      // If these were a merged billing group, also clear the tables so the
+      // floor plan purple outline disappears (FloorPlanEditor picks this up
+      // via its Realtime listener on the tables table).
+      if (isMergedBilling) {
+        const tableIds = Array.from(new Set(
+          orderIds.map(id => orders.find(o => o.id === id)?.table_id).filter(Boolean) as string[],
+        ));
+        if (tableIds.length > 0) {
+          await supabase
+            .from('tables')
+            .update({ merge_group_id: null, merged_with: null })
+            .in('id', tableIds);
+        }
+        toast.success('Payment recorded · tables unmerged');
+      } else {
+        toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
+      }
 
       // Clean up push subscriptions for delivered orders
       for (const id of orderIds) {
         supabase.from('push_subscriptions').delete().eq('order_id', id).then(() => {});
       }
 
-      // Auto-print bill if printer configured
-      const order = orders.find(o => o.id === orderIds[0]);
-      if (order) {
-        try { await handlePrintBill(order); } catch { /* silent */ }
+      // Auto-print bill for single-order billing only
+      if (!isMergedBilling) {
+        const order = orders.find(o => o.id === orderIds[0]);
+        if (order) {
+          try { await handlePrintBill(order); } catch { /* silent */ }
+        }
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to record payment');
@@ -190,7 +220,6 @@ export default function KitchenDashboard({ restaurant }: Props) {
         .update({ status: 'cancelled' })
         .eq('id', order.id);
       if (error) throw error;
-      // Clean up push subscription
       supabase.from('push_subscriptions').delete().eq('order_id', order.id).then(() => {});
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel order');
@@ -201,19 +230,16 @@ export default function KitchenDashboard({ restaurant }: Props) {
 
   // ── Print dialog handlers ──────────────────────────────────────────────────
 
-  // "Start Preparing" — show print dialog; status advances after confirm/skip
   function openAcceptDialog(order: Order) {
     setPrintMode('accept');
     setPrintOrder(order);
   }
 
-  // Printer icon button on any card — print only, no status change
   function openReprintDialog(order: Order) {
     setPrintMode('reprint');
     setPrintOrder(order);
   }
 
-  // Called by dialog on print OR skip
   async function handlePrintConfirm(order: Order) {
     setPrintOrder(null);
     if (printMode === 'accept') {
@@ -254,23 +280,121 @@ export default function KitchenDashboard({ restaurant }: Props) {
       }
     }
 
-    // Browser fallback
     const { printCustomerBill } = await import('@/lib/billing');
     printCustomerBill(order, restaurant, config!);
   }
 
-  // ── Filtering ──────────────────────────────────────────────────────────────
+  // ── Merge / unmerge ────────────────────────────────────────────────────────
+
+  async function mergeSelected() {
+    const selected = orders.filter(o => selectedOrderIds.includes(o.id));
+    const groupId = crypto.randomUUID();
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ merge_group_id: groupId })
+      .in('id', selectedOrderIds);
+    if (error) { toast.error('Failed to merge orders'); return; }
+
+    // Sync merge_group_id to the tables table so the floor plan shows the
+    // purple group outline (FloorPlanEditor's Realtime listener on `tables`
+    // will pick this up and update plan.tables without a page reload).
+    const tableIds = Array.from(new Set(selected.filter(o => o.table_id).map(o => o.table_id!)));
+    if (tableIds.length > 0) {
+      await supabase
+        .from('tables')
+        .update({ merge_group_id: groupId })
+        .in('id', tableIds);
+    }
+
+    toast.success(`${selected.length} orders merged`);
+    setSelectMode(false);
+    setSelectedOrderIds([]);
+  }
+
+  async function unmergeGroup(mergeGroupId: string) {
+    const grouped = orders.filter(o => o.merge_group_id === mergeGroupId);
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ merge_group_id: null })
+      .in('id', grouped.map(o => o.id));
+    if (error) { toast.error('Failed to split orders'); return; }
+
+    const tableIds = Array.from(new Set(grouped.filter(o => o.table_id).map(o => o.table_id!)));
+    if (tableIds.length > 0) {
+      await supabase
+        .from('tables')
+        .update({ merge_group_id: null, merged_with: null })
+        .in('id', tableIds);
+    }
+
+    toast.success('Orders split');
+  }
+
+  // ── Filtering & grouping ───────────────────────────────────────────────────
+
   const filtered = orders.filter((o) => {
     if (filter === 'active')    return o.status === 'placed' || o.status === 'ready';
     if (filter === 'completed') return o.status === 'delivered' || o.status === 'cancelled';
     return true;
   });
 
-  // Only 'placed' orders are urgent (kitchen hasn't finished yet)
+  // Group merged orders into combined display items; singles stay individual.
+  type DisplayItem =
+    | { type: 'single'; order: Order }
+    | { type: 'merged'; groupId: string; groupOrders: Order[] };
+
+  const displayItems = useMemo<DisplayItem[]>(() => {
+    const seenGroups = new Set<string>();
+    const items: DisplayItem[] = [];
+    for (const order of filtered) {
+      if (order.merge_group_id) {
+        if (!seenGroups.has(order.merge_group_id)) {
+          seenGroups.add(order.merge_group_id);
+          items.push({
+            type: 'merged',
+            groupId: order.merge_group_id,
+            groupOrders: filtered.filter(o => o.merge_group_id === order.merge_group_id),
+          });
+        }
+      } else {
+        items.push({ type: 'single', order });
+      }
+    }
+    return items;
+  }, [filtered]);
+
   const activeCount = orders.filter((o) => o.status === 'placed').length;
 
+  // Selection helpers
+  function toggleSelect(orderId: string) {
+    setSelectedOrderIds(prev =>
+      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId],
+    );
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedOrderIds([]);
+  }
+
+  function changeFilter(f: FilterTab) {
+    setFilter(f);
+    exitSelectMode();
+  }
+
+  const selectedOrders = orders.filter(o => selectedOrderIds.includes(o.id));
+  const canMerge =
+    selectedOrderIds.length >= 2 &&
+    selectedOrders.every(o =>
+      (o.status === 'placed' || o.status === 'ready') && !o.payment_method && !o.merge_group_id,
+    );
+
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-3">
+    <div className="p-6 pb-24 max-w-5xl mx-auto space-y-3">
       {/* ── Auto-print info banner ── */}
       {restaurant.printer_config?.kot_print_trigger === 'on_order' && (
         <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
@@ -307,12 +431,29 @@ export default function KitchenDashboard({ restaurant }: Props) {
             Today&apos;s orders · {orders.length} total
           </p>
         </div>
-        {activeCount > 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
-            <BellRing className="w-4 h-4 text-orange-500" />
-            <span className="text-sm font-semibold text-orange-700">{activeCount} active</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {activeCount > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+              <BellRing className="w-4 h-4 text-orange-500" />
+              <span className="text-sm font-semibold text-orange-700">{activeCount} active</span>
+            </div>
+          )}
+          {/* Merge-select mode toggle — only shown on the Active tab */}
+          {filter === 'active' && (
+            <button
+              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors',
+                selectMode
+                  ? 'bg-violet-600 text-white border-violet-600 hover:bg-violet-700'
+                  : 'border-gray-200 text-gray-700 hover:bg-gray-50',
+              )}
+            >
+              <GitMerge className="w-4 h-4" />
+              {selectMode ? 'Cancel' : 'Merge'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Filter tabs ── */}
@@ -324,7 +465,7 @@ export default function KitchenDashboard({ restaurant }: Props) {
         ] as { key: FilterTab; label: string }[]).map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setFilter(key)}
+            onClick={() => changeFilter(key)}
             className={cn(
               'px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
               filter === key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
@@ -340,8 +481,15 @@ export default function KitchenDashboard({ restaurant }: Props) {
         ))}
       </div>
 
+      {/* ── Select mode hint ── */}
+      {selectMode && (
+        <p className="text-xs text-violet-600 font-medium">
+          Select 2 or more active, unpaid orders from different tables to merge into one bill.
+        </p>
+      )}
+
       {/* ── Orders grid ── */}
-      {filtered.length === 0 ? (
+      {displayItems.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-20" />
           <p className="font-medium">
@@ -350,23 +498,56 @@ export default function KitchenDashboard({ restaurant }: Props) {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              restaurant={restaurant}
-              allOrders={orders}
-              onAdvance={() => advanceStatus(order)}
-              onCancel={() => cancelOrder(order)}
-              onReprint={() => openReprintDialog(order)}
-              onPrintBill={() => handlePrintBill(order)}
-              isUpdating={updating === order.id}
-            />
-          ))}
+          {displayItems.map((item) =>
+            item.type === 'single' ? (
+              <OrderCard
+                key={item.order.id}
+                order={item.order}
+                restaurant={restaurant}
+                allOrders={orders}
+                onAdvance={() => advanceStatus(item.order)}
+                onCancel={() => cancelOrder(item.order)}
+                onReprint={() => openReprintDialog(item.order)}
+                onPrintBill={() => handlePrintBill(item.order)}
+                isUpdating={updating === item.order.id}
+                selectMode={selectMode}
+                isSelected={selectedOrderIds.includes(item.order.id)}
+                onSelect={() => toggleSelect(item.order.id)}
+              />
+            ) : (
+              <MergedOrderCard
+                key={item.groupId}
+                orders={item.groupOrders}
+                restaurant={restaurant}
+                isUpdating={item.groupOrders.some(o => updating === o.id)}
+                onAdvanceOrder={advanceStatus}
+                updatingId={updating}
+                onBill={() => setBillingOrders(item.groupOrders)}
+                onUnmerge={() => unmergeGroup(item.groupId)}
+              />
+            ),
+          )}
         </div>
       )}
 
-      {/* ── Print dialog (portal, rendered once at dashboard level) ── */}
+      {/* ── Floating merge action bar ── */}
+      {selectMode && selectedOrderIds.length > 0 && (
+        <div className="fixed bottom-6 inset-x-0 flex justify-center z-50 px-4 pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-3 bg-white rounded-2xl shadow-2xl border border-gray-200 px-4 py-3">
+            <span className="text-sm text-gray-500">{selectedOrderIds.length} selected</span>
+            <button
+              onClick={mergeSelected}
+              disabled={!canMerge}
+              className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-violet-700 transition-colors"
+            >
+              <GitMerge className="w-4 h-4" />
+              Merge {selectedOrderIds.length} orders
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Print dialog ── */}
       <PrintOrderDialog
         order={printOrder}
         restaurantId={restaurant.id}
@@ -377,13 +558,130 @@ export default function KitchenDashboard({ restaurant }: Props) {
         printerConfig={restaurant.printer_config}
       />
 
-      {/* ── Billing sheet ── */}
+      {/* ── Billing sheet — handles both single-order and merged-group billing ── */}
       <BillingSheet
-        orders={paymentOrder ? [paymentOrder] : null}
+        orders={billingOrders ?? (paymentOrder ? [paymentOrder] : null)}
         restaurant={restaurant}
         onConfirm={handleBillingConfirm}
-        onClose={() => setPaymentOrder(null)}
+        onClose={() => { setBillingOrders(null); setPaymentOrder(null); }}
       />
+    </div>
+  );
+}
+
+// ── MergedOrderCard ───────────────────────────────────────────────────────────
+
+interface MergedOrderCardProps {
+  orders: Order[];
+  restaurant: Restaurant;
+  isUpdating: boolean;
+  updatingId: string | null;
+  onAdvanceOrder: (order: Order) => void;
+  onBill: () => void;
+  onUnmerge: () => void;
+}
+
+function MergedOrderCard({
+  orders, restaurant, isUpdating, updatingId, onAdvanceOrder, onBill, onUnmerge,
+}: MergedOrderCardProps) {
+  const STATUS_LABELS = getStatusLabels(restaurant.service_mode ?? 'self_service');
+  const tableLabels = orders
+    .map(o => o.table?.display_name?.trim() || String(o.table?.table_number ?? '?'))
+    .join(' + ');
+  const totalItems  = orders.reduce((n, o) => n + (o.items?.length ?? 0), 0);
+  const totalAmount = orders.reduce((n, o) => n + o.total, 0);
+  const allReady    = orders.every(o => o.status === 'ready');
+
+  return (
+    <div className="bg-white rounded-xl border-2 border-violet-300 shadow-sm flex flex-col overflow-hidden">
+      {/* ── Merged header ── */}
+      <div className="px-4 py-3 border-b bg-violet-50 flex items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-1.5">
+            <GitMerge className="w-4 h-4 text-violet-600 flex-shrink-0" />
+            <span className="font-semibold text-violet-800 text-sm">
+              Tables {tableLabels}
+            </span>
+          </div>
+          <p className="text-xs text-violet-600 mt-0.5">
+            {orders.length} orders · {totalItems} items · {formatPrice(totalAmount)}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className={cn(
+            'text-xs font-semibold px-2 py-0.5 rounded-full',
+            allReady ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700',
+          )}>
+            {allReady ? 'Ready' : 'Active'}
+          </span>
+          <button
+            onClick={onUnmerge}
+            className="flex items-center gap-1 text-xs text-violet-500 hover:text-violet-700 px-2 py-1 rounded-lg hover:bg-violet-100 transition-colors"
+            title="Split into individual orders"
+          >
+            <Unlink2 className="w-3.5 h-3.5" />
+            Split
+          </button>
+        </div>
+      </div>
+
+      {/* ── Items grouped by order / table ── */}
+      <div className="flex-1 divide-y overflow-y-auto" style={{ maxHeight: 280 }}>
+        {orders.map((order) => (
+          <div key={order.id} className="px-4 py-3">
+            {/* Per-order sub-header */}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500">
+                Table {order.table?.display_name?.trim() || order.table?.table_number} · #{order.order_number}
+              </p>
+              {order.status === 'placed' && (
+                <button
+                  onClick={() => onAdvanceOrder(order)}
+                  disabled={updatingId === order.id}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+                >
+                  <CheckCheck className="w-3 h-3" />
+                  {STATUS_LABELS.placed}
+                </button>
+              )}
+              {order.status === 'ready' && (
+                <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                  Ready
+                </span>
+              )}
+            </div>
+            {/* Items */}
+            <div className="space-y-1">
+              {(order.items ?? []).map((item) => (
+                <div key={item.id} className="flex justify-between gap-2">
+                  <span className="text-sm">
+                    <span className="font-semibold">{item.quantity}×</span> {item.name}
+                  </span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                    {formatPrice(item.price * item.quantity)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Combined payment footer ── */}
+      <div className="px-4 pb-4 pt-3 border-t">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm text-gray-500">Combined total</span>
+          <span className="font-bold text-base">{formatPrice(totalAmount)}</span>
+        </div>
+        <button
+          onClick={onBill}
+          disabled={isUpdating}
+          className="w-full py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+        >
+          <IndianRupee className="w-4 h-4" />
+          Record Payment
+        </button>
+      </div>
     </div>
   );
 }
@@ -397,7 +695,6 @@ function mergedTableLabel(order: Order, allOrders: Order[]): string {
   const singleLabel = `🪑 Table ${table.display_name?.trim() || table.table_number}`;
   if (!table.merge_group_id) return singleLabel;
 
-  // Collect unique table names from all orders sharing this merge_group_id
   const seen = new Set<string>();
   const labels: string[] = [];
   for (const o of allOrders) {
@@ -407,7 +704,6 @@ function mergedTableLabel(order: Order, allOrders: Order[]): string {
     seen.add(key);
     labels.push(o.table.display_name?.trim() || String(o.table.table_number));
   }
-  // Ensure current table is included even if no other orders
   if (!seen.has(table.id)) {
     labels.push(table.display_name?.trim() || String(table.table_number));
   }
@@ -423,25 +719,45 @@ interface OrderCardProps {
   onReprint: () => void;
   onPrintBill: () => void;
   isUpdating: boolean;
+  selectMode: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
 }
 
-function OrderCard({ order, restaurant, allOrders, onAdvance, onCancel, onReprint, onPrintBill, isUpdating }: OrderCardProps) {
-  const statusMeta = ORDER_STATUSES.find((s) => s.value === order.status);
+function OrderCard({
+  order, restaurant, allOrders, onAdvance, onCancel, onReprint, onPrintBill,
+  isUpdating, selectMode, isSelected, onSelect,
+}: OrderCardProps) {
+  const statusMeta  = ORDER_STATUSES.find((s) => s.value === order.status);
   const STATUS_LABELS = getStatusLabels(restaurant.service_mode ?? 'self_service');
-  const isTerminal = order.status === 'delivered' || order.status === 'cancelled';
+  const isTerminal  = order.status === 'delivered' || order.status === 'cancelled';
 
   return (
     <div
       className={cn(
-        'bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden',
+        'bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden relative',
         order.status === 'placed'    && 'border-amber-300',
         order.status === 'ready'     && 'border-green-400',
         order.status === 'delivered' && 'border-gray-200 opacity-70',
         order.status === 'cancelled' && 'border-red-200 opacity-60',
+        selectMode && isSelected && 'ring-2 ring-violet-500 border-violet-400',
       )}
     >
+      {/* Checkbox overlay in select mode */}
+      {selectMode && !isTerminal && (
+        <button
+          onClick={onSelect}
+          className="absolute top-2.5 left-2.5 z-10 text-violet-600 bg-white rounded"
+          title={isSelected ? 'Deselect' : 'Select for merge'}
+        >
+          {isSelected
+            ? <CheckSquare className="w-5 h-5" />
+            : <Square className="w-5 h-5 text-gray-400" />}
+        </button>
+      )}
+
       {/* ── Header row ── */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
+      <div className={cn('flex items-center justify-between px-4 py-3 border-b', selectMode && !isTerminal && 'pl-10')}>
         <div>
           <p className="font-bold text-lg">#{order.order_number}</p>
           <p className="text-xs text-muted-foreground">
@@ -449,8 +765,7 @@ function OrderCard({ order, restaurant, allOrders, onAdvance, onCancel, onReprin
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Reprint button — visible on all non-terminal orders */}
-          {!isTerminal && (
+          {!isTerminal && !selectMode && (
             <button
               onClick={onReprint}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-gray-100 transition-colors"
@@ -459,7 +774,7 @@ function OrderCard({ order, restaurant, allOrders, onAdvance, onCancel, onReprin
               <Printer className="w-4 h-4" />
             </button>
           )}
-          {!isTerminal && (
+          {!isTerminal && !selectMode && (
             <button
               onClick={onPrintBill}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-gray-100 transition-colors"
@@ -519,7 +834,7 @@ function OrderCard({ order, restaurant, allOrders, onAdvance, onCancel, onReprin
       </div>
 
       {/* ── Action buttons ── */}
-      {!isTerminal && (
+      {!isTerminal && !selectMode && (
         <div className="px-4 pb-4 pt-2 flex gap-2">
           <button
             onClick={onAdvance}

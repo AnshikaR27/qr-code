@@ -178,6 +178,8 @@ export interface Order {
   order_number: number;
   created_at: string;
   updated_at: string;
+  /** Shared UUID for orders merged for combined billing (set from Orders tab) */
+  merge_group_id?: string | null;
   // joined
   items?: OrderItem[];
   table?: Table;

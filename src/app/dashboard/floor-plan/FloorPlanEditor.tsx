@@ -261,6 +261,24 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         { event: 'UPDATE', schema: 'public', table: 'waiter_calls', filter: `restaurant_id=eq.${restaurant.id}` },
         () => fetchLiveData(),
       )
+      // Sync merge state when tables are merged/unmerged from the Orders tab.
+      // Uses setPlan (not updatePlan) so it does NOT trigger scheduleSave —
+      // we're reflecting a DB change, not initiating one.
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'tables', filter: `restaurant_id=eq.${restaurant.id}` },
+        (payload) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const row = payload.new as any;
+          setPlan(prev => ({
+            ...prev,
+            tables: prev.tables.map(t =>
+              t.id === row.id
+                ? { ...t, merge_group_id: row.merge_group_id ?? null, merged_with: row.merged_with ?? null }
+                : t,
+            ),
+          }));
+        },
+      )
       .subscribe((status) => {
         const connected = status === 'SUBSCRIBED';
         realtimeConnectedRef.current = connected;
