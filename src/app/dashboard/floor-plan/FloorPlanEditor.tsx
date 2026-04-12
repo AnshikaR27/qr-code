@@ -179,6 +179,14 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const realtimeConnectedRef = useRef(false);
   /** Single-level undo snapshot taken before every mutation. */
   const previousPlan         = useRef<FloorPlan | null>(null);
+  /**
+   * Maps table_number → actual DB row UUID.
+   * The floor plan assigns its own UUIDs when tables are drawn; if a table was
+   * first created by the orders flow, the DB row has a different UUID. This ref
+   * lets all DB writes (scheduleSave, mergeTables, unmergeGroup) use the correct
+   * UUID so no UNIQUE-constraint 409s occur and updates actually hit the right rows.
+   */
+  const dbTableIds = useRef<Map<number, string>>(new Map());
 
   // ── Responsive check ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -309,6 +317,19 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     }));
   }
 
+  // ── Populate DB table-ID map on mount ─────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('tables')
+        .select('id, table_number')
+        .eq('restaurant_id', restaurant.id);
+      if (data) data.forEach(r => dbTableIds.current.set(r.table_number, r.id));
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant.id]);
+
   // ── Realtime subscription + fallback poll ──────────────────────────────────
   useEffect(() => {
     fetchLiveData();
@@ -395,23 +416,20 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       setSaveStatus('saved');
 
       // 2. Reconcile the `tables` DB table so orders can reference them.
-      //    Upsert by id — insert new rows, update table_number if it changed.
-      //    We never delete rows (orders may reference them).
+      //    Use the actual DB row UUID (dbTableIds ref) instead of the floor plan
+      //    UUID to avoid 409 conflicts when a table was first created by the
+      //    orders flow and already has a different UUID in the DB.
+      //    NEVER touch merge_group_id/merged_with — managed separately.
       if (next.tables.length > 0) {
-        await supabase
-          .from('tables')
-          .upsert(
-            next.tables.map(t => ({
-              id: t.id,
-              restaurant_id: restaurant.id,
-              table_number: t.table_number,
-              display_name: t.display_name ?? null,
-              // NEVER include merge_group_id/merged_with here — managed
-              // separately by mergeTables/unmergeGroup so scheduleSave
-              // never overwrites merge state written by those operations.
-            })),
-            { onConflict: 'id' },
-          );
+        const rows = next.tables.map(t => ({
+          id: dbTableIds.current.get(t.table_number) ?? t.id,
+          restaurant_id: restaurant.id,
+          table_number: t.table_number,
+          display_name: t.display_name ?? null,
+        }));
+        await supabase.from('tables').upsert(rows, { onConflict: 'id' });
+        // Keep the ref current for any tables inserted fresh this save
+        rows.forEach(r => dbTableIds.current.set(r.table_number, r.id));
         // Reconcile errors are non-fatal — layout is already saved
       }
     }, 1000);
@@ -759,6 +777,12 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       }),
     }));
 
+    // Resolve actual DB row UUIDs (floor plan UUIDs may differ from DB UUIDs
+    // when tables were first created via the orders flow).
+    const dbIds = plan.tables
+      .filter(t => tableIds.includes(t.id))
+      .map(t => dbTableIds.current.get(t.table_number) ?? t.id);
+
     // Sync merge_group_id to active orders at these tables so the
     // KitchenDashboard picks it up via its realtime subscription on orders.
     // Also sync to the tables DB.
@@ -767,13 +791,13 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       .from('orders')
       .update({ merge_group_id: groupId })
       .eq('restaurant_id', restaurant.id)
-      .in('table_id', tableIds)
+      .in('table_id', dbIds)
       .is('payment_method', null)
       .or('status.eq.placed,status.eq.ready');
     await supabase
       .from('tables')
-      .update({ merge_group_id: groupId, merged_with: tableIds })
-      .in('id', tableIds);
+      .update({ merge_group_id: groupId, merged_with: dbIds })
+      .in('id', dbIds);
 
     fetchLiveData();
 
@@ -786,7 +810,11 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
   /** Unmerge all tables in a merge group */
   async function unmergeGroup(mergeGroupId: string) {
-    // Collect table IDs before clearing so we can update orders
+    // Collect actual DB row UUIDs (floor plan IDs may differ)
+    const dbIds = plan.tables
+      .filter(t => t.merge_group_id === mergeGroupId)
+      .map(t => dbTableIds.current.get(t.table_number) ?? t.id);
+    // Keep floor plan IDs for the local state update below
     const tableIds = plan.tables
       .filter(t => t.merge_group_id === mergeGroupId)
       .map(t => t.id);
@@ -802,18 +830,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
     // Clear merge_group_id on active orders at these tables so the
     // KitchenDashboard picks up the unmerge via realtime on orders.
-    if (tableIds.length > 0) {
+    if (dbIds.length > 0) {
       const supabase = createClient();
       await supabase
         .from('orders')
         .update({ merge_group_id: null })
         .eq('restaurant_id', restaurant.id)
-        .in('table_id', tableIds)
+        .in('table_id', dbIds)
         .or('status.eq.placed,status.eq.ready');
       await supabase
         .from('tables')
         .update({ merge_group_id: null, merged_with: null })
-        .in('id', tableIds);
+        .in('id', dbIds);
     }
 
     fetchLiveData();
