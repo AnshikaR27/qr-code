@@ -299,7 +299,11 @@ export default function KitchenDashboard({ restaurant }: Props) {
       .from('orders')
       .update({ merge_group_id: groupId })
       .in('id', selectedOrderIds);
-    if (error) { toast.error('Failed to merge orders'); return; }
+    if (error) {
+      console.error('[mergeSelected] supabase error:', error);
+      toast.error(error.message ?? 'Failed to merge orders');
+      return;
+    }
 
     // Sync merge_group_id to the tables table so the floor plan shows the
     // purple group outline (FloorPlanEditor's Realtime listener on `tables`
@@ -347,7 +351,11 @@ export default function KitchenDashboard({ restaurant }: Props) {
       .from('orders')
       .update({ merge_group_id: groupId })
       .in('id', idsToUpdate);
-    if (error) { toast.error('Failed to merge orders'); return; }
+    if (error) {
+      console.error('[mergeTwoOrders] supabase error:', error);
+      toast.error(error.message ?? 'Failed to merge orders');
+      return;
+    }
 
     // Sync to tables so the floor plan purple outline appears
     const tableIds = Array.from(new Set(
