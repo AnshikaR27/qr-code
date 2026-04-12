@@ -224,17 +224,23 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const supabase = createClient();
     const { data: dbTables } = await supabase
       .from('tables')
-      .select('id, merge_group_id, merged_with')
+      .select('table_number, merge_group_id, merged_with')
       .eq('restaurant_id', restaurant.id);
     if (!dbTables) return;
-    const mergeMap = new Map(dbTables.map(r => [r.id, { merge_group_id: r.merge_group_id ?? null, merged_with: r.merged_with ?? null }]));
+    // Key by table_number — the floor plan's local table id may differ from
+    // the DB row id when tables were first created via the orders flow.
+    const mergeMap = new Map(dbTables.map(r => [r.table_number, { merge_group_id: r.merge_group_id ?? null }]));
     setPlan(prev => ({
       ...prev,
       tables: prev.tables.map(t => {
-        const db = mergeMap.get(t.id);
+        const db = mergeMap.get(t.table_number);
         if (!db) return t;
-        if (t.merge_group_id === db.merge_group_id && t.merged_with === db.merged_with) return t;
-        return { ...t, merge_group_id: db.merge_group_id, merged_with: db.merged_with };
+        if (t.merge_group_id === db.merge_group_id) return t;
+        // Recompute merged_with as floor-plan-local IDs for same group
+        const mergedWithIds = db.merge_group_id
+          ? prev.tables.filter(other => other.id !== t.id && mergeMap.get(other.table_number)?.merge_group_id === db.merge_group_id).map(other => other.id)
+          : null;
+        return { ...t, merge_group_id: db.merge_group_id, merged_with: mergedWithIds };
       }),
     }));
   }
@@ -257,29 +263,25 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     setActiveOrders(orders ?? []);
     setActiveWaiterCalls(calls ?? []);
 
-    // Derive table merge state directly from orders (no extra DB call,
-    // no race condition — the orders already carry merge_group_id).
-    const mergeGroups = new Map<string, Set<string>>();
+    // Derive merge state by table_number — robust against UUID mismatches
+    // between floor-plan-assigned IDs and order-created table row IDs.
+    const mergeGroups = new Map<string, Set<number>>();
     for (const o of (orders ?? [])) {
-      if (o.merge_group_id && o.table_id) {
-        const set = mergeGroups.get(o.merge_group_id) ?? new Set<string>();
-        set.add(o.table_id);
+      if (o.merge_group_id && o.table?.table_number) {
+        const set = mergeGroups.get(o.merge_group_id) ?? new Set<number>();
+        set.add(o.table.table_number);
         mergeGroups.set(o.merge_group_id, set);
       }
     }
-    // Build tableId → merge info lookup
-    const tableMerge = new Map<string, { merge_group_id: string; merged_with: string[] }>();
-    Array.from(mergeGroups.entries()).forEach(([groupId, tableIdSet]) => {
-      const ids = Array.from(tableIdSet) as string[];
-      if (ids.length >= 2) {
-        ids.forEach(tid => {
-          tableMerge.set(tid, { merge_group_id: groupId, merged_with: ids.filter(id => id !== tid) });
-        });
+    // Build tableNumber → groupId lookup (only groups with 2+ tables)
+    const tableMerge = new Map<number, string>();
+    mergeGroups.forEach((tableNumSet, groupId) => {
+      if (tableNumSet.size >= 2) {
+        tableNumSet.forEach(tableNum => tableMerge.set(tableNum, groupId));
       }
     });
 
-    // Build the set of merge group IDs that are still active in fetched orders.
-    // This is the source of truth for whether a merge group is still live.
+    // Active group IDs — used to clear stale merge state
     const activeMergeGroupIds = new Set<string>();
     for (const o of (orders ?? [])) {
       if (o.merge_group_id) activeMergeGroupIds.add(o.merge_group_id);
@@ -288,14 +290,17 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     setPlan(prev => ({
       ...prev,
       tables: prev.tables.map(t => {
-        const m = tableMerge.get(t.id);
-        if (m) {
-          // Table is part of an active merge group — apply/update merge fields.
-          if (t.merge_group_id === m.merge_group_id) return t;
-          return { ...t, merge_group_id: m.merge_group_id, merged_with: m.merged_with };
+        const groupId = tableMerge.get(t.table_number);
+        if (groupId) {
+          // Compute merged_with as floor-plan-local IDs for the same group
+          const groupNums = mergeGroups.get(groupId)!;
+          const mergedWithIds = prev.tables
+            .filter(other => other.id !== t.id && groupNums.has(other.table_number))
+            .map(other => other.id);
+          if (t.merge_group_id === groupId) return t;
+          return { ...t, merge_group_id: groupId, merged_with: mergedWithIds };
         }
-        // Clear stale merge state: if this table carries a merge_group_id that
-        // no active order references, the merge has been dissolved.
+        // Clear stale merge state if no active order references this group
         if (t.merge_group_id && !activeMergeGroupIds.has(t.merge_group_id)) {
           return { ...t, merge_group_id: null, merged_with: null };
         }
