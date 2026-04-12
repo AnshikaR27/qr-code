@@ -92,7 +92,7 @@ const ORDER_ACTION_LABELS: Partial<Record<OrderStatus, string>> = {
   ready:  'Record Payment',
 };
 
-type TableLiveStatus = 'available' | 'occupied' | 'ready' | 'needs_attention';
+type TableLiveStatus = 'available' | 'occupied' | 'needs_attention';
 
 interface TableStatusInfo {
   status: TableLiveStatus;
@@ -103,14 +103,12 @@ interface TableStatusInfo {
 const STATUS_COLORS: Record<TableLiveStatus, { bg: string; border: string; text: string; sub: string }> = {
   available:       { bg: 'rgba(34,197,94,0.12)',  border: '#22c55e', text: '#15803d', sub: '#16a34a' },
   occupied:        { bg: 'rgba(245,158,11,0.15)', border: '#f59e0b', text: '#b45309', sub: '#d97706' },
-  ready:           { bg: 'rgba(59,130,246,0.15)', border: '#3b82f6', text: '#1d4ed8', sub: '#2563eb' },
   needs_attention: { bg: 'rgba(239,68,68,0.15)',  border: '#ef4444', text: '#b91c1c', sub: '#dc2626' },
 };
 
 const STATUS_LABELS: Record<TableLiveStatus, string> = {
   available:       'Available',
   occupied:        'Occupied',
-  ready:           'Ready',
   needs_attention: 'Needs Attention',
 };
 
@@ -285,16 +283,15 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const orders     = activeOrders.filter(o => o.table?.table_number === tableNumber);
     const waiterCall = activeWaiterCalls.find(wc => wc.table?.table_number === tableNumber) ?? null;
     let status: TableLiveStatus;
-    if (waiterCall)                                  status = 'needs_attention';
-    else if (orders.some(o => o.status === 'ready')) status = 'ready';
-    else if (orders.length > 0)                      status = 'occupied';
-    else                                             status = 'available';
+    if (waiterCall)          status = 'needs_attention';
+    else if (orders.length > 0) status = 'occupied';
+    else                        status = 'available';
     return { status, orders, waiterCall };
   }
 
   const statusCounts = plan.tables.reduce(
     (acc, t) => { acc[getTableStatusInfo(t.table_number).status]++; return acc; },
-    { available: 0, occupied: 0, ready: 0, needs_attention: 0 } as Record<TableLiveStatus, number>,
+    { available: 0, occupied: 0, needs_attention: 0 } as Record<TableLiveStatus, number>,
   );
 
   // ── Save helpers ───────────────────────────────────────────────────────────
@@ -717,7 +714,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const waiterCall = activeWaiterCalls.find(wc => tableNumbers.includes(wc.table?.table_number ?? -1)) ?? null;
     let status: TableLiveStatus;
     if (waiterCall) status = 'needs_attention';
-    else if (orders.some(o => o.status === 'ready')) status = 'ready';
     else if (orders.length > 0) status = 'occupied';
     else status = 'available';
     return { status, orders, waiterCall } as TableStatusInfo;
@@ -845,7 +841,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         {([
           { key: 'available', color: 'bg-green-500', textColor: 'text-green-700', label: 'available' },
           { key: 'occupied',  color: 'bg-amber-500', textColor: 'text-amber-700', label: 'occupied' },
-          { key: 'ready',     color: 'bg-blue-500',  textColor: 'text-blue-700',  label: 'ready' },
           { key: 'needs_attention', color: 'bg-red-500', textColor: 'text-red-700', label: 'needs attention' },
         ] as const).map(({ key, color, textColor, label }) => (
           <span key={key} className="flex items-center gap-1.5">
@@ -1274,11 +1269,12 @@ function TableDetailSheet({
   }
 
   function confirmMerge() {
-    // Combine current group + new selections
     const allIds = [...Array.from(currentGroupIds), ...Array.from(mergeSelection)];
     onMergeTables(allIds);
     setShowMergePicker(false);
     setMergeSelection(new Set());
+    // Refresh live data so the sheet immediately shows combined orders
+    onRefresh();
   }
 
   return (
