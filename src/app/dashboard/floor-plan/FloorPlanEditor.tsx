@@ -19,6 +19,8 @@ import {
   IndianRupee,
   Link2,
   Unlink,
+  Merge,
+  Check,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -63,83 +65,6 @@ const CANVAS_H = 900;
 
 function snap(v: number) {
   return Math.round(v / GRID) * GRID;
-}
-
-const MERGE_PROXIMITY = 20;
-const UNMERGE_DISTANCE = 40;
-
-/** Check if two table rects are within a given proximity. Returns the closest edge info. */
-function getTableProximity(
-  a: { x: number; y: number; w: number; h: number },
-  b: { x: number; y: number; w: number; h: number },
-  threshold: number,
-): { close: boolean; snapX: number; snapY: number } {
-  // Calculate gaps between edges
-  const gapRight  = b.x - (a.x + a.w); // a's right edge to b's left edge
-  const gapLeft   = a.x - (b.x + b.w); // b's right edge to a's left edge
-  const gapBottom = b.y - (a.y + a.h); // a's bottom to b's top
-  const gapTop    = a.y - (b.y + b.h); // b's bottom to a's top
-
-  // Vertical overlap check
-  const vOverlap = a.y < b.y + b.h && a.y + a.h > b.y;
-  // Horizontal overlap check
-  const hOverlap = a.x < b.x + b.w && a.x + a.w > b.x;
-
-  let snapX = a.x;
-  let snapY = a.y;
-
-  // Snap to right of b
-  if (vOverlap && gapRight >= -threshold && gapRight <= threshold) {
-    snapX = b.x + b.w;
-    snapY = snap(Math.max(b.y, Math.min(b.y + b.h - a.h, a.y))); // align vertically
-    return { close: true, snapX, snapY };
-  }
-  // Snap to left of b
-  if (vOverlap && gapLeft >= -threshold && gapLeft <= threshold) {
-    snapX = b.x - a.w;
-    snapY = snap(Math.max(b.y, Math.min(b.y + b.h - a.h, a.y)));
-    return { close: true, snapX, snapY };
-  }
-  // Snap below b
-  if (hOverlap && gapBottom >= -threshold && gapBottom <= threshold) {
-    snapY = b.y + b.h;
-    snapX = snap(Math.max(b.x, Math.min(b.x + b.w - a.w, a.x)));
-    return { close: true, snapX, snapY };
-  }
-  // Snap above b
-  if (hOverlap && gapTop >= -threshold && gapTop <= threshold) {
-    snapY = b.y - a.h;
-    snapX = snap(Math.max(b.x, Math.min(b.x + b.w - a.w, a.x)));
-    return { close: true, snapX, snapY };
-  }
-
-  return { close: false, snapX: a.x, snapY: a.y };
-}
-
-/** Check if a table is far enough from ALL tables in its merge group to unmerge. */
-function shouldUnmerge(
-  table: FloorTable,
-  groupTables: FloorTable[],
-  threshold: number,
-): boolean {
-  const aSize = tableSize(table.capacity);
-  for (const other of groupTables) {
-    if (other.id === table.id) continue;
-    const bSize = tableSize(other.capacity);
-    const { close } = getTableProximity(
-      { x: table.x, y: table.y, w: aSize.w, h: aSize.h },
-      { x: other.x, y: other.y, w: bSize.w, h: bSize.h },
-      threshold,
-    );
-    if (close) return false;
-  }
-  return true;
-}
-
-/** Get all tables in the same merge group as the given table. */
-function getMergeGroup(table: FloorTable, allTables: FloorTable[]): FloorTable[] {
-  if (!table.merge_group_id) return [table];
-  return allTables.filter(t => t.merge_group_id === table.merge_group_id);
 }
 
 /** Prefer display_name when set, fall back to #table_number. */
@@ -218,12 +143,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [saveStatus, setSaveStatus]   = useState<SaveStatus>('saved');
   const [draggingId, setDraggingId]   = useState<string | null>(null);
   const [isMobile, setIsMobile]       = useState(false);
-
-  // Merge UX animation state
-  const [mergePreview, setMergePreview] = useState<{ sourceId: string; targetId: string } | null>(null);
-  const [unmergeFlash, setUnmergeFlash] = useState<string | null>(null);  // group ID flashing red
-  const [mergeBounce, setMergeBounce]   = useState<string | null>(null);  // group ID bouncing
-  const [snapTransition, setSnapTransition] = useState<string | null>(null); // table ID sliding into snap
 
   // Pending shape/capacity/name for the "Add Table" placement flow
   const [pendingShape, setPendingShape]           = useState<FloorShape>('round');
@@ -687,188 +606,63 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const x    = snap(Math.max(0, Math.min(CANVAS_W - elemW, rawX)));
     const y    = snap(Math.max(0, Math.min(CANVAS_H - elemH, rawY)));
 
-    setPlan(prev => {
-      const next = {
-        tables: prev.tables.map(t => t.id === id ? { ...t, x, y } : t),
-        labels: prev.labels.map(l => l.id === id ? { ...l, x, y } : l),
-      };
-
-      // Check merge preview while dragging a table
-      const draggedTable = next.tables.find(t => t.id === id);
-      if (draggedTable) {
-        const draggedSize = tableSize(draggedTable.capacity);
-        let foundPreview = false;
-        for (const other of next.tables) {
-          if (other.id === id) continue;
-          // Don't preview with tables already in the same merge group
-          if (draggedTable.merge_group_id && other.merge_group_id === draggedTable.merge_group_id) continue;
-          const otherSize = tableSize(other.capacity);
-          const { close } = getTableProximity(
-            { x, y, w: draggedSize.w, h: draggedSize.h },
-            { x: other.x, y: other.y, w: otherSize.w, h: otherSize.h },
-            MERGE_PROXIMITY + 20, // slightly larger zone for preview
-          );
-          if (close) {
-            setMergePreview({ sourceId: id, targetId: other.id });
-            foundPreview = true;
-            break;
-          }
-        }
-        if (!foundPreview) setMergePreview(null);
-      }
-
-      return next;
-    });
+    setPlan(prev => ({
+      tables: prev.tables.map(t => t.id === id ? { ...t, x, y } : t),
+      labels: prev.labels.map(l => l.id === id ? { ...l, x, y } : l),
+    }));
   }
 
   function handlePointerUp(e: React.PointerEvent, id: string, isTable: boolean) {
     if (draggingId !== id) return;
     setDraggingId(null);
-    setMergePreview(null);
     if (!dragMoved.current) {
       // tap — select the table (or ignore for labels)
       if (isTable) setEditSelectedId(id);
     } else {
-      // drag ended — check for merge/unmerge if it's a table
+      // drag ended — just save the new position
       setPlan(prev => {
         previousPlan.current = prev;
-        let next = { ...prev, tables: [...prev.tables] };
-
-        if (isTable) {
-          const draggedIdx = next.tables.findIndex(t => t.id === id);
-          if (draggedIdx !== -1) {
-            const dragged = next.tables[draggedIdx];
-            const draggedSize = tableSize(dragged.capacity);
-
-            // Check if this table is already in a merge group and should unmerge
-            if (dragged.merge_group_id) {
-              const groupTables = next.tables.filter(t => t.merge_group_id === dragged.merge_group_id);
-              if (shouldUnmerge(dragged, groupTables, UNMERGE_DISTANCE)) {
-                // Flash red on the group before it disappears
-                const flashGroupId = dragged.merge_group_id;
-                setUnmergeFlash(flashGroupId);
-                setTimeout(() => setUnmergeFlash(null), 400);
-
-                // Unmerge this table
-                const groupId = dragged.merge_group_id;
-                next.tables = next.tables.map(t => {
-                  if (t.id === id) {
-                    return { ...t, merge_group_id: null, merged_with: null };
-                  }
-                  if (t.merge_group_id === groupId) {
-                    const newMerged = (t.merged_with ?? []).filter(mid => mid !== id);
-                    const remaining = next.tables.filter(
-                      ot => ot.id !== id && ot.merge_group_id === groupId,
-                    );
-                    if (remaining.length <= 1) {
-                      return { ...t, merge_group_id: null, merged_with: null };
-                    }
-                    return { ...t, merged_with: newMerged.length > 0 ? newMerged : null };
-                  }
-                  return t;
-                });
-                toast(`Table ${tableLabel(dragged)} separated from group`);
-              }
-            }
-
-            // Check for new merge with nearby tables
-            if (!next.tables[draggedIdx]?.merge_group_id || !next.tables.find(t => t.id === id)?.merge_group_id) {
-              const currentDragged = next.tables.find(t => t.id === id)!;
-              for (const other of next.tables) {
-                if (other.id === id) continue;
-                const otherSize = tableSize(other.capacity);
-                const proximity = getTableProximity(
-                  { x: currentDragged.x, y: currentDragged.y, w: draggedSize.w, h: draggedSize.h },
-                  { x: other.x, y: other.y, w: otherSize.w, h: otherSize.h },
-                  MERGE_PROXIMITY,
-                );
-
-                if (proximity.close) {
-                  // Animate snap
-                  setSnapTransition(id);
-                  setTimeout(() => setSnapTransition(null), 250);
-
-                  next.tables = next.tables.map(t =>
-                    t.id === id ? { ...t, x: proximity.snapX, y: proximity.snapY } : t,
-                  );
-
-                  const groupId = other.merge_group_id ?? currentDragged.merge_group_id ?? crypto.randomUUID();
-                  const existingGroupIds = new Set(
-                    next.tables
-                      .filter(t => t.merge_group_id === groupId || t.id === id || t.id === other.id)
-                      .map(t => t.id),
-                  );
-                  if (currentDragged.merge_group_id && currentDragged.merge_group_id !== groupId) {
-                    next.tables
-                      .filter(t => t.merge_group_id === currentDragged.merge_group_id)
-                      .forEach(t => existingGroupIds.add(t.id));
-                  }
-                  const groupIds = Array.from(existingGroupIds);
-
-                  next.tables = next.tables.map(t => {
-                    if (existingGroupIds.has(t.id)) {
-                      return {
-                        ...t,
-                        merge_group_id: groupId,
-                        merged_with: groupIds.filter(gid => gid !== t.id),
-                      };
-                    }
-                    return t;
-                  });
-
-                  // Trigger bounce animation on the merge group
-                  setMergeBounce(groupId);
-                  setTimeout(() => setMergeBounce(null), 350);
-
-                  const totalSeats = next.tables
-                    .filter(t => existingGroupIds.has(t.id))
-                    .reduce((s, t) => s + t.capacity, 0);
-                  const mergedLabels = next.tables
-                    .filter(t => existingGroupIds.has(t.id))
-                    .map(t => tableLabel(t))
-                    .join(' + ');
-                  toast(`Tables ${mergedLabels} merged · ${totalSeats} seats combined`);
-                  break;
-                }
-              }
-            }
-          }
-        }
-
-        scheduleSave(next);
-        return next;
+        scheduleSave(prev);
+        return prev;
       });
     }
   }
 
-  /** Programmatic unmerge — used by the toolbar button */
-  function unmergeTable(tableId: string) {
-    updatePlan(prev => {
-      const table = prev.tables.find(t => t.id === tableId);
-      if (!table?.merge_group_id) return prev;
-
-      const groupId = table.merge_group_id;
-      setUnmergeFlash(groupId);
-      setTimeout(() => setUnmergeFlash(null), 400);
-
-      const updated = prev.tables.map(t => {
-        if (t.id === tableId) {
-          return { ...t, merge_group_id: null, merged_with: null };
-        }
-        if (t.merge_group_id === groupId) {
-          const newMerged = (t.merged_with ?? []).filter(mid => mid !== tableId);
-          const remaining = prev.tables.filter(ot => ot.id !== tableId && ot.merge_group_id === groupId);
-          if (remaining.length <= 1) {
-            return { ...t, merge_group_id: null, merged_with: null };
-          }
-          return { ...t, merged_with: newMerged.length > 0 ? newMerged : null };
+  /** Merge selected tables into a group (called from TableDetailSheet) */
+  function mergeTables(tableIds: string[]) {
+    if (tableIds.length < 2) return;
+    const groupId = crypto.randomUUID();
+    updatePlan(prev => ({
+      ...prev,
+      tables: prev.tables.map(t => {
+        if (tableIds.includes(t.id)) {
+          return {
+            ...t,
+            merge_group_id: groupId,
+            merged_with: tableIds.filter(id => id !== t.id),
+          };
         }
         return t;
-      });
+      }),
+    }));
+    const labels = plan.tables
+      .filter(t => tableIds.includes(t.id))
+      .map(t => tableLabel(t))
+      .join(' + ');
+    toast.success(`Tables ${labels} merged`);
+  }
 
-      toast(`Table ${tableLabel(table)} separated from group`);
-      return { ...prev, tables: updated };
-    });
+  /** Unmerge all tables in a merge group */
+  function unmergeGroup(mergeGroupId: string) {
+    updatePlan(prev => ({
+      ...prev,
+      tables: prev.tables.map(t =>
+        t.merge_group_id === mergeGroupId
+          ? { ...t, merge_group_id: null, merged_with: null }
+          : t,
+      ),
+    }));
+    toast.success('Tables unmerged');
   }
 
   // ── Context menu ─────────────────────────────────────────────────────────
@@ -940,6 +734,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         <TableDetailSheet
           table={sheetTable}
           mergeGroup={sheetMergeGroup}
+          allTables={plan.tables}
+          tableStatusMap={tableStatusMap}
           statusInfo={sheetStatusInfo}
           onClose={() => setSheetTableId(null)}
           onMarkAvailable={markTableAvailable}
@@ -949,6 +745,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           onRefresh={fetchLiveData}
           onAdvanceStatus={advanceOrderStatus}
           onGenerateBill={(tableOrders) => { setSheetTableId(null); setBillingOrders(tableOrders); }}
+          onMergeTables={mergeTables}
+          onUnmergeGroup={unmergeGroup}
         />
       </div>
     );
@@ -1138,31 +936,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           ))}
 
           {/* Merge group backgrounds — rendered behind tables */}
-          <MergeGroupBackgrounds tables={plan.tables} unmergeFlash={unmergeFlash} />
-
-          {/* Merge preview connector while dragging */}
-          {mergePreview && (() => {
-            const src = plan.tables.find(t => t.id === mergePreview.sourceId);
-            const tgt = plan.tables.find(t => t.id === mergePreview.targetId);
-            if (!src || !tgt) return null;
-            const sSize = tableSize(src.capacity);
-            const tSize = tableSize(tgt.capacity);
-            return (
-              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
-                <line
-                  x1={src.x + sSize.w / 2} y1={src.y + sSize.h / 2}
-                  x2={tgt.x + tSize.w / 2} y2={tgt.y + tSize.h / 2}
-                  stroke="rgba(139,92,246,0.35)" strokeWidth={8} strokeLinecap="round"
-                />
-              </svg>
-            );
-          })()}
+          <MergeGroupBackgrounds tables={plan.tables} />
 
           {plan.tables.map(table => {
             const { w, h } = tableSize(table.capacity);
-            const isBouncing = mergeBounce != null && table.merge_group_id === mergeBounce;
-            const isPreviewTarget = mergePreview?.targetId === table.id;
-            const isSnapping = snapTransition === table.id;
             return (
               <TableElement
                 key={table.id}
@@ -1170,9 +947,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 statusInfo={tableStatusMap.get(table.table_number)}
                 isDragging={draggingId === table.id}
                 isSelected={editSelectedId === table.id}
-                isBouncing={isBouncing}
-                isPreviewTarget={isPreviewTarget}
-                isSnapping={isSnapping}
                 onPointerDown={e => handlePointerDown(e, table.id, table.x, table.y)}
                 onPointerMove={e => handlePointerMove(e, table.id, w, h)}
                 onPointerUp={e => handlePointerUp(e, table.id, true)}
@@ -1190,7 +964,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               onDisplayNameCommit={(name) => commitDisplayName(editSelectedTable.id, name)}
               onDelete={() => { removeTable(editSelectedTable.id); setEditSelectedId(null); }}
               onViewStatus={() => setSheetTableId(editSelectedTable.id)}
-              onUnmerge={editSelectedTable.merge_group_id ? () => unmergeTable(editSelectedTable.id) : undefined}
             />
           )}
         </div>
@@ -1267,6 +1040,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       <TableDetailSheet
         table={sheetTable}
         mergeGroup={sheetMergeGroup}
+        allTables={plan.tables}
+        tableStatusMap={tableStatusMap}
         statusInfo={sheetStatusInfo}
         onClose={() => setSheetTableId(null)}
         onMarkAvailable={markTableAvailable}
@@ -1276,6 +1051,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         onGenerateBill={(tableOrders) => { setSheetTableId(null); setBillingOrders(tableOrders); }}
         onRefresh={fetchLiveData}
         onAdvanceStatus={advanceOrderStatus}
+        onMergeTables={mergeTables}
+        onUnmergeGroup={unmergeGroup}
       />
 
       {/* ── Billing sheet ── */}
@@ -1298,7 +1075,6 @@ interface FloatingToolbarProps {
   onDisplayNameCommit: (name: string) => void;
   onDelete: () => void;
   onViewStatus: () => void;
-  onUnmerge?: () => void;
 }
 
 function FloatingToolbar({
@@ -1308,7 +1084,6 @@ function FloatingToolbar({
   onDisplayNameCommit,
   onDelete,
   onViewStatus,
-  onUnmerge,
 }: FloatingToolbarProps) {
   const [nameVal, setNameVal] = useState(table.display_name ?? '');
 
@@ -1398,20 +1173,6 @@ function FloatingToolbar({
           <Eye className="w-3.5 h-3.5" />
         </button>
 
-        {/* Unmerge (only shown for merged tables) */}
-        {onUnmerge && (
-          <>
-            <div className="w-px h-4 bg-gray-200 mx-0.5" />
-            <button
-              onClick={onUnmerge}
-              className="p-1 rounded-md hover:bg-purple-50 text-purple-400 hover:text-purple-600 transition-colors"
-              title="Unmerge from group"
-            >
-              <Unlink className="w-3.5 h-3.5" />
-            </button>
-          </>
-        )}
-
         {/* Delete */}
         <button
           onClick={onDelete}
@@ -1430,6 +1191,8 @@ function FloatingToolbar({
 interface TableDetailSheetProps {
   table: FloorTable | null;
   mergeGroup?: FloorTable[];
+  allTables: FloorTable[];
+  tableStatusMap: Map<number, TableStatusInfo>;
   statusInfo: TableStatusInfo | null;
   onClose: () => void;
   onMarkAvailable: (tableNumbers: number[]) => Promise<void>;
@@ -1439,11 +1202,15 @@ interface TableDetailSheetProps {
   onRefresh: () => void;
   onAdvanceStatus: (orderId: string, currentStatus: OrderStatus) => Promise<void>;
   onGenerateBill: (orders: Order[]) => void;
+  onMergeTables: (tableIds: string[]) => void;
+  onUnmergeGroup: (mergeGroupId: string) => void;
 }
 
 function TableDetailSheet({
   table,
   mergeGroup,
+  allTables,
+  tableStatusMap,
   statusInfo,
   onClose,
   onMarkAvailable,
@@ -1453,7 +1220,12 @@ function TableDetailSheet({
   onRefresh,
   onAdvanceStatus,
   onGenerateBill,
+  onMergeTables,
+  onUnmergeGroup,
 }: TableDetailSheetProps) {
+  const [showMergePicker, setShowMergePicker] = useState(false);
+  const [mergeSelection, setMergeSelection] = useState<Set<string>>(new Set());
+
   const open = !!table && !!statusInfo;
   if (!open) return <Sheet open={false} onOpenChange={o => { if (!o) onClose(); }} />;
 
@@ -1469,8 +1241,35 @@ function TableDetailSheet({
     ? mergeGroup.map(t => t.table_number)
     : [table.table_number];
 
+  // IDs already in this table's merge group
+  const currentGroupIds = new Set(
+    isMerged ? mergeGroup.map(t => t.id) : [table.id],
+  );
+
+  function openMergePicker() {
+    setMergeSelection(new Set());
+    setShowMergePicker(true);
+  }
+
+  function toggleMergeSelection(id: string) {
+    setMergeSelection(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function confirmMerge() {
+    // Combine current group + new selections
+    const allIds = [...Array.from(currentGroupIds), ...Array.from(mergeSelection)];
+    onMergeTables(allIds);
+    setShowMergePicker(false);
+    setMergeSelection(new Set());
+  }
+
   return (
-    <Sheet open onOpenChange={o => { if (!o) onClose(); }}>
+    <Sheet open onOpenChange={o => { if (!o) { onClose(); setShowMergePicker(false); } }}>
       <SheetContent side="right" className="flex flex-col p-0 gap-0 overflow-hidden sm:max-w-md">
         <SheetHeader
           className="border-b p-4 flex-shrink-0"
@@ -1497,70 +1296,167 @@ function TableDetailSheet({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          {statusInfo.waiterCall && (
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-200">
-              <Bell className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-red-800">Waiter Called</p>
-                <p className="text-xs text-red-600 mt-0.5">
-                  {formatDistanceToNow(new Date(statusInfo.waiterCall.created_at), { addSuffix: true })}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0"
-                onClick={() => onAcknowledge(statusInfo.waiterCall!.id)}
-                disabled={acknowledging}
-              >
-                {acknowledging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Acknowledge'}
-              </Button>
-            </div>
-          )}
-
-          {statusInfo.orders.length > 0 ? (
+          {/* Merge picker view */}
+          {showMergePicker ? (
             <div>
-              <p className="text-sm font-semibold mb-3">Active Orders ({statusInfo.orders.length})</p>
-              <div className="space-y-3">
-                {statusInfo.orders.map(order => (
-                  <OrderCard key={order.id} order={order} onRefresh={onRefresh} onAdvanceStatus={onAdvanceStatus} />
-                ))}
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold">Select tables to merge with</p>
+                <button
+                  onClick={() => setShowMergePicker(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
               </div>
+              <div className="space-y-1.5">
+                {allTables
+                  .filter(t => t.id !== table.id)
+                  .map(t => {
+                    const tStatus = tableStatusMap.get(t.table_number);
+                    const tColors = tStatus ? STATUS_COLORS[tStatus.status] : null;
+                    const isInGroup = currentGroupIds.has(t.id);
+                    const isSelected = mergeSelection.has(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => { if (!isInGroup) toggleMergeSelection(t.id); }}
+                        disabled={isInGroup}
+                        className={cn(
+                          'w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors',
+                          isInGroup
+                            ? 'border-purple-200 bg-purple-50 opacity-60 cursor-not-allowed'
+                            : isSelected
+                              ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-200'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50',
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors',
+                            isInGroup || isSelected
+                              ? 'bg-purple-600 border-purple-600'
+                              : 'border-gray-300',
+                          )}
+                        >
+                          {(isInGroup || isSelected) && <Check size={12} className="text-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium">Table {tableLabel(t)}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{t.capacity} seats</span>
+                        </div>
+                        {tColors && (
+                          <span
+                            className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0"
+                            style={{ background: tColors.bg, color: tColors.text, border: `1px solid ${tColors.border}` }}
+                          >
+                            {STATUS_LABELS[tStatus!.status]}
+                          </span>
+                        )}
+                        {isInGroup && (
+                          <span className="text-[10px] text-purple-600 font-medium flex-shrink-0">In group</span>
+                        )}
+                      </button>
+                    );
+                  })}
+              </div>
+              {mergeSelection.size > 0 && (
+                <Button
+                  className="w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={confirmMerge}
+                >
+                  <Merge className="w-4 h-4 mr-2" />
+                  Confirm Merge ({currentGroupIds.size + mergeSelection.size} tables)
+                </Button>
+              )}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
-              <p className="text-sm">No active orders</p>
-              <p className="text-xs mt-1">This table is available</p>
-            </div>
+            <>
+              {statusInfo.waiterCall && (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-200">
+                  <Bell className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-red-800">Waiter Called</p>
+                    <p className="text-xs text-red-600 mt-0.5">
+                      {formatDistanceToNow(new Date(statusInfo.waiterCall.created_at), { addSuffix: true })}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0"
+                    onClick={() => onAcknowledge(statusInfo.waiterCall!.id)}
+                    disabled={acknowledging}
+                  >
+                    {acknowledging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Acknowledge'}
+                  </Button>
+                </div>
+              )}
+
+              {statusInfo.orders.length > 0 ? (
+                <div>
+                  <p className="text-sm font-semibold mb-3">Active Orders ({statusInfo.orders.length})</p>
+                  <div className="space-y-3">
+                    {statusInfo.orders.map(order => (
+                      <OrderCard key={order.id} order={order} onRefresh={onRefresh} onAdvanceStatus={onAdvanceStatus} />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
+                  <p className="text-sm">No active orders</p>
+                  <p className="text-xs mt-1">This table is available</p>
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        <SheetFooter className="border-t bg-gray-50 p-4 flex-col gap-2 flex-shrink-0">
-          {statusInfo.orders.length > 0 && (
-            <>
-              <Button
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-                onClick={() => onGenerateBill(statusInfo.orders)}
-              >
-                <IndianRupee className="w-4 h-4 mr-2" />
-                Generate Bill ({statusInfo.orders.length} order{statusInfo.orders.length > 1 ? 's' : ''})
-              </Button>
+        {!showMergePicker && (
+          <SheetFooter className="border-t bg-gray-50 p-4 flex-col gap-2 flex-shrink-0">
+            {statusInfo.orders.length > 0 && (
+              <>
+                <Button
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={() => onGenerateBill(statusInfo.orders)}
+                >
+                  <IndianRupee className="w-4 h-4 mr-2" />
+                  Generate Bill ({statusInfo.orders.length} order{statusInfo.orders.length > 1 ? 's' : ''})
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => onMarkAvailable(tableNumbers)}
+                  disabled={markingAvailable}
+                >
+                  {markingAvailable
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Clearing table…</>
+                    : 'Mark Available'}
+                </Button>
+              </>
+            )}
+            <Button
+              variant="outline"
+              className="w-full text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"
+              onClick={openMergePicker}
+            >
+              <Merge className="w-4 h-4 mr-2" />
+              Merge Tables
+            </Button>
+            {isMerged && table.merge_group_id && (
               <Button
                 variant="outline"
                 className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                onClick={() => onMarkAvailable(tableNumbers)}
-                disabled={markingAvailable}
+                onClick={() => onUnmergeGroup(table.merge_group_id!)}
               >
-                {markingAvailable
-                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Clearing table…</>
-                  : 'Mark Available'}
+                <Unlink className="w-4 h-4 mr-2" />
+                Unmerge All
               </Button>
-            </>
-          )}
-          <Button variant="outline" className="w-full" asChild>
-            <Link href="/dashboard/orders">View Full Orders Dashboard</Link>
-          </Button>
-        </SheetFooter>
+            )}
+            <Button variant="outline" className="w-full" asChild>
+              <Link href="/dashboard/orders">View Full Orders Dashboard</Link>
+            </Button>
+          </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   );
@@ -1758,9 +1654,6 @@ interface TableElementProps {
   statusInfo?: TableStatusInfo;
   isDragging?: boolean;
   isSelected?: boolean;
-  isBouncing?: boolean;
-  isPreviewTarget?: boolean;
-  isSnapping?: boolean;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
@@ -1770,7 +1663,6 @@ interface TableElementProps {
 
 function TableElement({
   table, viewOnly, statusInfo, isDragging, isSelected,
-  isBouncing, isPreviewTarget, isSnapping,
   onClick, onPointerDown, onPointerMove, onPointerUp, onContextMenu,
 }: TableElementProps) {
   const { w, h } = tableSize(table.capacity);
@@ -1792,10 +1684,6 @@ function TableElement({
         cursor: viewOnly ? 'pointer' : isDragging ? 'grabbing' : 'grab',
         touchAction: 'none',
         zIndex: isDragging ? 50 : isSelected ? 10 : 2,
-        // Smooth snap animation when merging
-        transition: isSnapping ? 'left 200ms ease-out, top 200ms ease-out' : (isDragging ? 'none' : undefined),
-        // Scale bounce when group gains a member
-        transform: isBouncing ? 'scale(1.05)' : undefined,
       }}
       className={needsAttention ? 'animate-pulse' : undefined}
       onClick={viewOnly ? onClick : undefined}
@@ -1815,35 +1703,20 @@ function TableElement({
         }} />
       )}
 
-      {/* Merge preview glow */}
-      {isPreviewTarget && (
-        <div style={{
-          position: 'absolute', inset: -6,
-          borderRadius: isRound ? '50%' : 16,
-          background: 'rgba(139,92,246,0.12)',
-          border: '2px solid rgba(139,92,246,0.4)',
-          pointerEvents: 'none',
-          animation: 'mergeGlow 1s ease-in-out infinite',
-        }} />
-      )}
-
       <div style={{
         width: '100%', height: '100%',
         borderRadius: isRound ? '50%' : 10,
         background: bg,
         border: `2px solid ${border}`,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        boxShadow: isPreviewTarget
-          ? '0 0 16px rgba(139,92,246,0.4)'
-          : isDragging
-            ? '0 8px 24px rgba(79,70,229,0.25)'
-            : isSelected
-              ? '0 0 0 3px rgba(37,99,235,0.2), 0 2px 8px rgba(0,0,0,0.12)'
-              : needsAttention
-                ? '0 0 0 3px rgba(239,68,68,0.25)'
-                : '0 2px 6px rgba(0,0,0,0.08)',
-        transition: isDragging ? 'none' : 'box-shadow 0.2s, background 0.25s, border-color 0.25s, transform 0.3s ease-out',
-        transform: isBouncing ? 'scale(1.05)' : 'scale(1)',
+        boxShadow: isDragging
+          ? '0 8px 24px rgba(79,70,229,0.25)'
+          : isSelected
+            ? '0 0 0 3px rgba(37,99,235,0.2), 0 2px 8px rgba(0,0,0,0.12)'
+            : needsAttention
+              ? '0 0 0 3px rgba(239,68,68,0.25)'
+              : '0 2px 6px rgba(0,0,0,0.08)',
+        transition: isDragging ? 'none' : 'box-shadow 0.15s, background 0.25s, border-color 0.25s',
       }}>
         <span style={{ fontWeight: 700, fontSize: 13, color: text, lineHeight: 1 }}>
           {tableLabel(table)}
@@ -1858,8 +1731,7 @@ function TableElement({
 
 // ─── MergeGroupBackgrounds ──────────────────────────────────────────────────
 
-function MergeGroupBackgrounds({ tables, unmergeFlash }: { tables: FloorTable[]; unmergeFlash?: string | null }) {
-  // Collect unique merge groups
+function MergeGroupBackgrounds({ tables }: { tables: FloorTable[] }) {
   const groups = new Map<string, FloorTable[]>();
   for (const t of tables) {
     if (!t.merge_group_id) continue;
@@ -1869,12 +1741,11 @@ function MergeGroupBackgrounds({ tables, unmergeFlash }: { tables: FloorTable[];
   }
 
   const rects: React.ReactNode[] = [];
-  const PAD = 12;
+  const PAD = 10;
 
   groups.forEach((groupTables, groupId) => {
     if (groupTables.length < 2) return;
 
-    // Compute bounding box
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     let totalSeats = 0;
     for (const t of groupTables) {
@@ -1886,35 +1757,31 @@ function MergeGroupBackgrounds({ tables, unmergeFlash }: { tables: FloorTable[];
       totalSeats += t.capacity;
     }
 
-    const isFlashing = unmergeFlash === groupId;
-
     rects.push(
       <div
         key={groupId}
         style={{
           position: 'absolute',
           left: minX - PAD,
-          top: minY - PAD - 18, // extra space for label
+          top: minY - PAD - 16,
           width: maxX - minX + PAD * 2,
-          height: maxY - minY + PAD * 2 + 18,
-          borderRadius: 16,
-          background: isFlashing ? 'rgba(239,68,68,0.1)' : 'rgba(139,92,246,0.06)',
-          border: isFlashing ? '1.5px solid rgba(239,68,68,0.4)' : '1.5px solid rgba(139,92,246,0.25)',
+          height: maxY - minY + PAD * 2 + 16,
+          borderRadius: 14,
+          background: 'rgba(139,92,246,0.06)',
+          border: '1.5px solid rgba(139,92,246,0.2)',
           pointerEvents: 'none',
           zIndex: 0,
-          transition: 'background 0.2s, border-color 0.2s',
         }}
       >
         <div style={{
           position: 'absolute',
-          top: 3,
-          left: 10,
+          top: 2,
+          left: 8,
           fontSize: 10,
           fontWeight: 600,
-          color: isFlashing ? 'rgba(239,68,68,0.7)' : 'rgba(139,92,246,0.6)',
+          color: 'rgba(139,92,246,0.55)',
           whiteSpace: 'nowrap',
           letterSpacing: '0.02em',
-          transition: 'color 0.2s',
         }}>
           Merged · {groupTables.length} tables · {totalSeats} seats
         </div>
