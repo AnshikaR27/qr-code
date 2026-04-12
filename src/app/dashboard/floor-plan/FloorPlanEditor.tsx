@@ -278,35 +278,30 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       }
     });
 
-    console.log('[FloorPlan] fetchLiveData — orders:', (orders ?? []).length,
-      'with merge_group_id:', (orders ?? []).filter(o => o.merge_group_id).length,
-      'tableMerge size:', tableMerge.size);
-
-    if (tableMerge.size > 0) {
-      console.log('[FloorPlan] tableMerge entries:', JSON.stringify(Array.from(tableMerge.entries())));
+    // Build the set of merge group IDs that are still active in fetched orders.
+    // This is the source of truth for whether a merge group is still live.
+    const activeMergeGroupIds = new Set<string>();
+    for (const o of (orders ?? [])) {
+      if (o.merge_group_id) activeMergeGroupIds.add(o.merge_group_id);
     }
 
-    setPlan(prev => {
-      const next = {
-        ...prev,
-        tables: prev.tables.map(t => {
-          const m = tableMerge.get(t.id);
-          if (m) {
-            if (t.merge_group_id === m.merge_group_id) return t;
-            return { ...t, merge_group_id: m.merge_group_id, merged_with: m.merged_with };
-          }
-          // Don't clear merge state here — a subsequent fetchLiveData may
-          // arrive before the orders DB reflects the merge, which would
-          // erase valid state. Clearing is handled by unmergeGroup / payment.
-          return t;
-        }),
-      };
-      const mergedTables = next.tables.filter(t => t.merge_group_id);
-      if (mergedTables.length > 0) {
-        console.log('[FloorPlan] plan tables with merge_group_id after update:', mergedTables.map(t => ({ id: t.id, table_number: t.table_number, merge_group_id: t.merge_group_id })));
-      }
-      return next;
-    });
+    setPlan(prev => ({
+      ...prev,
+      tables: prev.tables.map(t => {
+        const m = tableMerge.get(t.id);
+        if (m) {
+          // Table is part of an active merge group — apply/update merge fields.
+          if (t.merge_group_id === m.merge_group_id) return t;
+          return { ...t, merge_group_id: m.merge_group_id, merged_with: m.merged_with };
+        }
+        // Clear stale merge state: if this table carries a merge_group_id that
+        // no active order references, the merge has been dissolved.
+        if (t.merge_group_id && !activeMergeGroupIds.has(t.merge_group_id)) {
+          return { ...t, merge_group_id: null, merged_with: null };
+        }
+        return t;
+      }),
+    }));
   }
 
   // ── Realtime subscription + fallback poll ──────────────────────────────────
@@ -406,8 +401,11 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               restaurant_id: restaurant.id,
               table_number: t.table_number,
               display_name: t.display_name ?? null,
+              // NEVER include merge_group_id/merged_with here — managed
+              // separately by mergeTables/unmergeGroup so scheduleSave
+              // never overwrites merge state written by those operations.
             })),
-            { onConflict: 'id' },
+            { onConflict: 'restaurant_id,table_number' },
           );
         // Reconcile errors are non-fatal — layout is already saved
       }
@@ -739,7 +737,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   }
 
   /** Merge selected tables into a group (called from TableDetailSheet) */
-  function mergeTables(tableIds: string[]) {
+  async function mergeTables(tableIds: string[]) {
     if (tableIds.length < 2) return;
     const groupId = crypto.randomUUID();
     updatePlan(prev => ({
@@ -760,22 +758,19 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     // KitchenDashboard picks it up via its realtime subscription on orders.
     // Also sync to the tables DB.
     const supabase = createClient();
-    supabase
+    await supabase
       .from('orders')
       .update({ merge_group_id: groupId })
       .eq('restaurant_id', restaurant.id)
       .in('table_id', tableIds)
       .is('payment_method', null)
-      .or('status.eq.placed,status.eq.ready')
-      .select('id, table_id, merge_group_id')
-      .then(({ data, error }) => {
-        console.log('[FloorPlan] merge orders sync result:', { data, error, tableIds, groupId });
-      });
-    supabase
+      .or('status.eq.placed,status.eq.ready');
+    await supabase
       .from('tables')
       .update({ merge_group_id: groupId, merged_with: tableIds })
-      .in('id', tableIds)
-      .then();
+      .in('id', tableIds);
+
+    fetchLiveData();
 
     const labels = plan.tables
       .filter(t => tableIds.includes(t.id))
@@ -785,7 +780,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   }
 
   /** Unmerge all tables in a merge group */
-  function unmergeGroup(mergeGroupId: string) {
+  async function unmergeGroup(mergeGroupId: string) {
     // Collect table IDs before clearing so we can update orders
     const tableIds = plan.tables
       .filter(t => t.merge_group_id === mergeGroupId)
@@ -804,20 +799,19 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     // KitchenDashboard picks up the unmerge via realtime on orders.
     if (tableIds.length > 0) {
       const supabase = createClient();
-      supabase
+      await supabase
         .from('orders')
         .update({ merge_group_id: null })
         .eq('restaurant_id', restaurant.id)
         .in('table_id', tableIds)
-        .or('status.eq.placed,status.eq.ready')
-        .then();
-      supabase
+        .or('status.eq.placed,status.eq.ready');
+      await supabase
         .from('tables')
         .update({ merge_group_id: null, merged_with: null })
-        .in('id', tableIds)
-        .then();
+        .in('id', tableIds);
     }
 
+    fetchLiveData();
     toast.success('Tables unmerged');
   }
 

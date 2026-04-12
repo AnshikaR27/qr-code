@@ -63,11 +63,27 @@ export function OrdersProvider({ restaurantId, initialOrders, children }: Props)
               console.log(`[orders-ctx] New order #${newOrder.order_number}`);
             }
           } else if (payload.eventType === 'UPDATE') {
-            setOrders((prev) =>
-              prev.map((o) =>
-                o.id === payload.new.id ? { ...o, ...(payload.new as Partial<Order>) } : o,
-              ),
-            );
+            if ('merge_group_id' in payload.new) {
+              // Supabase realtime UPDATE payloads only include changed columns,
+              // not joined relations like items or table. When merge_group_id
+              // changes, do a full re-fetch so joined data is preserved.
+              const { data } = await supabase
+                .from('orders')
+                .select('*, items:order_items(*), table:tables(*)')
+                .eq('id', payload.new.id)
+                .single();
+              if (data) {
+                setOrders((prev) =>
+                  prev.map((o) => o.id === payload.new.id ? (data as Order) : o),
+                );
+              }
+            } else {
+              setOrders((prev) =>
+                prev.map((o) =>
+                  o.id === payload.new.id ? { ...o, ...(payload.new as Partial<Order>) } : o,
+                ),
+              );
+            }
           } else if (payload.eventType === 'DELETE') {
             setOrders((prev) => prev.filter((o) => o.id !== payload.old.id));
           }

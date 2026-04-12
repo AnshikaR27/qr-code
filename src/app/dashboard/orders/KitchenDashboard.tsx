@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
   BellRing, ChefHat, CheckCheck, IndianRupee, XCircle, Printer, ReceiptText,
-  Usb, AlertTriangle, GitMerge, Unlink2, CheckSquare, Square,
+  Usb, AlertTriangle, GitMerge, Unlink2,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
@@ -41,7 +41,6 @@ function getStatusLabels(serviceMode: 'self_service' | 'table_service'): Record<
 }
 
 export default function KitchenDashboard({ restaurant }: Props) {
-  console.log('[KitchenDashboard] rendered, restaurant.id:', restaurant.id);
   const { orders } = useOrders();
   const [filter, setFilter]     = useState<FilterTab>('active');
   const [updating, setUpdating] = useState<string | null>(null);
@@ -53,10 +52,6 @@ export default function KitchenDashboard({ restaurant }: Props) {
   // Payment / billing state
   const [paymentOrder, setPaymentOrder]     = useState<Order | null>(null);
   const [billingOrders, setBillingOrders]   = useState<Order[] | null>(null);
-
-  // Merge-select mode state
-  const [selectMode, setSelectMode]         = useState(false);
-  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
   // Drag-to-merge state (pointer-events based, no library)
   const [draggingOrderId, setDraggingOrderId]     = useState<string | null>(null);
@@ -288,39 +283,6 @@ export default function KitchenDashboard({ restaurant }: Props) {
     printCustomerBill(order, restaurant, config!);
   }
 
-  // ── Merge / unmerge ────────────────────────────────────────────────────────
-
-  async function mergeSelected() {
-    const selected = orders.filter(o => selectedOrderIds.includes(o.id));
-    const groupId = crypto.randomUUID();
-    const supabase = createClient();
-
-    const { error } = await supabase
-      .from('orders')
-      .update({ merge_group_id: groupId })
-      .in('id', selectedOrderIds);
-    if (error) {
-      console.error('[mergeSelected] supabase error:', error);
-      toast.error(error.message ?? 'Failed to merge orders');
-      return;
-    }
-
-    // Sync merge state to the tables table so the floor plan shows the
-    // purple group outline (FloorPlanEditor's Realtime listener on `tables`
-    // will pick this up and update plan.tables without a page reload).
-    const tableIds = Array.from(new Set(selected.filter(o => o.table_id).map(o => o.table_id!)));
-    if (tableIds.length > 0) {
-      await supabase
-        .from('tables')
-        .update({ merge_group_id: groupId, merged_with: tableIds })
-        .in('id', tableIds);
-    }
-
-    toast.success(`${selected.length} orders merged`);
-    setSelectMode(false);
-    setSelectedOrderIds([]);
-  }
-
   // ── Drag-to-merge ─────────────────────────────────────────────────────────
 
   async function mergeTwoOrders(sourceId: string, targetId: string) {
@@ -431,29 +393,9 @@ export default function KitchenDashboard({ restaurant }: Props) {
 
   const activeCount = orders.filter((o) => o.status === 'placed').length;
 
-  // Selection helpers
-  function toggleSelect(orderId: string) {
-    setSelectedOrderIds(prev =>
-      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId],
-    );
-  }
-
-  function exitSelectMode() {
-    setSelectMode(false);
-    setSelectedOrderIds([]);
-  }
-
   function changeFilter(f: FilterTab) {
     setFilter(f);
-    exitSelectMode();
   }
-
-  const selectedOrders = orders.filter(o => selectedOrderIds.includes(o.id));
-  const canMerge =
-    selectedOrderIds.length >= 2 &&
-    selectedOrders.every(o =>
-      (o.status === 'placed' || o.status === 'ready') && !o.payment_method && !o.merge_group_id,
-    );
 
   return (
     <div className="p-6 pb-24 max-w-5xl mx-auto space-y-3">
@@ -500,21 +442,6 @@ export default function KitchenDashboard({ restaurant }: Props) {
               <span className="text-sm font-semibold text-orange-700">{activeCount} active</span>
             </div>
           )}
-          {/* Merge-select mode toggle — only shown on the Active tab */}
-          {filter === 'active' && (
-            <button
-              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors',
-                selectMode
-                  ? 'bg-violet-600 text-white border-violet-600 hover:bg-violet-700'
-                  : 'border-gray-200 text-gray-700 hover:bg-gray-50',
-              )}
-            >
-              <GitMerge className="w-4 h-4" />
-              {selectMode ? 'Cancel' : 'Merge'}
-            </button>
-          )}
         </div>
       </div>
 
@@ -542,13 +469,6 @@ export default function KitchenDashboard({ restaurant }: Props) {
           </button>
         ))}
       </div>
-
-      {/* ── Select mode hint ── */}
-      {selectMode && (
-        <p className="text-xs text-violet-600 font-medium">
-          Select 2 or more active, unpaid orders from different tables to merge into one bill.
-        </p>
-      )}
 
       {/* ── Drag-to-merge instruction overlay ── */}
       {draggingOrderId && (
@@ -581,9 +501,6 @@ export default function KitchenDashboard({ restaurant }: Props) {
                 onReprint={() => openReprintDialog(item.order)}
                 onPrintBill={() => handlePrintBill(item.order)}
                 isUpdating={updating === item.order.id}
-                selectMode={selectMode}
-                isSelected={selectedOrderIds.includes(item.order.id)}
-                onSelect={() => toggleSelect(item.order.id)}
                 draggingOrderId={draggingOrderId}
                 dropTargetOrderId={dropTargetOrderId}
                 onDragStart={(id) => { setDraggingOrderId(id); setDropTargetOrderId(null); }}
@@ -608,23 +525,6 @@ export default function KitchenDashboard({ restaurant }: Props) {
               />
             ),
           )}
-        </div>
-      )}
-
-      {/* ── Floating merge action bar ── */}
-      {selectMode && selectedOrderIds.length > 0 && (
-        <div className="fixed bottom-6 inset-x-0 flex justify-center z-50 px-4 pointer-events-none">
-          <div className="pointer-events-auto flex items-center gap-3 bg-white rounded-2xl shadow-2xl border border-gray-200 px-4 py-3">
-            <span className="text-sm text-gray-500">{selectedOrderIds.length} selected</span>
-            <button
-              onClick={mergeSelected}
-              disabled={!canMerge}
-              className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-violet-700 transition-colors"
-            >
-              <GitMerge className="w-4 h-4" />
-              Merge {selectedOrderIds.length} orders
-            </button>
-          </div>
         </div>
       )}
 
@@ -800,9 +700,6 @@ interface OrderCardProps {
   onReprint: () => void;
   onPrintBill: () => void;
   isUpdating: boolean;
-  selectMode: boolean;
-  isSelected: boolean;
-  onSelect: () => void;
   // Drag-to-merge
   draggingOrderId: string | null;
   dropTargetOrderId: string | null;
@@ -814,7 +711,7 @@ interface OrderCardProps {
 
 function OrderCard({
   order, restaurant, allOrders, onAdvance, onCancel, onReprint, onPrintBill,
-  isUpdating, selectMode, isSelected, onSelect,
+  isUpdating,
   draggingOrderId, dropTargetOrderId, onDragStart, onDragOver, onDragDrop, onDragCancel,
 }: OrderCardProps) {
   const statusMeta  = ORDER_STATUSES.find((s) => s.value === order.status);
@@ -830,7 +727,7 @@ function OrderCard({
   const isDragging   = draggingOrderId === order.id;
   const isDropTarget = dropTargetOrderId === order.id;
   // Only unmerged, active, unpaid orders may be dragged (merged groups have their own card)
-  const canDrag = !isTerminal && !selectMode && !order.merge_group_id && !order.payment_method;
+  const canDrag = !isTerminal && !order.merge_group_id && !order.payment_method;
 
   function handlePointerDown(e: React.PointerEvent) {
     if (!canDrag) return;
@@ -932,26 +829,12 @@ function OrderCard({
         order.status === 'ready'     && 'border-green-400',
         order.status === 'delivered' && 'border-gray-200 opacity-70',
         order.status === 'cancelled' && 'border-red-200 opacity-60',
-        selectMode && isSelected && 'ring-2 ring-violet-500 border-violet-400',
         // Drop target: dashed violet outline
         isDropTarget && 'outline outline-2 outline-dashed outline-violet-500 outline-offset-2',
       )}
     >
-      {/* Checkbox overlay in select mode */}
-      {selectMode && !isTerminal && (
-        <button
-          onClick={onSelect}
-          className="absolute top-2.5 left-2.5 z-10 text-violet-600 bg-white rounded"
-          title={isSelected ? 'Deselect' : 'Select for merge'}
-        >
-          {isSelected
-            ? <CheckSquare className="w-5 h-5" />
-            : <Square className="w-5 h-5 text-gray-400" />}
-        </button>
-      )}
-
       {/* ── Header row ── */}
-      <div className={cn('flex items-center justify-between px-4 py-3 border-b', selectMode && !isTerminal && 'pl-10')}>
+      <div className="flex items-center justify-between px-4 py-3 border-b">
         <div>
           <p className="font-bold text-lg">#{order.order_number}</p>
           <p className="text-xs text-muted-foreground">
@@ -959,7 +842,7 @@ function OrderCard({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {!isTerminal && !selectMode && (
+          {!isTerminal && (
             <button
               onClick={onReprint}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-gray-100 transition-colors"
@@ -968,7 +851,7 @@ function OrderCard({
               <Printer className="w-4 h-4" />
             </button>
           )}
-          {!isTerminal && !selectMode && (
+          {!isTerminal && (
             <button
               onClick={onPrintBill}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-gray-100 transition-colors"
@@ -1028,7 +911,7 @@ function OrderCard({
       </div>
 
       {/* ── Action buttons ── */}
-      {!isTerminal && !selectMode && (
+      {!isTerminal && (
         <div className="px-4 pb-4 pt-2 flex gap-2">
           <button
             onClick={onAdvance}
