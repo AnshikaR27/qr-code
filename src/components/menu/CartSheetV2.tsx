@@ -28,6 +28,7 @@ export default function CartSheetV2({
   const router = useRouter();
   const { items, updateQuantity, getTotal } = useCart();
   const total = getTotal();
+  const [customerName, setCustomerName] = useState('');
   const [noteOpen, setNoteOpen] = useState(false);
   const [orderNote, setOrderNote] = useState('');
 
@@ -59,7 +60,7 @@ export default function CartSheetV2({
       restaurant_id: restaurant.id,
       table_id: tableId,
       order_type: 'dine_in',
-      customer_name: null,
+      customer_name: customerName.trim() || null,
       customer_phone: null,
       notes: orderNote.trim() || null,
       items: items.map((i) => {
@@ -238,6 +239,25 @@ export default function CartSheetV2({
                   >
                     Add more
                   </button>
+                </div>
+
+                {/* Customer name */}
+                <div className="px-5 pt-2 pb-1">
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Your name (optional)"
+                    maxLength={60}
+                    className="w-full px-4 py-3.5 border-none outline-none bg-transparent"
+                    style={{
+                      borderRadius: 'calc(var(--sunday-radius, 12px) * 0.66)',
+                      backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+                      fontSize: typeScale.body,
+                      color: 'var(--sunday-text, #1c1c17)',
+                      fontFamily: 'var(--sunday-font-body)',
+                    }}
+                  />
                 </div>
 
                 {/* Order note */}
