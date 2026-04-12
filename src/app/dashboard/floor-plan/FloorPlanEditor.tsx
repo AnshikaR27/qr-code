@@ -219,6 +219,26 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editSelectedId]);
 
+  // ── Sync merge state from the `tables` DB table into local plan ─────────
+  async function syncMergeState() {
+    const supabase = createClient();
+    const { data: dbTables } = await supabase
+      .from('tables')
+      .select('id, merge_group_id, merged_with')
+      .eq('restaurant_id', restaurant.id);
+    if (!dbTables) return;
+    const mergeMap = new Map(dbTables.map(r => [r.id, { merge_group_id: r.merge_group_id ?? null, merged_with: r.merged_with ?? null }]));
+    setPlan(prev => ({
+      ...prev,
+      tables: prev.tables.map(t => {
+        const db = mergeMap.get(t.id);
+        if (!db) return t;
+        if (t.merge_group_id === db.merge_group_id && t.merged_with === db.merged_with) return t;
+        return { ...t, merge_group_id: db.merge_group_id, merged_with: db.merged_with };
+      }),
+    }));
+  }
+
   // ── Live data fetch ────────────────────────────────────────────────────────
   async function fetchLiveData() {
     const supabase = createClient();
@@ -236,6 +256,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     ]);
     setActiveOrders(orders ?? []);
     setActiveWaiterCalls(calls ?? []);
+    await syncMergeState();
   }
 
   // ── Realtime subscription + fallback poll ──────────────────────────────────
@@ -262,22 +283,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         () => fetchLiveData(),
       )
       // Sync merge state when tables are merged/unmerged from the Orders tab.
-      // Uses setPlan (not updatePlan) so it does NOT trigger scheduleSave —
-      // we're reflecting a DB change, not initiating one.
+      // Fetches ALL tables so every member of a merge group is updated at once.
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'tables', filter: `restaurant_id=eq.${restaurant.id}` },
-        (payload) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const row = payload.new as any;
-          setPlan(prev => ({
-            ...prev,
-            tables: prev.tables.map(t =>
-              t.id === row.id
-                ? { ...t, merge_group_id: row.merge_group_id ?? null, merged_with: row.merged_with ?? null }
-                : t,
-            ),
-          }));
-        },
+        () => syncMergeState(),
       )
       .subscribe((status) => {
         const connected = status === 'SUBSCRIBED';

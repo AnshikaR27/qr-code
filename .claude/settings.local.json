@@ -37,7 +37,10 @@
       "Bash(ls -la public/)",
       "Bash(ls favicon.ico)",
       "Bash(ls -la -- \"-\" \"Implement\")",
-      "Bash(file -- \"-\" \"Implement\")"
+      "Bash(file -- \"-\" \"Implement\")",
+      "Bash(git revert:*)",
+      "Bash(ffprobe -i public/notify.mp3 -show_entries format=duration -v quiet -of csv=\"p=0\")",
+      "Bash(xargs basename:*)"
     ]
   }
 }
