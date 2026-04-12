@@ -613,7 +613,7 @@ function MergedOrderCard({
             {/* Per-order sub-header */}
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-gray-500">
-                Table {order.table?.display_name?.trim() || order.table?.table_number} · #{order.order_number}
+                Table {order.table?.display_name?.trim() || order.table?.table_number} · #{order.order_number}{order.customer_name ? ` · ${order.customer_name}` : ''}
               </p>
               {order.status === 'placed' && (
                 <button
@@ -872,7 +872,7 @@ function OrderCard({
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium">
             {order.order_type === 'dine_in'
-              ? mergedTableLabel(order, allOrders)
+              ? `${mergedTableLabel(order, allOrders)}${order.customer_name ? ` · ${order.customer_name}` : ''}`
               : `🛍️ Parcel${order.customer_name ? ` — ${order.customer_name}` : ''}`}
           </p>
           {order.payment_method && (
