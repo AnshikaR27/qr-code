@@ -460,9 +460,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             : t,
         ),
       }));
+      toast.success('Payment recorded · tables unmerged');
+    } else {
+      toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
     }
-
-    toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
     fetchLiveData();
   }
 
