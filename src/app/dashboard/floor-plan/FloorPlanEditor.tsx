@@ -410,7 +410,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               // separately by mergeTables/unmergeGroup so scheduleSave
               // never overwrites merge state written by those operations.
             })),
-            { onConflict: 'restaurant_id,table_number' },
+            { onConflict: 'id' },
           );
         // Reconcile errors are non-fatal — layout is already saved
       }
