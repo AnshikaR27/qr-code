@@ -295,8 +295,9 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             if (t.merge_group_id === m.merge_group_id) return t;
             return { ...t, merge_group_id: m.merge_group_id, merged_with: m.merged_with };
           }
-          // No active merged orders → clear merge state if it was set
-          if (t.merge_group_id) return { ...t, merge_group_id: null, merged_with: null };
+          // Don't clear merge state here — a subsequent fetchLiveData may
+          // arrive before the orders DB reflects the merge, which would
+          // erase valid state. Clearing is handled by unmergeGroup / payment.
           return t;
         }),
       };
