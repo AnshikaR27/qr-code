@@ -707,6 +707,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         return t;
       }),
     }));
+
+    // Sync merge_group_id to active orders at these tables so the
+    // KitchenDashboard picks it up via its realtime subscription on orders.
+    const supabase = createClient();
+    supabase
+      .from('orders')
+      .update({ merge_group_id: groupId })
+      .in('table_id', tableIds)
+      .in('status', ['placed', 'ready'])
+      .is('payment_method', null)
+      .then();
+
     const labels = plan.tables
       .filter(t => tableIds.includes(t.id))
       .map(t => tableLabel(t))
@@ -716,6 +728,11 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
   /** Unmerge all tables in a merge group */
   function unmergeGroup(mergeGroupId: string) {
+    // Collect table IDs before clearing so we can update orders
+    const tableIds = plan.tables
+      .filter(t => t.merge_group_id === mergeGroupId)
+      .map(t => t.id);
+
     updatePlan(prev => ({
       ...prev,
       tables: prev.tables.map(t =>
@@ -724,6 +741,19 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           : t,
       ),
     }));
+
+    // Clear merge_group_id on active orders at these tables so the
+    // KitchenDashboard picks up the unmerge via realtime on orders.
+    if (tableIds.length > 0) {
+      const supabase = createClient();
+      supabase
+        .from('orders')
+        .update({ merge_group_id: null })
+        .in('table_id', tableIds)
+        .in('status', ['placed', 'ready'])
+        .then();
+    }
+
     toast.success('Tables unmerged');
   }
 
