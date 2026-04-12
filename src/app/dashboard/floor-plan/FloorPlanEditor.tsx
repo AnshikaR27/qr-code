@@ -1859,6 +1859,9 @@ function TableElement({
 
   const needsAttention = status === 'needs_attention' && !isDragging;
 
+  // Show customer name for occupied tables
+  const customerName = statusInfo?.orders.find(o => o.customer_name)?.customer_name ?? null;
+
   return (
     <div
       style={{
@@ -1866,6 +1869,7 @@ function TableElement({
         cursor: viewOnly ? 'pointer' : isDragging ? 'grabbing' : 'grab',
         touchAction: 'none',
         zIndex: isDragging ? 50 : isSelected ? 10 : 2,
+        overflow: 'visible',
       }}
       className={needsAttention ? 'animate-pulse' : undefined}
       onClick={viewOnly ? onClick : undefined}
@@ -1907,6 +1911,31 @@ function TableElement({
           {table.capacity}p
         </span>
       </div>
+
+      {/* Customer name label — floats below the table shape */}
+      {customerName && (
+        <div style={{
+          position: 'absolute',
+          top: h + 5,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          fontSize: 10,
+          fontWeight: 600,
+          color: text,
+          whiteSpace: 'nowrap',
+          maxWidth: Math.max(w + 20, 90),
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          textAlign: 'center',
+          backgroundColor: 'rgba(255,255,255,0.9)',
+          border: `1px solid ${border}`,
+          borderRadius: 4,
+          padding: '1px 6px',
+          pointerEvents: 'none',
+        }}>
+          {customerName}
+        </div>
+      )}
     </div>
   );
 }
