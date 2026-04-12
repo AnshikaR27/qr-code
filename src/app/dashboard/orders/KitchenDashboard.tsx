@@ -305,14 +305,14 @@ export default function KitchenDashboard({ restaurant }: Props) {
       return;
     }
 
-    // Sync merge_group_id to the tables table so the floor plan shows the
+    // Sync merge state to the tables table so the floor plan shows the
     // purple group outline (FloorPlanEditor's Realtime listener on `tables`
     // will pick this up and update plan.tables without a page reload).
     const tableIds = Array.from(new Set(selected.filter(o => o.table_id).map(o => o.table_id!)));
     if (tableIds.length > 0) {
       await supabase
         .from('tables')
-        .update({ merge_group_id: groupId })
+        .update({ merge_group_id: groupId, merged_with: tableIds })
         .in('id', tableIds);
     }
 
@@ -357,12 +357,16 @@ export default function KitchenDashboard({ restaurant }: Props) {
       return;
     }
 
-    // Sync to tables so the floor plan purple outline appears
+    // Sync to tables so the floor plan purple outline appears.
+    // When extending an existing group, include ALL tables in the group.
+    const allGroupOrders = existingGroupId
+      ? orders.filter(o => o.merge_group_id === existingGroupId)
+      : [];
     const tableIds = Array.from(new Set(
-      [sourceOrder, targetOrder].filter(o => o.table_id).map(o => o.table_id!),
+      [...allGroupOrders, sourceOrder, targetOrder].filter(o => o.table_id).map(o => o.table_id!),
     ));
     if (tableIds.length > 0) {
-      await supabase.from('tables').update({ merge_group_id: groupId }).in('id', tableIds);
+      await supabase.from('tables').update({ merge_group_id: groupId, merged_with: tableIds }).in('id', tableIds);
     }
 
     toast.success('Orders merged', {
