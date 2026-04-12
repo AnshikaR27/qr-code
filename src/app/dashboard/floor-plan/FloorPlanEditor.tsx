@@ -25,7 +25,6 @@ import {
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
-import { useOrders } from '@/contexts/OrdersContext';
 import {
   Dialog,
   DialogContent,
@@ -132,8 +131,6 @@ interface Props {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function FloorPlanEditor({ restaurant }: Props) {
-  const { setOrders } = useOrders();
-
   // ── Editor state ───────────────────────────────────────────────────────────
   const [plan, setPlan] = useState<FloorPlan>(() => {
     const raw = restaurant.floor_plan;
@@ -454,7 +451,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       // Auto-unmerge tables when clearing a merge group
       const mergeGroupId = plan.tables.find(t => tableNumbers.includes(t.table_number))?.merge_group_id;
       if (mergeGroupId) {
-        const groupTableIds = plan.tables.filter(t => t.merge_group_id === mergeGroupId).map(t => t.id);
         updatePlan(prev => ({
           ...prev,
           tables: prev.tables.map(t =>
@@ -463,10 +459,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               : t,
           ),
         }));
-        setOrders(prev => prev.map(o =>
-          o.merge_group_id === mergeGroupId ? { ...o, merge_group_id: null } : o,
-        ));
-        supabase.from('tables').update({ merge_group_id: null, merged_with: null }).in('id', groupTableIds).then();
         toast.success('Tables cleared & unmerged');
       } else {
         toast.success('Table marked as available');
@@ -567,11 +559,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             : t,
         ),
       }));
-      setOrders(prev => prev.map(o =>
-        o.merge_group_id && groupsToDissolve.includes(o.merge_group_id)
-          ? { ...o, merge_group_id: null }
-          : o,
-      ));
       toast.success('Payment recorded · tables unmerged');
     } else {
       toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
@@ -769,17 +756,9 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       }),
     }));
 
-    // Immediately update the shared orders context so the KitchenDashboard
-    // shows merged tickets without waiting for a realtime round-trip.
-    setOrders(prev => prev.map(o =>
-      tableIds.includes(o.table_id!) &&
-      (o.status === 'placed' || o.status === 'ready') &&
-      !o.payment_method
-        ? { ...o, merge_group_id: groupId }
-        : o,
-    ));
-
-    // Also persist to DB (orders + tables).
+    // Sync merge_group_id to active orders at these tables so the
+    // KitchenDashboard picks it up via its realtime subscription on orders.
+    // Also sync to the tables DB.
     const supabase = createClient();
     supabase
       .from('orders')
@@ -788,7 +767,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       .in('table_id', tableIds)
       .is('payment_method', null)
       .or('status.eq.placed,status.eq.ready')
-      .then();
+      .select('id, table_id, merge_group_id')
+      .then(({ data, error }) => {
+        console.log('[FloorPlan] merge orders sync result:', { data, error, tableIds, groupId });
+      });
     supabase
       .from('tables')
       .update({ merge_group_id: groupId, merged_with: tableIds })
@@ -818,14 +800,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       ),
     }));
 
-    // Immediately update the shared orders context.
-    setOrders(prev => prev.map(o =>
-      o.merge_group_id === mergeGroupId
-        ? { ...o, merge_group_id: null }
-        : o,
-    ));
-
-    // Persist to DB.
+    // Clear merge_group_id on active orders at these tables so the
+    // KitchenDashboard picks up the unmerge via realtime on orders.
     if (tableIds.length > 0) {
       const supabase = createClient();
       supabase
