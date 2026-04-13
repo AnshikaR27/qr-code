@@ -80,6 +80,13 @@ function tableSize(capacity: FloorCapacity) {
   return                    { w: 160, h: 80 };
 }
 
+/** "Bhumin Patel" → "Bhumin P." */
+function shortName(full: string): string {
+  const parts = full.trim().split(/\s+/);
+  if (parts.length <= 1) return parts[0] ?? '';
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
 // ─── Live status ──────────────────────────────────────────────────────────────
 
 const ORDER_STATUS_FLOW: Partial<Record<OrderStatus, OrderStatus>> = {
@@ -1117,7 +1124,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           ))}
 
           {/* Merge group backgrounds — rendered behind tables */}
-          <MergeGroupBackgrounds tables={plan.tables} />
+          <MergeGroupBackgrounds tables={plan.tables} tableStatusMap={tableStatusMap} />
 
           {plan.tables.map(table => {
             const { w, h } = tableSize(table.capacity);
@@ -1814,7 +1821,7 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
       className="bg-white"
     >
       {plan.labels.map(l => <LabelElement key={l.id} label={l} viewOnly />)}
-      <MergeGroupBackgrounds tables={plan.tables} />
+      <MergeGroupBackgrounds tables={plan.tables} tableStatusMap={tableStatusMap} />
       {plan.tables.map(t => (
         <TableElement
           key={t.id}
@@ -1859,8 +1866,10 @@ function TableElement({
 
   const needsAttention = status === 'needs_attention' && !isDragging;
 
-  // Show customer name for occupied tables
+  // Show customer name for occupied tables (suppress for tables in a merge group)
   const customerName = statusInfo?.orders.find(o => o.customer_name)?.customer_name ?? null;
+  const inMergeGroup = !!table.merge_group_id;
+  const showName = customerName && !inMergeGroup;
 
   return (
     <div
@@ -1872,6 +1881,7 @@ function TableElement({
         overflow: 'visible',
       }}
       className={needsAttention ? 'animate-pulse' : undefined}
+      title={customerName ?? undefined}
       onClick={viewOnly ? onClick : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -1903,47 +1913,35 @@ function TableElement({
               ? '0 0 0 3px rgba(239,68,68,0.25)'
               : '0 2px 6px rgba(0,0,0,0.08)',
         transition: isDragging ? 'none' : 'box-shadow 0.15s, background 0.25s, border-color 0.25s',
+        padding: '0 4px',
       }}>
         <span style={{ fontWeight: 700, fontSize: 13, color: text, lineHeight: 1 }}>
           {tableLabel(table)}
         </span>
-        <span style={{ fontSize: 11, color: sub, marginTop: 3 }}>
-          {table.capacity}p
-        </span>
+        {showName ? (
+          <span style={{
+            fontSize: 11, fontWeight: 700, color: text, marginTop: 3, lineHeight: 1.1,
+            maxWidth: 'calc(100% - 8px)', overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap', textAlign: 'center',
+          }}>
+            {shortName(customerName)}
+          </span>
+        ) : (
+          <span style={{ fontSize: 11, color: sub, marginTop: 3 }}>
+            {table.capacity}p
+          </span>
+        )}
       </div>
-
-      {/* Customer name label — floats below the table shape */}
-      {customerName && (
-        <div style={{
-          position: 'absolute',
-          top: h + 6,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          fontSize: 13,
-          fontWeight: 700,
-          color: text,
-          whiteSpace: 'nowrap',
-          maxWidth: Math.max(w + 20, 90),
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          textAlign: 'center',
-          backgroundColor: 'rgba(255,255,255,0.95)',
-          border: `1px solid ${border}`,
-          borderRadius: 4,
-          padding: '2px 8px',
-          pointerEvents: 'none',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-        }}>
-          {customerName}
-        </div>
-      )}
     </div>
   );
 }
 
 // ─── MergeGroupBackgrounds ──────────────────────────────────────────────────
 
-function MergeGroupBackgrounds({ tables }: { tables: FloorTable[] }) {
+function MergeGroupBackgrounds({ tables, tableStatusMap }: {
+  tables: FloorTable[];
+  tableStatusMap?: Map<number, TableStatusInfo>;
+}) {
   const groups = new Map<string, FloorTable[]>();
   for (const t of tables) {
     if (!t.merge_group_id) continue;
@@ -1960,6 +1958,7 @@ function MergeGroupBackgrounds({ tables }: { tables: FloorTable[] }) {
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     let totalSeats = 0;
+    let groupCustomerName: string | null = null;
     for (const t of groupTables) {
       const s = tableSize(t.capacity);
       minX = Math.min(minX, t.x);
@@ -1967,11 +1966,19 @@ function MergeGroupBackgrounds({ tables }: { tables: FloorTable[] }) {
       maxX = Math.max(maxX, t.x + s.w);
       maxY = Math.max(maxY, t.y + s.h);
       totalSeats += t.capacity;
+      if (!groupCustomerName && tableStatusMap) {
+        const info = tableStatusMap.get(t.table_number);
+        groupCustomerName = info?.orders.find(o => o.customer_name)?.customer_name ?? null;
+      }
     }
+
+    const headerParts = [`Merged · ${groupTables.length} tables · ${totalSeats} seats`];
+    if (groupCustomerName) headerParts.push(`· ${shortName(groupCustomerName)}`);
 
     rects.push(
       <div
         key={groupId}
+        title={groupCustomerName ?? undefined}
         style={{
           position: 'absolute',
           left: minX - PAD,
@@ -1995,7 +2002,7 @@ function MergeGroupBackgrounds({ tables }: { tables: FloorTable[] }) {
           whiteSpace: 'nowrap',
           letterSpacing: '0.02em',
         }}>
-          Merged · {groupTables.length} tables · {totalSeats} seats
+          {headerParts.join(' ')}
         </div>
       </div>,
     );
