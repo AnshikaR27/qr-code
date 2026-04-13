@@ -1916,22 +1916,23 @@ function TableElement({
       {customerName && (
         <div style={{
           position: 'absolute',
-          top: h + 5,
+          top: h + 6,
           left: '50%',
           transform: 'translateX(-50%)',
-          fontSize: 10,
-          fontWeight: 600,
+          fontSize: 13,
+          fontWeight: 700,
           color: text,
           whiteSpace: 'nowrap',
           maxWidth: Math.max(w + 20, 90),
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           textAlign: 'center',
-          backgroundColor: 'rgba(255,255,255,0.9)',
+          backgroundColor: 'rgba(255,255,255,0.95)',
           border: `1px solid ${border}`,
           borderRadius: 4,
-          padding: '1px 6px',
+          padding: '2px 8px',
           pointerEvents: 'none',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
         }}>
           {customerName}
         </div>
