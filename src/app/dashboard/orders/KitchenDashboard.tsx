@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -52,6 +52,23 @@ export default function KitchenDashboard({ restaurant }: Props) {
   // Payment / billing state
   const [paymentOrder, setPaymentOrder]     = useState<Order | null>(null);
   const [billingOrders, setBillingOrders]   = useState<Order[] | null>(null);
+
+  // All-time orders for the "Completed" tab (lazy-loaded)
+  const [allTimeOrders, setAllTimeOrders]     = useState<Order[] | null>(null);
+  const [loadingAllTime, setLoadingAllTime]   = useState(false);
+
+  const fetchAllTimeOrders = useCallback(async () => {
+    if (allTimeOrders !== null) return;          // already loaded
+    setLoadingAllTime(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('orders')
+      .select('*, items:order_items(*), table:tables(*)')
+      .eq('restaurant_id', restaurant.id)
+      .order('created_at', { ascending: false });
+    if (data) setAllTimeOrders(data as Order[]);
+    setLoadingAllTime(false);
+  }, [restaurant.id, allTimeOrders]);
 
   // Drag-to-merge state (pointer-events based, no library)
   const [draggingOrderId, setDraggingOrderId]     = useState<string | null>(null);
@@ -360,11 +377,12 @@ export default function KitchenDashboard({ restaurant }: Props) {
 
   // ── Filtering & grouping ───────────────────────────────────────────────────
 
-  const filtered = orders.filter((o) => {
-    if (filter === 'active')    return o.status === 'placed' || o.status === 'ready';
-    if (filter === 'completed') return o.status === 'delivered' || o.status === 'cancelled';
-    return true;
-  });
+  const filtered = (() => {
+    if (filter === 'active') return orders.filter(o => o.status === 'placed' || o.status === 'ready');
+    if (filter === 'all')    return orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
+    // 'completed' — every order ever (all-time), fall back to today's while loading
+    return (allTimeOrders ?? orders);
+  })();
 
   // Group merged orders into combined display items; singles stay individual.
   type DisplayItem =
@@ -395,6 +413,7 @@ export default function KitchenDashboard({ restaurant }: Props) {
 
   function changeFilter(f: FilterTab) {
     setFilter(f);
+    if (f === 'completed') fetchAllTimeOrders();
   }
 
   return (
@@ -480,11 +499,16 @@ export default function KitchenDashboard({ restaurant }: Props) {
       )}
 
       {/* ── Orders grid ── */}
-      {displayItems.length === 0 ? (
+      {filter === 'completed' && loadingAllTime ? (
+        <div className="text-center py-20 text-muted-foreground">
+          <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-20 animate-pulse" />
+          <p className="font-medium">Loading all orders…</p>
+        </div>
+      ) : displayItems.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-20" />
           <p className="font-medium">
-            {filter === 'active' ? 'No active orders' : 'No orders yet today'}
+            {filter === 'active' ? 'No active orders' : filter === 'all' ? 'No completed orders today' : 'No orders found'}
           </p>
         </div>
       ) : (
