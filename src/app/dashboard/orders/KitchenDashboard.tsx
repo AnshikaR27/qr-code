@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
   BellRing, ChefHat, CheckCheck, IndianRupee, XCircle, Printer, ReceiptText,
-  Usb, AlertTriangle, GitMerge, Unlink2,
+  Usb, AlertTriangle, GitMerge, Unlink2, Search, X,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
@@ -44,6 +44,7 @@ export default function KitchenDashboard({ restaurant }: Props) {
   const { orders } = useOrders();
   const [filter, setFilter]     = useState<FilterTab>('active');
   const [updating, setUpdating] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Print dialog state
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
@@ -378,10 +379,16 @@ export default function KitchenDashboard({ restaurant }: Props) {
   // ── Filtering & grouping ───────────────────────────────────────────────────
 
   const filtered = (() => {
-    if (filter === 'active') return orders.filter(o => o.status === 'placed' || o.status === 'ready');
-    if (filter === 'all')    return orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
-    // 'completed' — every order ever (all-time), fall back to today's while loading
-    return (allTimeOrders ?? orders);
+    let list: Order[];
+    if (filter === 'active') list = orders.filter(o => o.status === 'placed' || o.status === 'ready');
+    else if (filter === 'all') list = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
+    else list = (allTimeOrders ?? orders); // 'completed' — every order ever
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(o => o.customer_name?.toLowerCase().includes(q));
+    }
+    return list;
   })();
 
   // Group merged orders into combined display items; singles stay individual.
@@ -413,6 +420,7 @@ export default function KitchenDashboard({ restaurant }: Props) {
 
   function changeFilter(f: FilterTab) {
     setFilter(f);
+    setSearchQuery('');
     if (f === 'completed') fetchAllTimeOrders();
   }
 
@@ -489,6 +497,26 @@ export default function KitchenDashboard({ restaurant }: Props) {
         ))}
       </div>
 
+      {/* ── Search ── */}
+      <div className="relative w-full max-w-xs">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search by customer name…"
+          className="w-full pl-9 pr-8 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
       {/* ── Drag-to-merge instruction overlay ── */}
       {draggingOrderId && (
         <div className="fixed top-4 inset-x-0 flex justify-center z-50 pointer-events-none">
@@ -508,7 +536,11 @@ export default function KitchenDashboard({ restaurant }: Props) {
         <div className="text-center py-20 text-muted-foreground">
           <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-20" />
           <p className="font-medium">
-            {filter === 'active' ? 'No active orders' : filter === 'all' ? 'No completed orders today' : 'No orders found'}
+            {searchQuery.trim()
+              ? 'No orders match that name'
+              : filter === 'active' ? 'No active orders'
+              : filter === 'all' ? 'No completed orders today'
+              : 'No orders found'}
           </p>
         </div>
       ) : (

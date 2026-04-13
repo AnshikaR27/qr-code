@@ -21,6 +21,7 @@ import {
   Unlink,
   Merge,
   Check,
+  Search,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -176,6 +177,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [markingAvailable, setMarkingAvailable]   = useState(false);
   const [paymentOrder, setPaymentOrder]           = useState<Order | null>(null);
   const [billingOrders, setBillingOrders]         = useState<Order[] | null>(null);
+  const [searchQuery, setSearchQuery]             = useState('');
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const canvasRef            = useRef<HTMLDivElement>(null);
@@ -1029,6 +1031,25 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             <span className="text-muted-foreground">{label}</span>
           </span>
         ))}
+        {/* Search by customer name */}
+        <div className="relative ml-auto">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search customer…"
+            className="pl-7 pr-6 py-1 text-xs border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-44"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Add-table config bar ── */}
@@ -1128,13 +1149,19 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
           {plan.tables.map(table => {
             const { w, h } = tableSize(table.capacity);
+            const sInfo = tableStatusMap.get(table.table_number);
+            const tableCustomerName = sInfo?.orders.find(o => o.customer_name)?.customer_name ?? null;
+            const isSearchMatch = searchQuery.trim()
+              ? !!tableCustomerName?.toLowerCase().includes(searchQuery.trim().toLowerCase())
+              : false;
             return (
               <TableElement
                 key={table.id}
                 table={table}
-                statusInfo={tableStatusMap.get(table.table_number)}
+                statusInfo={sInfo}
                 isDragging={draggingId === table.id}
                 isSelected={editSelectedId === table.id}
+                isSearchMatch={isSearchMatch}
                 onPointerDown={e => handlePointerDown(e, table.id, table.x, table.y)}
                 onPointerMove={e => handlePointerMove(e, table.id, w, h)}
                 onPointerUp={e => handlePointerUp(e, table.id, true)}
@@ -1843,6 +1870,7 @@ interface TableElementProps {
   statusInfo?: TableStatusInfo;
   isDragging?: boolean;
   isSelected?: boolean;
+  isSearchMatch?: boolean;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
@@ -1851,7 +1879,7 @@ interface TableElementProps {
 }
 
 function TableElement({
-  table, viewOnly, statusInfo, isDragging, isSelected,
+  table, viewOnly, statusInfo, isDragging, isSelected, isSearchMatch,
   onClick, onPointerDown, onPointerMove, onPointerUp, onContextMenu,
 }: TableElementProps) {
   const { w, h } = tableSize(table.capacity);
@@ -1888,6 +1916,17 @@ function TableElement({
       onPointerUp={onPointerUp}
       onContextMenu={onContextMenu}
     >
+      {/* Search match highlight ring */}
+      {isSearchMatch && (
+        <div style={{
+          position: 'absolute', inset: -6,
+          borderRadius: isRound ? '50%' : 16,
+          border: '3px solid #eab308',
+          boxShadow: '0 0 0 3px rgba(234,179,8,0.25)',
+          pointerEvents: 'none',
+        }} />
+      )}
+
       {/* Selection ring */}
       {isSelected && (
         <div style={{
