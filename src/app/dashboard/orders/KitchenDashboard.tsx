@@ -66,6 +66,7 @@ export default function KitchenDashboard({ restaurant }: Props) {
       .from('orders')
       .select('*, items:order_items(*), table:tables(*)')
       .eq('restaurant_id', restaurant.id)
+      .in('status', ['delivered', 'cancelled'])
       .order('created_at', { ascending: false });
     if (data) setAllTimeOrders(data as Order[]);
     setLoadingAllTime(false);
@@ -382,7 +383,7 @@ export default function KitchenDashboard({ restaurant }: Props) {
     let list: Order[];
     if (filter === 'active') list = orders.filter(o => o.status === 'placed' || o.status === 'ready');
     else if (filter === 'all') list = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
-    else list = (allTimeOrders ?? orders); // 'completed' — every order ever
+    else list = (allTimeOrders ?? orders.filter(o => o.status === 'delivered' || o.status === 'cancelled')); // 'completed' — delivered/cancelled
 
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
