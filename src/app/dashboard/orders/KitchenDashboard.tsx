@@ -383,7 +383,11 @@ export default function KitchenDashboard({ restaurant }: Props) {
     let list: Order[];
     if (filter === 'active') list = orders.filter(o => o.status === 'placed' || o.status === 'ready');
     else if (filter === 'all') list = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
-    else list = (allTimeOrders ?? orders.filter(o => o.status === 'delivered' || o.status === 'cancelled')); // 'completed' — delivered/cancelled
+    else {
+      // 'completed' — all-time delivered/cancelled only (no active orders)
+      const base = allTimeOrders ?? orders;
+      list = base.filter(o => o.status === 'delivered' || o.status === 'cancelled');
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
