@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Plus,
@@ -16,8 +16,27 @@ import {
   Sparkles,
   Loader2,
   Download,
+  GripVertical,
 } from 'lucide-react';
 import Link from 'next/link';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+  DragOverlay,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatPrice } from '@/lib/utils';
@@ -26,11 +45,47 @@ import DishForm from '@/components/dashboard/DishForm';
 import CategoryManager from '@/components/dashboard/CategoryManager';
 import type { Category, Product, Restaurant } from '@/types';
 
+// ── Persistence helpers (module-level, no stale closure risk) ─────────────────
+
+async function persistCategoryOrder(cats: Category[]) {
+  const supabase = createClient();
+  try {
+    await Promise.all(
+      cats.map((c) =>
+        supabase.from('categories').update({ sort_order: c.sort_order }).eq('id', c.id)
+      )
+    );
+  } catch {
+    toast.error('Failed to save category order');
+  }
+}
+
+async function persistDishChanges(dishes: Product[]) {
+  if (!dishes.length) return;
+  const supabase = createClient();
+  try {
+    await Promise.all(
+      dishes.map((p) =>
+        supabase
+          .from('products')
+          .update({ sort_order: p.sort_order, category_id: p.category_id })
+          .eq('id', p.id)
+      )
+    );
+  } catch {
+    toast.error('Failed to save dish order');
+  }
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+
 interface Props {
   restaurant: Restaurant;
   initialCategories: Category[];
   initialProducts: Product[];
 }
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function MenuManager({ restaurant, initialCategories, initialProducts }: Props) {
   const [categories, setCategories] = useState<Category[]>(initialCategories);
@@ -45,6 +100,19 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
   const [dishDialogOpen, setDishDialogOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [dishCategoryId, setDishCategoryId] = useState<string>('');
+
+  // Drag state
+  const [activeDrag, setActiveDrag] = useState<
+    | { type: 'category'; item: Category }
+    | { type: 'dish'; item: Product }
+    | null
+  >(null);
+  // Capture original category_id at drag start so we know what to clean up after cross-cat move
+  const originalCategoryIdRef = useRef<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   function toggleCollapse(categoryId: string) {
     setCollapsed((prev) => ({ ...prev, [categoryId]: !prev[categoryId] }));
@@ -87,7 +155,6 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
       const { error } = await supabase.from('categories').delete().eq('id', cat.id);
       if (error) throw error;
       setCategories((prev) => prev.filter((c) => c.id !== cat.id));
-      // Null out category_id for products in this category
       setProducts((prev) =>
         prev.map((p) => (p.category_id === cat.id ? { ...p, category_id: null } : p))
       );
@@ -137,7 +204,6 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
 
   async function toggleAvailability(product: Product) {
     const next = !product.is_available;
-    // Optimistic update
     setProducts((prev) =>
       prev.map((p) => (p.id === product.id ? { ...p, is_available: next } : p))
     );
@@ -150,7 +216,6 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
       if (error) throw error;
       toast.success(next ? `${product.name} is now available` : `${product.name} marked unavailable`);
     } catch (err: unknown) {
-      // Revert on failure
       setProducts((prev) =>
         prev.map((p) => (p.id === product.id ? { ...p, is_available: !next } : p))
       );
@@ -251,12 +316,144 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
     URL.revokeObjectURL(url);
   }
 
-  // ── Grouping ───────────────────────────────────────────────────────
+  // ── Drag handlers ──────────────────────────────────────────────────
+
+  function handleDragStart(event: DragStartEvent) {
+    const type = event.active.data.current?.type as string | undefined;
+    if (type === 'category') {
+      const cat = categories.find((c) => c.id === event.active.id);
+      if (cat) setActiveDrag({ type: 'category', item: cat });
+    } else if (type === 'dish') {
+      const product = products.find((p) => p.id === event.active.id);
+      if (product) {
+        originalCategoryIdRef.current = product.category_id ?? null;
+        setActiveDrag({ type: 'dish', item: product });
+      }
+    }
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over || active.data.current?.type !== 'dish') return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    if (activeId === overId) return;
+
+    // Determine which category the over item belongs to
+    let targetCategoryId: string | null | undefined;
+    if (over.data.current?.type === 'dish') {
+      const overProduct = products.find((p) => p.id === overId);
+      targetCategoryId = overProduct?.category_id ?? null;
+    } else if (over.data.current?.type === 'category') {
+      // Hovering over a category section (e.g. an empty one) — move into it
+      targetCategoryId = overId;
+    } else {
+      return;
+    }
+
+    const activeProduct = products.find((p) => p.id === activeId);
+    if (!activeProduct || activeProduct.category_id === targetCategoryId) return;
+
+    // Optimistically update category_id so the SortableContext re-groups
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === activeId ? { ...p, category_id: targetCategoryId as string | null } : p
+      )
+    );
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    const origCatId = originalCategoryIdRef.current;
+
+    setActiveDrag(null);
+    originalCategoryIdRef.current = null;
+
+    if (!over) return;
+
+    const activeType = active.data.current?.type as string | undefined;
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // ── Category reorder ───────────────────────────────────────────
+    if (activeType === 'category') {
+      if (activeId === overId) return;
+      const oldIdx = categories.findIndex((c) => c.id === activeId);
+      const newIdx = categories.findIndex((c) => c.id === overId);
+      if (oldIdx === -1 || newIdx === -1) return;
+      const reordered = arrayMove(categories, oldIdx, newIdx).map((c, i) => ({
+        ...c,
+        sort_order: i,
+      }));
+      setCategories(reordered);
+      void persistCategoryOrder(reordered);
+      return;
+    }
+
+    // ── Dish reorder / cross-category move ─────────────────────────
+    if (activeType !== 'dish') return;
+
+    // onDragOver already updated category_id for cross-category moves.
+    // Now finalize position within the target category and persist.
+    let dishesToPersist: Product[] = [];
+
+    setProducts((prev) => {
+      const activeProduct = prev.find((p) => p.id === activeId);
+      if (!activeProduct) return prev;
+
+      const targetCatId = activeProduct.category_id ?? null;
+
+      // Dishes currently in the target category, in display order
+      let targetDishes = prev.filter((p) => p.category_id === targetCatId);
+
+      // Reorder within category if dropped on another dish in the same category
+      if (over.data.current?.type === 'dish' && activeId !== overId) {
+        const overProduct = prev.find((p) => p.id === overId);
+        if (overProduct && overProduct.category_id === targetCatId) {
+          const oldIdx = targetDishes.findIndex((p) => p.id === activeId);
+          const newIdx = targetDishes.findIndex((p) => p.id === overId);
+          if (oldIdx !== -1 && newIdx !== -1) {
+            targetDishes = arrayMove(targetDishes, oldIdx, newIdx);
+          }
+        }
+      }
+
+      // Assign sort_order = position index within target category
+      const updatedTargetDishes = targetDishes.map((p, i) => ({ ...p, sort_order: i }));
+
+      // If cross-category, also reassign sort_orders for the old category
+      const crossCategory = origCatId !== targetCatId;
+      const oldCatDishes = crossCategory
+        ? prev
+            .filter((p) => p.category_id === origCatId)
+            .map((p, i) => ({ ...p, sort_order: i }))
+        : [];
+
+      dishesToPersist = [...updatedTargetDishes, ...oldCatDishes];
+
+      // Rebuild flat products array
+      const others = prev.filter(
+        (p) =>
+          p.category_id !== targetCatId &&
+          (!crossCategory || p.category_id !== origCatId)
+      );
+      return [...others, ...updatedTargetDishes, ...oldCatDishes];
+    });
+
+    void persistDishChanges(dishesToPersist);
+  }
+
+  // ── Derived ────────────────────────────────────────────────────────
   const categorisedProducts = categories.map((cat) => ({
     category: cat,
-    products: products.filter((p) => p.category_id === cat.id),
+    products: products
+      .filter((p) => p.category_id === cat.id)
+      .sort((a, b) => a.sort_order - b.sort_order),
   }));
-  const uncategorised = products.filter((p) => !p.category_id);
+  const uncategorised = products
+    .filter((p) => !p.category_id)
+    .sort((a, b) => a.sort_order - b.sort_order);
 
   const totalDishes = products.length;
 
@@ -333,45 +530,78 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
         </div>
       )}
 
-      {/* Categories */}
-      <div className="space-y-4">
-        {categorisedProducts.map(({ category, products: catProducts }) => (
-          <CategorySection
-            key={category.id}
-            category={category}
-            products={catProducts}
-            allCategories={categories}
-            restaurantId={restaurant.id}
-            collapsed={!!collapsed[category.id]}
-            onToggleCollapse={() => toggleCollapse(category.id)}
-            onEditCategory={() => openEditCategory(category)}
-            onDeleteCategory={() => deleteCategory(category)}
-            onAddDish={() => openAddDish(category.id)}
-            onEditDish={openEditDish}
-            onDeleteDish={deleteDish}
-            onToggleAvailability={toggleAvailability}
-          />
-        ))}
+      {/* DndContext wraps the whole list so category and dish drags share one context */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="space-y-4">
+          {/* SortableContext for categories only (not uncategorised) */}
+          <SortableContext
+            items={categories.map((c) => c.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {categorisedProducts.map(({ category, products: catProducts }) => (
+              <CategorySection
+                key={category.id}
+                category={category}
+                products={catProducts}
+                allCategories={categories}
+                restaurantId={restaurant.id}
+                collapsed={!!collapsed[category.id]}
+                onToggleCollapse={() => toggleCollapse(category.id)}
+                onEditCategory={() => openEditCategory(category)}
+                onDeleteCategory={() => deleteCategory(category)}
+                onAddDish={() => openAddDish(category.id)}
+                onEditDish={openEditDish}
+                onDeleteDish={deleteDish}
+                onToggleAvailability={toggleAvailability}
+              />
+            ))}
+          </SortableContext>
 
-        {/* Uncategorised */}
-        {uncategorised.length > 0 && (
-          <CategorySection
-            category={null}
-            products={uncategorised}
-            allCategories={categories}
-            restaurantId={restaurant.id}
-            collapsed={!!collapsed['__uncategorised__']}
-            onToggleCollapse={() => toggleCollapse('__uncategorised__')}
-            onEditCategory={() => {}}
-            onDeleteCategory={() => {}}
-            onDeleteAll={() => deleteAllUncategorised()}
-            onAddDish={() => openAddDish('')}
-            onEditDish={openEditDish}
-            onDeleteDish={deleteDish}
-            onToggleAvailability={toggleAvailability}
-          />
-        )}
-      </div>
+          {/* Uncategorised — always at the bottom, not category-sortable */}
+          {uncategorised.length > 0 && (
+            <CategorySection
+              category={null}
+              products={uncategorised}
+              allCategories={categories}
+              restaurantId={restaurant.id}
+              collapsed={!!collapsed['__uncategorised__']}
+              onToggleCollapse={() => toggleCollapse('__uncategorised__')}
+              onEditCategory={() => {}}
+              onDeleteCategory={() => {}}
+              onDeleteAll={() => deleteAllUncategorised()}
+              onAddDish={() => openAddDish('')}
+              onEditDish={openEditDish}
+              onDeleteDish={deleteDish}
+              onToggleAvailability={toggleAvailability}
+            />
+          )}
+        </div>
+
+        {/* Drag overlays */}
+        <DragOverlay>
+          {activeDrag?.type === 'category' && (
+            <div className="bg-white border rounded-xl shadow-lg px-4 py-3 flex items-center gap-2 text-sm font-semibold opacity-95 pointer-events-none">
+              <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              {activeDrag.item.name}
+            </div>
+          )}
+          {activeDrag?.type === 'dish' && (
+            <div className="bg-white border rounded-lg shadow-lg px-4 py-2.5 flex items-center gap-2 text-sm font-medium opacity-95 pointer-events-none">
+              <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <span className="truncate">{activeDrag.item.name}</span>
+              <span className="text-muted-foreground text-xs flex-shrink-0 ml-auto">
+                {formatPrice(activeDrag.item.price)}
+              </span>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
 
       {/* Dialogs */}
       <CategoryManager
@@ -426,30 +656,71 @@ function CategorySection({
   onToggleAvailability,
 }: CategorySectionProps) {
   const isUncategorised = !category;
+  const sectionId = category?.id ?? '__uncategorised__';
+
+  // useSortable for the whole category section (category reorder).
+  // Disabled for uncategorised so it can't be dragged as a category.
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: sectionId,
+    data: { type: 'category' },
+    disabled: isUncategorised,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
-    <div className="border rounded-xl overflow-hidden">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn('border rounded-xl overflow-hidden', isDragging && 'opacity-40 shadow-lg')}
+    >
       {/* Category header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
-        <button
-          className="flex items-center gap-2 text-left flex-1 min-w-0"
-          onClick={onToggleCollapse}
-        >
-          {collapsed ? (
-            <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        <div className="flex items-center gap-1 flex-1 min-w-0">
+          {/* Category drag handle — only shown for real categories */}
+          {!isUncategorised && (
+            <button
+              type="button"
+              {...attributes}
+              {...listeners}
+              className="flex items-center justify-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none flex-shrink-0 p-0.5"
+              tabIndex={-1}
+              title="Drag to reorder category"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
           )}
-          <span className="font-semibold text-sm truncate">
-            {category?.name ?? 'Uncategorised'}
-          </span>
-          {category?.name_hindi && (
-            <span className="text-xs text-muted-foreground truncate">{category.name_hindi}</span>
-          )}
-          <Badge variant="secondary" className="ml-1 flex-shrink-0">
-            {products.length}
-          </Badge>
-        </button>
+
+          <button
+            className="flex items-center gap-2 text-left flex-1 min-w-0"
+            onClick={onToggleCollapse}
+          >
+            {collapsed ? (
+              <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            )}
+            <span className="font-semibold text-sm truncate">
+              {category?.name ?? 'Uncategorised'}
+            </span>
+            {category?.name_hindi && (
+              <span className="text-xs text-muted-foreground truncate">{category.name_hindi}</span>
+            )}
+            <Badge variant="secondary" className="ml-1 flex-shrink-0">
+              {products.length}
+            </Badge>
+          </button>
+        </div>
 
         <div className="flex items-center gap-1 flex-shrink-0">
           {isUncategorised && onDeleteAll && products.length > 0 && (
@@ -504,17 +775,22 @@ function CategorySection({
               </button>
             </p>
           ) : (
-            <ul className="divide-y">
-              {products.map((product) => (
-                <DishRow
-                  key={product.id}
-                  product={product}
-                  onEdit={() => onEditDish(product)}
-                  onDelete={() => onDeleteDish(product)}
-                  onToggleAvailability={() => onToggleAvailability(product)}
-                />
-              ))}
-            </ul>
+            <SortableContext
+              items={products.map((p) => p.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="divide-y">
+                {products.map((product) => (
+                  <DishRow
+                    key={product.id}
+                    product={product}
+                    onEdit={() => onEditDish(product)}
+                    onDelete={() => onDeleteDish(product)}
+                    onToggleAvailability={() => onToggleAvailability(product)}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
           )}
         </div>
       )}
@@ -532,13 +808,45 @@ interface DishRowProps {
 }
 
 function DishRow({ product, onEdit, onDelete, onToggleAvailability }: DishRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: product.id,
+    data: { type: 'dish', categoryId: product.category_id ?? null },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   return (
     <li
+      ref={setNodeRef}
+      style={style}
       className={cn(
         'flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors',
-        !product.is_available && 'opacity-60'
+        !product.is_available && 'opacity-60',
+        isDragging && 'opacity-30 bg-gray-50',
       )}
     >
+      {/* Dish drag handle */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="flex items-center justify-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+        tabIndex={-1}
+        title="Drag to reorder"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+
       {/* Thumbnail */}
       {product.image_url ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -556,7 +864,6 @@ function DishRow({ product, onEdit, onDelete, onToggleAvailability }: DishRowPro
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          {/* Veg/Non-veg dot */}
           <span
             className={cn(
               'w-3 h-3 rounded-sm border-2 flex-shrink-0',
@@ -601,7 +908,6 @@ function DishRow({ product, onEdit, onDelete, onToggleAvailability }: DishRowPro
 
       {/* Actions */}
       <div className="flex items-center gap-1 flex-shrink-0">
-        {/* Availability toggle */}
         <button
           onClick={onToggleAvailability}
           className={cn(
