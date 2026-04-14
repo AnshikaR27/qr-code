@@ -12,8 +12,17 @@ Return a JSON array where each item has:
 - name (string, dish name in English)
 - name_hindi (string or null, name in Hindi/regional language if visible)
 - price (number, lowest price as a number — no currency symbol. If two prices like "750/800", use the lower one: 750)
-- category (string, the most specific section/sub-section heading this dish falls under, e.g. "Black & Bold", "Timeless Brews", "Wood-Fired Pizzas")
-- parent_category (string or null, if the dish's section is a sub-section of a larger section, put the larger section name here. For example if "COFFEE" is the main heading and "Black & Bold" is a sub-heading, then category="Black & Bold" and parent_category="Coffee". If there is no parent section, use null)
+- category (string) — RULES:
+  • Use a SHORT, GENERIC food category name (e.g. "Shakes", "Cold Coffee", "Starters", "Main Course", "Desserts", "Pizza", "Biryani").
+  • IGNORE decorative/marketing words in menu headers. Strip out words like "Extreme", "Ultimate", "Signature", "Special", "Premium", "House", "Chef's", "Classic", "Authentic", "Traditional", "Original".
+  • If the header is styled/branded (e.g. "Extreme Dessert FreakShakes", "The Ultimate Pizza Experience"), extract only the underlying food type: "Shakes", "Pizza".
+  • Prefer singular generic terms customers would search for.
+- parent_category (string or null) — RULES:
+  • Only set when there is a genuine two-level hierarchy on the menu (e.g. "Beverages > Cold Coffee", "Main Course > North Indian").
+  • Marketing taglines, hashtags, or decorative words (e.g. "#TheUltimateIndulgence", "Extreme Dessert") are NOT parent categories — use null in those cases.
+  • If there is no real parent section, use null.
+  • Example: menu header "Beverages — Cold Coffee" → category="Cold Coffee", parent_category="Beverages".
+  • Example: menu header "🔥 Extreme Dessert FreakShakes #TheUltimateIndulgence" → category="Shakes", parent_category=null.
 - is_veg (boolean — Determine this from ALL available signals:
   1. Green dot/square symbol (●/◻) next to the item → true. Red/brown dot/square symbol → false.
   2. Tags like "Vegan", "Vegetarian", "Eggless", "Jain" → true. Tags like "Contains Egg", "Non-Veg" → false.
@@ -31,6 +40,15 @@ IMPORTANT for dietary tags: Do NOT skip or ignore colored or small-font text ben
 IMPORTANT for add-ons/sides: If the menu has a section like "Add-ons & Sides" or "Extras" that clearly belongs to a main category (e.g. appears under "Main Bowls"), set parent_category to that main category name.
 
 Return ONLY a valid JSON array. No markdown, no explanation, no code blocks.`;
+
+const MARKETING_WORDS = /\b(extreme|ultimate|signature|premium|special|house|chef'?s|classic|authentic|traditional|original|the)\b/gi;
+
+function cleanCategory(cat: string): string {
+  return cat
+    .replace(MARKETING_WORDS, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export const scannedDishSchema = z.object({
   name: z.string().min(1),
@@ -125,7 +143,17 @@ export async function extractMenuFromImage(
 
     const result = scannedDishSchema.safeParse(raw);
     if (result.success) {
-      dishes.push(result.data);
+      const dish = result.data;
+      // Clean marketing/decorative words from category names
+      if (dish.category) {
+        dish.category = cleanCategory(dish.category) || dish.category;
+      }
+      if (dish.parent_category) {
+        const cleaned = cleanCategory(dish.parent_category);
+        // Drop parent if it becomes empty or identical to category after cleaning
+        dish.parent_category = (!cleaned || cleaned === dish.category) ? null : cleaned;
+      }
+      dishes.push(dish);
     } else {
       console.log('[ai-scanner] Skipped invalid item:', JSON.stringify(raw).slice(0, 200), result.error.issues);
     }
