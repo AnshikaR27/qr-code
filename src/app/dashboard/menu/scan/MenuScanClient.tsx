@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -12,7 +12,25 @@ import {
   ChevronLeft,
   Leaf,
   CheckCircle2,
+  GripVertical,
 } from 'lucide-react';
+import {
+  DndContext,
+  DragEndEvent,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  closestCenter,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -26,9 +44,147 @@ interface Props {
 }
 
 interface EditableRow extends ScannedDish {
-  _id: string; // local key
+  _id: string;
   _selected: boolean;
 }
+
+// ── Sortable row ──────────────────────────────────────────────────────────────
+
+interface RowProps {
+  row: EditableRow;
+  updateRow: (id: string, field: keyof ScannedDish, value: unknown) => void;
+  toggleRow: (id: string) => void;
+  removeRow: (id: string) => void;
+}
+
+function SortableRow({ row, updateRow, toggleRow, removeRow }: RowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: row._id, data: { category: row.category } });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'grid grid-cols-1 sm:grid-cols-[24px_auto_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-3 items-center',
+        !row._selected && 'opacity-40',
+        isDragging && 'opacity-30 bg-gray-50',
+      )}
+    >
+      {/* Drag handle — only element that triggers drag */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="flex items-center justify-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
+        tabIndex={-1}
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+
+      {/* Checkbox */}
+      <input
+        type="checkbox"
+        checked={row._selected}
+        onChange={() => toggleRow(row._id)}
+        className="w-4 h-4 cursor-pointer"
+      />
+
+      {/* Name */}
+      <Input
+        value={row.name}
+        onChange={(e) => updateRow(row._id, 'name', e.target.value)}
+        className="h-8 text-sm"
+        placeholder="Dish name"
+      />
+
+      {/* Category (editable; also updated automatically on cross-category drag) */}
+      <div className="flex flex-col gap-0.5">
+        <Input
+          value={row.category}
+          onChange={(e) => updateRow(row._id, 'category', e.target.value)}
+          className="h-8 text-sm"
+          placeholder="Category"
+        />
+        {row.parent_category && (
+          <span className="text-[10px] text-muted-foreground px-1 truncate">
+            under {row.parent_category}
+          </span>
+        )}
+      </div>
+
+      {/* Price */}
+      <Input
+        type="number"
+        value={row.price}
+        onChange={(e) =>
+          updateRow(row._id, 'price', parseFloat(e.target.value) || 0)
+        }
+        className="h-8 text-sm"
+        min="0"
+      />
+
+      {/* Hindi name */}
+      <Input
+        value={row.name_hindi ?? ''}
+        onChange={(e) => updateRow(row._id, 'name_hindi', e.target.value || null)}
+        className="h-8 text-sm"
+        placeholder="हिंदी"
+      />
+
+      {/* Veg toggle */}
+      <button
+        type="button"
+        onClick={() => updateRow(row._id, 'is_veg', !row.is_veg)}
+        className={cn(
+          'flex items-center justify-center gap-1 h-8 px-2 rounded-md border text-xs font-medium transition-colors',
+          row.is_veg
+            ? 'bg-green-50 border-green-400 text-green-700'
+            : 'bg-red-50 border-red-400 text-red-700'
+        )}
+      >
+        <Leaf className="w-3 h-3" />
+        {row.is_veg ? 'Veg' : 'NV'}
+      </button>
+
+      {/* Dietary Tags */}
+      <div className="flex flex-col gap-0.5">
+        <Input
+          value={row.dietary_tags ?? ''}
+          onChange={(e) => updateRow(row._id, 'dietary_tags', e.target.value || null)}
+          className="h-8 text-sm"
+          placeholder="e.g. Vegan, Gluten Free"
+        />
+        {row.is_jain && row.is_jain !== 'No' && (
+          <span className="text-[10px] text-amber-600 px-1 truncate">
+            Jain: {row.is_jain}
+          </span>
+        )}
+      </div>
+
+      {/* Delete row */}
+      <button
+        onClick={() => removeRow(row._id)}
+        className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-destructive transition-colors"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </li>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function MenuScanClient({ restaurant, existingCategories }: Props) {
   const router = useRouter();
@@ -39,6 +195,27 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [saving, setSavingAll] = useState(false);
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  // distance:5 prevents accidental drags when clicking inputs inside the row
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  // Derive grouped view from the flat rows array (source of truth).
+  // categoryOrder preserves first-seen insertion order.
+  const { groups, categoryOrder } = useMemo(() => {
+    const order: string[] = [];
+    const map: Record<string, EditableRow[]> = {};
+    for (const row of rows) {
+      if (!map[row.category]) {
+        map[row.category] = [];
+        order.push(row.category);
+      }
+      map[row.category].push(row);
+    }
+    return { groups: map, categoryOrder: order };
+  }, [rows]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -97,6 +274,37 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
     setRows((prev) => prev.filter((r) => r._id !== id));
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    setActiveDragId(event.active.id as string);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveDragId(null);
+    if (!over || active.id === over.id) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    setRows((prev) => {
+      const activeRow = prev.find((r) => r._id === activeId);
+      const overRow = prev.find((r) => r._id === overId);
+      if (!activeRow || !overRow) return prev;
+
+      // Cross-category drop: update the category field on the active row first
+      const updated =
+        activeRow.category !== overRow.category
+          ? prev.map((r) =>
+              r._id === activeId ? { ...r, category: overRow.category } : r
+            )
+          : prev;
+
+      const oldIndex = updated.findIndex((r) => r._id === activeId);
+      const newIndex = updated.findIndex((r) => r._id === overId);
+      return arrayMove(updated, oldIndex, newIndex);
+    });
+  }
+
   async function saveAll() {
     const selected = rows.filter((r) => r._selected);
     if (selected.length === 0) {
@@ -114,7 +322,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
         categoryMap[cat.name.toLowerCase()] = cat.id;
       }
 
-      // Step 1: Create parent categories first (e.g. "Coffee")
+      // Step 1: Create parent categories first
       const parentNames = Array.from(
         new Set(
           selected
@@ -144,7 +352,6 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
       );
 
       if (childCategoryNames.length > 0) {
-        // Find the parent_category for each child by checking the first dish that uses it
         const childInserts = childCategoryNames.map((name) => {
           const sampleRow = selected.find((r) => r.category === name);
           const parentId = sampleRow?.parent_category
@@ -163,21 +370,30 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
         }
       }
 
-      // Step 3: Insert products
-      const products = selected.map((r) => ({
-        restaurant_id: restaurant.id,
-        name: r.name.trim(),
-        name_hindi: r.name_hindi?.trim() || null,
-        description: r.description?.trim() || null,
-        price: r.price,
-        category_id: categoryMap[r.category.toLowerCase()] ?? null,
-        is_veg: r.is_veg,
-        is_jain: r.is_jain === 'Yes',
-        dietary_tags: r.dietary_tags?.trim() || null,
-        spice_level: 1,
-        allergens: [],
-        is_available: true,
-      }));
+      // Step 3: Insert products with sort_order derived from position within each category.
+      // `selected` preserves the order of `rows` (which reflects drag reordering),
+      // so per-category counters produce the correct relative sort_order values.
+      const sortCounters: Record<string, number> = {};
+      const products = selected.map((r) => {
+        const catKey = r.category.toLowerCase();
+        const sortOrder = sortCounters[catKey] ?? 0;
+        sortCounters[catKey] = sortOrder + 1;
+        return {
+          restaurant_id: restaurant.id,
+          name: r.name.trim(),
+          name_hindi: r.name_hindi?.trim() || null,
+          description: r.description?.trim() || null,
+          price: r.price,
+          category_id: categoryMap[r.category.toLowerCase()] ?? null,
+          is_veg: r.is_veg,
+          is_jain: r.is_jain === 'Yes',
+          dietary_tags: r.dietary_tags?.trim() || null,
+          spice_level: 1,
+          allergens: [],
+          is_available: true,
+          sort_order: sortOrder,
+        };
+      });
 
       const { error: prodErr } = await supabase.from('products').insert(products);
       if (prodErr) throw prodErr;
@@ -196,6 +412,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
   }
 
   const selectedCount = rows.filter((r) => r._selected).length;
+  const activeDragRow = activeDragId ? rows.find((r) => r._id === activeDragId) ?? null : null;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -318,7 +535,7 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
                 {rows.length} dish{rows.length !== 1 ? 'es' : ''} found
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Edit anything that looks wrong, then click Save All
+                Drag to reorder or move between categories, then click Save
               </p>
             </div>
             <Button
@@ -340,7 +557,8 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
           </div>
 
           {/* Table header */}
-          <div className="hidden sm:grid grid-cols-[auto_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div className="hidden sm:grid grid-cols-[24px_auto_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            <span />
             <span />
             <span>Name</span>
             <span>Category</span>
@@ -351,105 +569,55 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
             <span />
           </div>
 
-          <ul className="divide-y">
-            {rows.map((row) => (
-              <li
-                key={row._id}
-                className={cn(
-                  'grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-3 items-center',
-                  !row._selected && 'opacity-40'
-                )}
-              >
-                {/* Checkbox */}
-                <input
-                  type="checkbox"
-                  checked={row._selected}
-                  onChange={() => toggleRow(row._id)}
-                  className="w-4 h-4 cursor-pointer"
-                />
-
-                {/* Name */}
-                <Input
-                  value={row.name}
-                  onChange={(e) => updateRow(row._id, 'name', e.target.value)}
-                  className="h-8 text-sm"
-                  placeholder="Dish name"
-                />
-
-                {/* Category (shows parent → child if present) */}
-                <div className="flex flex-col gap-0.5">
-                  <Input
-                    value={row.category}
-                    onChange={(e) => updateRow(row._id, 'category', e.target.value)}
-                    className="h-8 text-sm"
-                    placeholder="Category"
-                  />
-                  {row.parent_category && (
-                    <span className="text-[10px] text-muted-foreground px-1 truncate">
-                      under {row.parent_category}
+          {/* Grouped sortable rows.
+              Single SortableContext over all row IDs so cross-category drags
+              animate and resolve correctly without needing onDragOver state. */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={rows.map((r) => r._id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {categoryOrder.map((cat) => (
+                <div key={cat}>
+                  <div className="px-4 py-1.5 bg-gray-50 border-y text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    {cat}
+                    <span className="ml-2 font-normal normal-case">
+                      ({groups[cat].length} dish{groups[cat].length !== 1 ? 'es' : ''})
                     </span>
-                  )}
+                  </div>
+                  <ul className="divide-y">
+                    {groups[cat].map((row) => (
+                      <SortableRow
+                        key={row._id}
+                        row={row}
+                        updateRow={updateRow}
+                        toggleRow={toggleRow}
+                        removeRow={removeRow}
+                      />
+                    ))}
+                  </ul>
                 </div>
+              ))}
+            </SortableContext>
 
-                {/* Price */}
-                <Input
-                  type="number"
-                  value={row.price}
-                  onChange={(e) =>
-                    updateRow(row._id, 'price', parseFloat(e.target.value) || 0)
-                  }
-                  className="h-8 text-sm"
-                  min="0"
-                />
-
-                {/* Hindi name */}
-                <Input
-                  value={row.name_hindi ?? ''}
-                  onChange={(e) => updateRow(row._id, 'name_hindi', e.target.value || null)}
-                  className="h-8 text-sm"
-                  placeholder="हिंदी"
-                />
-
-                {/* Veg toggle */}
-                <button
-                  type="button"
-                  onClick={() => updateRow(row._id, 'is_veg', !row.is_veg)}
-                  className={cn(
-                    'flex items-center justify-center gap-1 h-8 px-2 rounded-md border text-xs font-medium transition-colors',
-                    row.is_veg
-                      ? 'bg-green-50 border-green-400 text-green-700'
-                      : 'bg-red-50 border-red-400 text-red-700'
-                  )}
-                >
-                  <Leaf className="w-3 h-3" />
-                  {row.is_veg ? 'Veg' : 'NV'}
-                </button>
-
-                {/* Dietary Tags */}
-                <div className="flex flex-col gap-0.5">
-                  <Input
-                    value={row.dietary_tags ?? ''}
-                    onChange={(e) => updateRow(row._id, 'dietary_tags', e.target.value || null)}
-                    className="h-8 text-sm"
-                    placeholder="e.g. Vegan, Gluten Free"
-                  />
-                  {row.is_jain && row.is_jain !== 'No' && (
-                    <span className="text-[10px] text-amber-600 px-1 truncate">
-                      Jain: {row.is_jain}
-                    </span>
-                  )}
+            {/* Drag overlay — renders outside the scroll container, no clipping */}
+            <DragOverlay>
+              {activeDragRow ? (
+                <div className="bg-white border rounded-lg shadow-lg px-4 py-2 text-sm font-medium flex items-center gap-2 pointer-events-none">
+                  <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate">{activeDragRow.name}</span>
+                  <span className="text-muted-foreground text-xs flex-shrink-0">
+                    · {activeDragRow.category}
+                  </span>
                 </div>
-
-                {/* Delete row */}
-                <button
-                  onClick={() => removeRow(row._id)}
-                  className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </div>
       )}
     </div>
