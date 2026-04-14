@@ -63,11 +63,11 @@ export default function KitchenDashboard({ restaurant }: Props) {
     setLoadingAllTime(true);
     const supabase = createClient();
     const { data } = await supabase
-      .from('orders')
-      .select('*, items:order_items(*), table:tables(*)')
-      .eq('restaurant_id', restaurant.id)
-      .in('status', ['delivered', 'cancelled'])
-      .order('created_at', { ascending: false });
+  .from('orders')
+  .select('*, items:order_items(*), table:tables(*)')
+  .eq('restaurant_id', restaurant.id)
+  .or('payment_method.not.is.null,status.eq.cancelled')
+  .order('created_at', { ascending: false });
     if (data) setAllTimeOrders(data as Order[]);
     setLoadingAllTime(false);
   }, [restaurant.id, allTimeOrders]);
@@ -380,21 +380,24 @@ export default function KitchenDashboard({ restaurant }: Props) {
   // ── Filtering & grouping ───────────────────────────────────────────────────
 
   const filtered = (() => {
-    let list: Order[];
-    if (filter === 'active') list = orders.filter(o => o.status === 'placed' || o.status === 'ready');
-    else if (filter === 'all') list = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
-    else {
-      // 'completed' — all-time delivered/cancelled only (no active orders)
-      const base = allTimeOrders ?? orders;
-      list = base.filter(o => o.status === 'delivered' || o.status === 'cancelled');
-    }
+  let list: Order[];
+  // An order stays "active" until payment is recorded (or it's cancelled).
+  // "Completed" means payment has been recorded, or the order was cancelled.
+  if (filter === 'active') {
+    list = orders.filter(o => o.status !== 'cancelled' && !o.payment_method);
+  } else if (filter === 'all') {
+    list = orders.filter(o => !!o.payment_method || o.status === 'cancelled');
+  } else {
+    // 'completed' — lazy-loaded all-time paid/cancelled orders
+    list = allTimeOrders ?? orders.filter(o => !!o.payment_method || o.status === 'cancelled');
+  }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(o => o.customer_name?.toLowerCase().includes(q));
-    }
-    return list;
-  })();
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    list = list.filter(o => o.customer_name?.toLowerCase().includes(q));
+  }
+  return list;
+})();
 
   // Group merged orders into combined display items; singles stay individual.
   type DisplayItem =
@@ -421,7 +424,7 @@ export default function KitchenDashboard({ restaurant }: Props) {
     return items;
   }, [filtered]);
 
-  const activeCount = orders.filter((o) => o.status === 'placed').length;
+  const activeCount = orders.filter(o => o.status !== 'cancelled' && !o.payment_method).length;
 
   function changeFilter(f: FilterTab) {
     setFilter(f);
