@@ -46,7 +46,16 @@ export async function POST(req: NextRequest) {
     }
 
     const base64 = imageBuffer.toString('base64');
-    const dishes = await extractMenuFromImage(base64, mime);
+
+    // Fetch existing categories so the AI reuses them instead of inventing new ones
+    const { data: existingCats } = await supabase
+      .from('categories')
+      .select('name')
+      .eq('restaurant_id', user.id)
+      .order('sort_order');
+    const existingCategories = existingCats?.map(c => c.name) ?? [];
+
+    const dishes = await extractMenuFromImage(base64, mime, existingCategories);
     return NextResponse.json({ dishes });
   } catch (err: unknown) {
     console.error('Menu scan error:', err);

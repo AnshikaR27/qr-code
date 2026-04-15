@@ -67,12 +67,24 @@ export type ScannedDish = z.infer<typeof scannedDishSchema>;
 
 export async function extractMenuFromImage(
   imageBase64: string,
-  mimeType: string
+  mimeType: string,
+  existingCategories: string[] = []
 ): Promise<ScannedDish[]> {
   const model = getGenAI().getGenerativeModel({ model: 'gemini-2.5-flash' });
 
+  // Build dynamic prompt additions based on context
+  const categoryHint = existingCategories.length > 0
+    ? `\n\nEXISTING CATEGORIES IN THIS RESTAURANT (reuse these EXACT names when a dish fits, do NOT create duplicates): ${existingCategories.join(', ')}`
+    : '';
+
+  const jainRule = `\n\nJAIN FOOD RULE: If a page/section is titled "Jain Food" or "Special Jain Food", do NOT use "Jain Food" as the category. Instead, assign each dish to its real food category (e.g. a "Margarita Pizza" on the Jain page → category: "Pizza", is_jain: "Yes"). These are Jain-friendly versions of existing dishes, not a separate category.`;
+
+  const parentRule = `\n\nPARENT CATEGORY RULE: Only set parent_category when the menu VISIBLY shows multiple sub-sections under one parent header (e.g. "Beverages" containing both "Hot Tea" and "Iced Tea" sub-sections). If a section like "Hot Tea" stands alone with no visible sibling sub-category on the same page, leave parent_category null. A tagline like "Where there's Tea, there's hope!" is NOT a parent category. Never invent a parent that has only one child — flatten it.`;
+
+  const fullPrompt = EXTRACTION_PROMPT + categoryHint + jainRule + parentRule;
+
   const result = await model.generateContent([
-    EXTRACTION_PROMPT,
+    fullPrompt,
     {
       inlineData: {
         data: imageBase64,
@@ -156,6 +168,26 @@ export async function extractMenuFromImage(
       dishes.push(dish);
     } else {
       console.log('[ai-scanner] Skipped invalid item:', JSON.stringify(raw).slice(0, 200), result.error.issues);
+    }
+  }
+
+  // ── Post-processing: flatten parent categories with only one child ──
+  const parentChildMap = new Map<string, Set<string>>();
+  for (const d of dishes) {
+    if (d.parent_category) {
+      if (!parentChildMap.has(d.parent_category)) {
+        parentChildMap.set(d.parent_category, new Set());
+      }
+      parentChildMap.get(d.parent_category)!.add(d.category);
+    }
+  }
+  for (const d of dishes) {
+    if (d.parent_category) {
+      const children = parentChildMap.get(d.parent_category);
+      // If parent has only one child category, the hierarchy is pointless — flatten
+      if (children && children.size <= 1) {
+        d.parent_category = null;
+      }
     }
   }
 
