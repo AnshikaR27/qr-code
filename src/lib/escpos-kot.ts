@@ -1,5 +1,5 @@
 import { ESCPOSBuilder, formatDateTime } from './escpos';
-import type { OrderItem } from '@/types';
+import type { OrderItem, SelectedAddon } from '@/types';
 
 export interface KOTData {
   order_number: number;
@@ -8,7 +8,7 @@ export interface KOTData {
   created_at: string;
   notes: string | null;
   table?: { table_number: number; display_name?: string | null } | null;
-  items?: Pick<OrderItem, 'name' | 'quantity' | 'price' | 'category_name' | 'notes'>[];
+  items?: Pick<OrderItem, 'name' | 'quantity' | 'price' | 'category_name' | 'notes' | 'selected_addons'>[];
 }
 
 export function buildKOTTicket(
@@ -99,11 +99,21 @@ export function buildKOTTicket(
       p.bold(true).text(cat.toUpperCase().slice(0, lineWidth)).newLine().bold(false);
     }
     for (const item of catItems) {
+      // Main item line
       p.bold(true)
         .text(`${item.quantity}x `)
         .bold(false)
         .text(item.name.slice(0, lineWidth - 3))
         .newLine();
+
+      // Addon lines — indented with "  + " prefix
+      const addons: SelectedAddon[] = item.selected_addons ?? [];
+      for (const addon of addons) {
+        const addonLine = `   + ${addon.name}${addon.price > 0 ? ` (+${addon.price})` : ''}`;
+        p.text(addonLine.slice(0, lineWidth)).newLine();
+      }
+
+      // Per-item notes
       if (item.notes) {
         p.wrapText(`* ${item.notes}`, lineWidth, '   ');
       }

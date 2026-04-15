@@ -469,6 +469,12 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/menu/addons">
+              <Plus className="w-4 h-4 mr-2" />
+              Add-ons
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard/menu/scan">
               <Scan className="w-4 h-4 mr-2" />
               AI Scanner

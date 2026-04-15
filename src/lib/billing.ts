@@ -1,4 +1,4 @@
-import type { BillingConfig, TaxCategory, OrderItem } from '@/types';
+import type { BillingConfig, TaxCategory, OrderItem, SelectedAddon } from '@/types';
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ const CAT_LABELS: Record<TaxCategory, string> = {
 // ─── Core computation ─────────────────────────────────────────────────────────
 
 export function computeBill(
-  orderItems: Pick<OrderItem, 'name' | 'quantity' | 'price' | 'tax_category'>[],
+  orderItems: Pick<OrderItem, 'name' | 'quantity' | 'price' | 'tax_category' | 'selected_addons'>[],
   config: BillingConfig,
 ): BillBreakdown {
   const gstRate = config.gst_rate ?? 5;
@@ -60,11 +60,15 @@ export function computeBill(
   const items: BillItem[] = orderItems.map((i) => {
     const tc: TaxCategory = i.tax_category ?? 'food';
     const rate = resolveGstRate(tc, gstRate);
+    // Effective unit price = base price + sum of selected addon prices
+    const addons: SelectedAddon[] = i.selected_addons ?? [];
+    const addonTotal = addons.reduce((s, a) => s + (a.price ?? 0), 0);
+    const effectivePrice = i.price + addonTotal;
     return {
       name:       i.name,
       qty:        i.quantity,
-      unit_price: i.price,
-      total:      i.price * i.quantity,
+      unit_price: effectivePrice,
+      total:      effectivePrice * i.quantity,
       tax_category: tc,
       gst_rate:   rate,
     };
@@ -133,7 +137,7 @@ export function printCustomerBill(
     created_at: string;
     notes: string | null;
     table?: { table_number: number; display_name?: string | null } | null;
-    items?: Pick<OrderItem, 'name' | 'quantity' | 'price' | 'tax_category'>[];
+    items?: Pick<OrderItem, 'name' | 'quantity' | 'price' | 'tax_category' | 'selected_addons'>[];
   },
   restaurant: { name: string; phone: string | null },
   config: BillingConfig,

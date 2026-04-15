@@ -73,10 +73,35 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Calculate total server-side using DB prices
+  // Validate selected_addons against the database to get canonical prices.
+  // We fetch all referenced addon_item ids in one query, then build a map.
+  const allAddonItemIds: string[] = [];
+  for (const item of items) {
+    for (const addon of item.selected_addons ?? []) {
+      if (addon.addon_item_id) allAddonItemIds.push(addon.addon_item_id);
+    }
+  }
+
+  const addonItemMap = new Map<string, { name: string; price: number }>();
+  if (allAddonItemIds.length > 0) {
+    const { data: addonItems } = await getSupabaseAdmin()
+      .from('addon_items')
+      .select('id, name, price')
+      .in('id', allAddonItemIds);
+
+    for (const ai of addonItems ?? []) {
+      addonItemMap.set(ai.id, { name: ai.name, price: Number(ai.price) });
+    }
+  }
+
+  // Calculate total server-side using DB prices (base + addon prices)
   const total = items.reduce((sum, item) => {
     const p = productMap.get(item.product_id)!;
-    return sum + p.price * item.quantity;
+    const addonTotal = (item.selected_addons ?? []).reduce((s, addon) => {
+      const dbAddon = addonItemMap.get(addon.addon_item_id);
+      return s + (dbAddon?.price ?? 0);
+    }, 0);
+    return sum + (p.price + addonTotal) * item.quantity;
   }, 0);
 
   // Insert order
@@ -100,22 +125,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
   }
 
-  // Insert order items using DB prices and names
+  // Insert order items using DB prices and names.
+  // selected_addons is stored as JSONB with server-validated prices.
   const orderItems = items.map((item) => {
     const p = productMap.get(item.product_id)!;
     // Supabase returns the FK-joined row as an object or null at runtime,
     // but the inferred TS type may show it as an array — cast via unknown.
     const categoryName =
       (p.category as unknown as { name: string } | null)?.name ?? null;
+
+    // Build canonical selected_addons using DB prices
+    const selectedAddons = (item.selected_addons ?? []).map((clientAddon) => {
+      const dbAddon = addonItemMap.get(clientAddon.addon_item_id);
+      return {
+        addon_item_id: clientAddon.addon_item_id,
+        name: dbAddon?.name ?? clientAddon.name,
+        price: dbAddon?.price ?? 0,
+      };
+    });
+
     return {
       order_id: order.id,
       product_id: item.product_id,
       name: p.name,                    // denormalized from DB, not client
       name_hindi: p.name_hindi ?? null, // for bilingual kitchen tickets
-      price: p.price,                  // server-side price
+      price: p.price,                  // BASE price only (addons carry their own)
       quantity: item.quantity,
       notes: item.notes ?? null,
       category_name: categoryName,     // owner's existing category, for station printing
+      selected_addons: selectedAddons, // validated against DB
     };
   });
 

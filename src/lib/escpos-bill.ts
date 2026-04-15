@@ -9,7 +9,7 @@ export interface BillOrderData {
   created_at: string;
   notes: string | null;
   table?: { table_number: number; display_name?: string | null } | null;
-  items?: Pick<OrderItem, 'name' | 'quantity' | 'price' | 'tax_category'>[];
+  items?: Pick<OrderItem, 'name' | 'quantity' | 'price' | 'tax_category' | 'selected_addons'>[];
 }
 
 export function buildBillReceipt(
@@ -97,7 +97,7 @@ export function buildBillReceipt(
 
   p.dashLine(lineWidth);
 
-  // ── Items ──
+  // ── Items (effective price = base + addons) ──
   const colWidths: [number, number, number, number] = paperWidth === '58mm' ? [14, 4, 7, 7] : [20, 4, 8, 10];
   for (const item of bill.items) {
     p.itemLine(
@@ -107,6 +107,21 @@ export function buildBillReceipt(
       formatINR(item.total),
       colWidths,
     );
+
+    // Print addon lines (indented) for items that have addons
+    const originalItem = (order.items ?? []).find((oi) => oi.name === item.name);
+    const addons = originalItem?.selected_addons ?? [];
+    for (const addon of addons) {
+      if (addon.price > 0) {
+        const addonLabel = `  + ${addon.name}`;
+        p.text(addonLabel.slice(0, lineWidth - 8))
+          .text(' '.repeat(Math.max(0, lineWidth - 8 - addonLabel.slice(0, lineWidth - 8).length)))
+          .text(`+${formatINR(addon.price)}`)
+          .newLine();
+      } else {
+        p.text(`  + ${addon.name}`.slice(0, lineWidth)).newLine();
+      }
+    }
   }
 
   p.dashLine(lineWidth);

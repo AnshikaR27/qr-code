@@ -39,6 +39,21 @@ IMPORTANT for dietary tags: Do NOT skip or ignore colored or small-font text ben
 
 IMPORTANT for add-ons/sides: If the menu has a section like "Add-ons & Sides" or "Extras" that clearly belongs to a main category (e.g. appears under "Main Bowls"), set parent_category to that main category name.
 
+SKIP THESE ITEMS ENTIRELY — do NOT include them in the output array:
+- "Extra Cheese", "Extra Paratha", "Extra Sauce", "Extra Topping", "Extra Bread", or any item that starts with "Extra" and costs significantly less than other items in its section. These are add-on modifiers, not standalone dishes.
+- Any item whose name is just a price modifier (e.g. "Add Cheese ₹30", "Add-on: Fries ₹50").
+These will be configured separately as customization options.
+
+JAIN DUPLICATE RULE: If a "Jain Food" or "Special Jain Food" section contains dishes that are clearly Jain versions of dishes from other sections (e.g. "Alfredo Pasta" on the Jain page is the same as "Alfredo" on the Pasta page, "Margarita Pizza" on the Jain page is the same as "Margarita" on the Pizza page), do NOT create a separate dish entry. SKIP the Jain duplicate entirely — the original dish will be tagged with is_jain separately. If the Jain version has a DIFFERENT price than the original, still skip it.
+
+CATEGORY GROUPING RULE: If a menu page has ONE section header (e.g. "Indian Cuisine", "Italian Corner", "Chinese"), keep ALL items under that SINGLE category name. Do NOT split them into sub-categories like "Rice", "Biryani", "Breads", "Main Course" based on the dish names. The restaurant chose to group them together — respect that grouping. Only create separate categories when the menu VISIBLY has separate section headers with their own titles.
+
+FULL NAMES RULE: Always extract the COMPLETE dish name as shown on the menu, including accompaniments and descriptions that are part of the name. For example:
+- "Paneer Bhurji With Butter Tawa Paratha (2pc)" — use the FULL name, not just "Paneer Bhurji"
+- "Dal Makhni With Jeera Rice / Lemon Rice / Mint Rice" — include the full accompaniment text
+- "Lemon Iced Tea With Strawberry Punch" — full name, not just "Lemon Iced Tea"
+Include everything the menu shows as part of the dish name on the same line or directly below it.
+
 Return ONLY a valid JSON array. No markdown, no explanation, no code blocks.`;
 
 const MARKETING_WORDS = /\b(extreme|ultimate|signature|premium|special|house|chef'?s|classic|authentic|traditional|original|the)\b/gi;
@@ -151,6 +166,18 @@ export async function extractMenuFromImage(
     // Coerce is_jain: convert boolean to string
     if (typeof raw.is_jain === 'boolean') {
       raw.is_jain = raw.is_jain ? 'Yes' : 'No';
+    }
+
+    // Safety net: filter out add-on items even if Gemini ignores the prompt
+    if (typeof raw.name === 'string' && /^extra\s/i.test(raw.name) && typeof raw.price === 'number' && raw.price <= 50) {
+      console.log('[ai-scanner] Filtered add-on item:', raw.name);
+      continue;
+    }
+
+    // Safety net: filter out items explicitly marked as add-ons
+    if (raw.is_addon === true) {
+      console.log('[ai-scanner] Filtered is_addon item:', raw.name);
+      continue;
     }
 
     const result = scannedDishSchema.safeParse(raw);

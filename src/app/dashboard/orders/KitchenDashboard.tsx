@@ -697,16 +697,30 @@ function MergedOrderCard({
             </div>
             {/* Items */}
             <div className="space-y-1">
-              {(order.items ?? []).map((item) => (
-                <div key={item.id} className="flex justify-between gap-2">
-                  <span className="text-sm">
-                    <span className="font-semibold">{item.quantity}×</span> {item.name}
-                  </span>
-                  <span className="text-xs text-muted-foreground flex-shrink-0">
-                    {formatPrice(item.price * item.quantity)}
-                  </span>
-                </div>
-              ))}
+              {(order.items ?? []).map((item) => {
+                const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
+                const effectivePrice = item.price + addonTotal;
+                return (
+                  <div key={item.id}>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-sm">
+                        <span className="font-semibold">{item.quantity}×</span> {item.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {formatPrice(effectivePrice * item.quantity)}
+                      </span>
+                    </div>
+                    {(item.selected_addons ?? []).map((addon, ai) => (
+                      <div key={ai} className="flex justify-between gap-2 pl-4">
+                        <span className="text-xs text-muted-foreground">+ {addon.name}</span>
+                        {addon.price > 0 && (
+                          <span className="text-xs text-muted-foreground flex-shrink-0">+{formatPrice(addon.price)}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ))}
@@ -952,21 +966,35 @@ function OrderCard({
 
       {/* ── Items ── */}
       <div className="flex-1 px-4 py-3 space-y-1.5">
-        {(order.items ?? []).map((item) => (
-          <div key={item.id} className="flex justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <span className="text-sm">
-                <span className="font-semibold">{item.quantity}×</span> {item.name}
-              </span>
-              {item.notes && (
-                <p className="text-xs text-muted-foreground italic">&ldquo;{item.notes}&rdquo;</p>
-              )}
+        {(order.items ?? []).map((item) => {
+          const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
+          const effectivePrice = item.price + addonTotal;
+          return (
+            <div key={item.id}>
+              <div className="flex justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm">
+                    <span className="font-semibold">{item.quantity}×</span> {item.name}
+                  </span>
+                  {item.notes && (
+                    <p className="text-xs text-muted-foreground italic">&ldquo;{item.notes}&rdquo;</p>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground flex-shrink-0">
+                  {formatPrice(effectivePrice * item.quantity)}
+                </span>
+              </div>
+              {(item.selected_addons ?? []).map((addon, ai) => (
+                <div key={ai} className="flex justify-between gap-2 pl-4">
+                  <span className="text-xs text-muted-foreground">+ {addon.name}</span>
+                  {addon.price > 0 && (
+                    <span className="text-xs text-muted-foreground flex-shrink-0">+{formatPrice(addon.price)}</span>
+                  )}
+                </div>
+              ))}
             </div>
-            <span className="text-xs text-muted-foreground flex-shrink-0">
-              {formatPrice(item.price * item.quantity)}
-            </span>
-          </div>
-        ))}
+          );
+        })}
         {order.notes && (
           <p className="text-xs text-muted-foreground border-t pt-2 mt-2 italic">
             Note: {order.notes}

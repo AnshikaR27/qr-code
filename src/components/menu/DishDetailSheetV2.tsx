@@ -79,7 +79,7 @@ export default function DishDetailSheetV2({
     const existingNotes = existing?.notes ?? '';
     setNotes(existingNotes);
     setShowNotes(existingNotes.length > 0);
-    setSelectedAddons(new Set(existing?.addons.map((a) => a.product_id) ?? []));
+    setSelectedAddons(new Set((existing?.addons ?? []).map((a) => a.product_id)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
 
@@ -92,8 +92,11 @@ export default function DishDetailSheetV2({
   if (!product) return null;
 
   const dish = product;
+  // For the detail sheet we work with the first cart line for this product
+  // (there may be multiple lines if the dish has addon variants)
   const cartItem = items.find((i) => i.product_id === dish.id);
-  const cartQty = cartItem?.quantity ?? 0;
+  const cartKey  = cartItem?.cart_key ?? dish.id;
+  const cartQty  = cartItem?.quantity ?? 0;
   const primaryName = (lang === 'hi' && dish.name_hindi) ? dish.name_hindi : dish.name;
 
   function toggleAddon(addonProduct: Product) {
@@ -125,10 +128,10 @@ export default function DishDetailSheetV2({
     if (cartQty === 0) {
       for (let i = 0; i < localQty; i++) addItem(dish, addons);
     } else {
-      updateQuantity(dish.id, cartQty + localQty);
-      updateAddons(dish.id, addons);
+      updateQuantity(cartKey, cartQty + localQty);
+      updateAddons(cartKey, addons);
     }
-    updateNotes(dish.id, notes.trim());
+    updateNotes(cartKey, notes.trim());
     onClose();
   }
 

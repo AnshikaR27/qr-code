@@ -50,6 +50,7 @@ export default function CartSheetV2({
           quantity: i.quantity,
           is_veg: i.is_veg,
           notes: i.notes,
+          selected_addons: i.selected_addons,
         })),
         total,
         savedAt: Date.now(),
@@ -64,17 +65,20 @@ export default function CartSheetV2({
       customer_phone: null,
       notes: orderNote.trim() || null,
       items: items.map((i) => {
-        const addonTotal = i.addons.reduce((s, a) => s + a.price, 0);
-        const addonText = i.addons.length > 0
+        // Build notes text from legacy addons (child-category style)
+        const legacyAddonText = i.addons.length > 0
           ? `Add-ons: ${i.addons.map((a) => `${a.name} (₹${a.price})`).join(', ')}`
           : '';
-        const itemNotes = [i.notes, addonText].filter(Boolean).join(' | ');
+        const itemNotes = [i.notes, legacyAddonText].filter(Boolean).join(' | ');
         return {
           product_id: i.product_id,
           name: i.name,
-          price: i.price + addonTotal,
+          // Price is BASE price only; selected_addons carry their own prices
+          price: i.price,
           quantity: i.quantity,
           notes: itemNotes || null,
+          // New structured addons
+          selected_addons: i.selected_addons,
         };
       }),
     }));
@@ -148,10 +152,16 @@ export default function CartSheetV2({
               <div className="flex-1 overflow-y-auto py-2">
                 {items.map((item) => {
                   const imgUrl = getProductImage(item.product_id);
+                  // Total addons price (legacy + new structured addons)
+                  const legacyAddonTotal = item.addons.reduce((s, a) => s + a.price, 0);
+                  const newAddonTotal = item.selected_addons.reduce((s, a) => s + a.price, 0);
+                  const addonTotal = legacyAddonTotal + newAddonTotal;
+                  const lineTotal = item.price + addonTotal;
+
                   return (
                     <div
-                      key={item.product_id}
-                      className="flex items-center border-b"
+                      key={item.cart_key}
+                      className="flex items-start border-b"
                       style={{
                         gap: spacingScale.gap,
                         paddingLeft: spacingScale.px,
@@ -163,7 +173,7 @@ export default function CartSheetV2({
                     >
                       {/* Thumbnail */}
                       <div
-                        className="overflow-hidden shrink-0 flex items-center justify-center"
+                        className="overflow-hidden shrink-0 flex items-center justify-center mt-0.5"
                         style={{
                           width: sizeScale.cartThumb,
                           height: sizeScale.cartThumb,
@@ -187,26 +197,46 @@ export default function CartSheetV2({
                         >
                           {item.name}
                         </div>
+
+                        {/* Legacy child-category addons */}
                         {item.addons.length > 0 && (
                           <div
-                            className="mt-0.5 truncate"
+                            className="mt-0.5"
                             style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
                           >
                             + {item.addons.map((a) => a.name).join(', ')}
                           </div>
                         )}
+
+                        {/* New structured addons — one per line */}
+                        {item.selected_addons.map((sa) => (
+                          <div
+                            key={sa.addon_item_id}
+                            className="flex items-center justify-between mt-0.5"
+                            style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+                          >
+                            <span className="pl-2">+ {sa.name}</span>
+                            {sa.price > 0 && (
+                              <span className="shrink-0 ml-2" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
+                                +₹{sa.price}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+
+                        {/* Line price */}
                         <div
-                          className="mt-0.5"
+                          className="mt-1"
                           style={{ fontSize: typeScale.body, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
                         >
-                          {formatPrice(item.price + item.addons.reduce((s, a) => s + a.price, 0))}
+                          {formatPrice(lineTotal)}
                         </div>
                       </div>
 
                       {/* Qty stepper */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0 mt-0.5">
                         <button
-                          onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
+                          onClick={() => updateQuantity(item.cart_key, item.quantity - 1)}
                           className="w-7 h-7 rounded-full bg-transparent cursor-pointer flex items-center justify-center"
                           style={{ border: '1px solid var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text, #1c1c17)' }}
                         >
@@ -219,7 +249,7 @@ export default function CartSheetV2({
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
+                          onClick={() => updateQuantity(item.cart_key, item.quantity + 1)}
                           className="w-7 h-7 rounded-full bg-transparent cursor-pointer flex items-center justify-center"
                           style={{ border: '1px solid var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text, #1c1c17)' }}
                         >

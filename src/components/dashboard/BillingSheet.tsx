@@ -211,14 +211,26 @@ export default function BillingSheet({ orders, restaurant, onConfirm, onClose }:
                     <div key={order.id}>
                       <p className="text-xs font-medium text-indigo-600 mb-1">{tLabel}</p>
                       <div className="space-y-1 pl-2 border-l-2 border-indigo-100">
-                        {(order.items ?? []).map((item, i) => (
-                          <div key={item.id ?? i} className="flex justify-between text-sm">
-                            <span className="text-gray-700">
-                              <span className="font-medium">{item.quantity}×</span> {item.name}
-                            </span>
-                            <span className="text-gray-500 flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
-                          </div>
-                        ))}
+                        {(order.items ?? []).map((item, i) => {
+                          const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
+                          const effectivePrice = item.price + addonTotal;
+                          return (
+                            <div key={item.id ?? i}>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-700">
+                                  <span className="font-medium">{item.quantity}×</span> {item.name}
+                                </span>
+                                <span className="text-gray-500 flex-shrink-0">{formatPrice(effectivePrice * item.quantity)}</span>
+                              </div>
+                              {(item.selected_addons ?? []).map((addon, ai) => (
+                                <div key={ai} className="flex justify-between text-xs text-gray-400 pl-5">
+                                  <span>+ {addon.name}</span>
+                                  {addon.price > 0 && <span>+{formatPrice(addon.price)}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -226,14 +238,26 @@ export default function BillingSheet({ orders, restaurant, onConfirm, onClose }:
               </div>
             ) : (
               <div className="space-y-1">
-                {allItems.map((item, i) => (
-                  <div key={item.id ?? i} className="flex justify-between text-sm">
-                    <span className="text-gray-700">
-                      <span className="font-medium">{item.quantity}×</span> {item.name}
-                    </span>
-                    <span className="text-gray-500 flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
-                  </div>
-                ))}
+                {allItems.map((item, i) => {
+                  const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
+                  const effectivePrice = item.price + addonTotal;
+                  return (
+                    <div key={item.id ?? i}>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-700">
+                          <span className="font-medium">{item.quantity}×</span> {item.name}
+                        </span>
+                        <span className="text-gray-500 flex-shrink-0">{formatPrice(effectivePrice * item.quantity)}</span>
+                      </div>
+                      {(item.selected_addons ?? []).map((addon, ai) => (
+                        <div key={ai} className="flex justify-between text-xs text-gray-400 pl-5">
+                          <span>+ {addon.name}</span>
+                          {addon.price > 0 && <span>+{formatPrice(addon.price)}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

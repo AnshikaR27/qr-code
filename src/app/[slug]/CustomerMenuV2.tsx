@@ -7,6 +7,8 @@ import { formatPrice } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
+import { createClient } from '@/lib/supabase/client';
+import { getAddonGroupsForProduct } from '@/lib/addon-utils';
 import WelcomeScreenV2 from '@/components/menu/WelcomeScreenV2';
 import MenuNavbarV2 from '@/components/menu/MenuNavbarV2';
 import CategoryTabsV2 from '@/components/menu/CategoryTabsV2';
@@ -14,7 +16,7 @@ import DishCardV2 from '@/components/menu/DishCardV2';
 import DishDetailSheetV2 from '@/components/menu/DishDetailSheetV2';
 import CartBarV2 from '@/components/menu/CartBarV2';
 import CartSheetV2 from '@/components/menu/CartSheetV2';
-import CallWaiterButton from '@/components/menu/CallWaiterButton';
+import AddonSheet from '@/components/menu/AddonSheet';
 import { useCart } from '@/hooks/useCart';
 import type { CartItem, Category, Product, Restaurant } from '@/types';
 
@@ -142,6 +144,9 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
   const [zoomedImage, setZoomedImage] = useState<{ url: string; name: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // AddonSheet state
+  const [addonProduct, setAddonProduct] = useState<Product | null>(null);
+
   // Repeat last order
   const [repeatOrder, setRepeatOrder] = useState<{ items: Omit<CartItem, 'name_hindi'>[]; total: number } | null>(null);
   const [showRepeat, setShowRepeat] = useState(false);
@@ -184,13 +189,14 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
   const prevCartRef = useRef<CartItem[]>([]);
   useEffect(() => {
     const prev = prevCartRef.current;
-    const newlyAdded = cartItems.filter((item) => !prev.find((p) => p.product_id === item.product_id));
+    // Detect newly added cart lines by cart_key
+    const newlyAdded = cartItems.filter((item) => !prev.find((p) => p.cart_key === item.cart_key));
     if (newlyAdded.length > 0) {
       const added = newlyAdded[0];
       setToastMessage(`1 ${added.name} has been added`);
     }
     prevCartRef.current = cartItems;
-  }, [cartItems, products, categories, addItem]);
+  }, [cartItems]);
 
   function handleRepeatOrder() {
     if (!repeatOrder) return;
@@ -283,6 +289,22 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
       );
     }
     return ps;
+  }
+
+  /**
+   * Called when a customer taps the "+" button on a dish card.
+   * - If the dish has addon groups → open the AddonSheet
+   * - If not → add directly (unchanged behaviour)
+   */
+  async function handleDishAdd(dish: Product) {
+    const supabase = createClient();
+    const groups = await getAddonGroupsForProduct(supabase, dish.id, dish.category_id ?? null);
+    if (groups.length > 0) {
+      setAddonProduct(dish);
+    } else {
+      addItem(dish);
+      navigator.vibrate?.(50);
+    }
   }
 
   const itemCount = getItemCount();
@@ -549,6 +571,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                                   ? (url, name) => setZoomedImage({ url, name })
                                   : undefined
                               }
+                              onAdd={handleDishAdd}
                             />
                           ))}
                         </div>
@@ -557,14 +580,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   );
                 })}
               </div>
-
-              {/* TODO: Re-enable Call Waiter — commented out to fix bottom bar overlap */}
-              {/* <CallWaiterButton
-                restaurantId={restaurant.id}
-                tableId={tableId}
-                tokens={tokens}
-                cartVisible={itemCount > 0}
-              /> */}
 
               {/* Back to top */}
               {showBackToTop && (
@@ -602,6 +617,12 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 tokens={tokens}
                 products={products}
               />
+
+              {/* Addon customization sheet */}
+              <AddonSheet
+                product={addonProduct}
+                onClose={() => setAddonProduct(null)}
+              />
             </>
           )}
 
@@ -619,8 +640,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
         total={total}
         onOpen={() => { setView('menu'); setCartOpen(true); }}
       />
-
-      {/* Bottom nav removed — cart bar is the only fixed bottom element */}
 
       {/* Long press image zoom overlay */}
       {zoomedImage && (

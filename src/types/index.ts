@@ -201,9 +201,41 @@ export interface OrderItem {
   notes: string | null;
   category_name: string | null;
   tax_category: TaxCategory;
+  selected_addons: SelectedAddon[];
+}
+
+// ─── Add-ons ──────────────────────────────────────────────────────────────────
+
+export interface AddonGroup {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  selection_type: 'checkbox' | 'radio';
+  is_required: boolean;
+  max_selections: number | null;
+  sort_order: number;
+  created_at: string;
+  items: AddonItem[];
+}
+
+export interface AddonItem {
+  id: string;
+  addon_group_id: string;
+  name: string;
+  price: number;
+  is_veg: boolean;
+  is_available: boolean;
+  sort_order: number;
+}
+
+export interface SelectedAddon {
+  addon_item_id: string;
+  name: string;
+  price: number;
 }
 
 // Cart (client-side only, Zustand store)
+// CartAddon is the legacy product-based add-on (child categories). Kept for backwards compat.
 export interface CartAddon {
   product_id: string;
   name: string;
@@ -211,6 +243,8 @@ export interface CartAddon {
 }
 
 export interface CartItem {
+  /** Unique key — product_id + JSON of selected_addons so same dish with different addons = separate lines */
+  cart_key: string;
   product_id: string;
   name: string;
   name_hindi: string | null;
@@ -218,7 +252,10 @@ export interface CartItem {
   quantity: number;
   notes: string;
   is_veg: boolean;
+  /** Legacy child-category addons (kept for backwards compat with DishDetailSheetV2) */
   addons: CartAddon[];
+  /** New structured add-ons from addon_groups / addon_items */
+  selected_addons: SelectedAddon[];
 }
 
 export type WaiterCallStatus = 'pending' | 'acknowledged';
@@ -235,12 +272,14 @@ export interface WaiterCall {
 
 export interface CartStore {
   items: CartItem[];
-  addItem: (product: Product, addons?: CartAddon[]) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  updateNotes: (productId: string, notes: string) => void;
-  updateAddons: (productId: string, addons: CartAddon[]) => void;
+  addItem: (product: Product, addons?: CartAddon[], selectedAddons?: SelectedAddon[]) => void;
+  removeItem: (cartKey: string) => void;
+  updateQuantity: (cartKey: string, quantity: number) => void;
+  updateNotes: (cartKey: string, notes: string) => void;
+  updateAddons: (cartKey: string, addons: CartAddon[]) => void;
   clearCart: () => void;
   getTotal: () => number;
   getItemCount: () => number;
+  /** Returns total quantity of a product across ALL addon variations */
+  getProductCount: (productId: string) => number;
 }

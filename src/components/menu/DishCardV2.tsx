@@ -16,6 +16,12 @@ interface Props {
   lang?: 'en' | 'hi';
   onTap: () => void;
   onLongPressImage?: (url: string, name: string) => void;
+  /**
+   * Called when the customer taps the "+" button.
+   * The parent decides whether to open AddonSheet or add directly.
+   * If omitted, falls back to addItem directly (no-addon behaviour).
+   */
+  onAdd?: (dish: Product) => void;
 }
 
 export default function DishCardV2({
@@ -25,8 +31,9 @@ export default function DishCardV2({
   lang = 'en',
   onTap,
   onLongPressImage,
+  onAdd,
 }: Props) {
-  const { items, addItem, updateQuantity } = useCart();
+  const { items, addItem, updateQuantity, getProductCount } = useCart();
   const reduced = useReducedMotion();
 
   const outerRef = useRef<HTMLDivElement>(null);
@@ -63,25 +70,40 @@ export default function DishCardV2({
     }
   }
 
-  const cartItem = items.find((i) => i.product_id === dish.id);
-  const qty = cartItem?.quantity ?? 0;
+  // Total qty across ALL addon variants of this product
+  const qty = getProductCount(dish.id);
   const primaryName = (lang === 'hi' && dish.name_hindi) ? dish.name_hindi : dish.name;
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
-    addItem(dish);
+    if (onAdd) {
+      onAdd(dish);
+    } else {
+      addItem(dish);
+    }
     navigator.vibrate?.(50);
   }
 
   function handleIncrease(e: React.MouseEvent) {
     e.stopPropagation();
-    updateQuantity(dish.id, qty + 1);
+    // "+" always opens a new customization sheet (or adds directly if no addons)
+    if (onAdd) {
+      onAdd(dish);
+    } else {
+      addItem(dish);
+    }
     navigator.vibrate?.(30);
   }
 
   function handleDecrease(e: React.MouseEvent) {
     e.stopPropagation();
-    updateQuantity(dish.id, qty - 1);
+    // Decrease the most recently added variant's quantity by 1.
+    // The cart sheet lets customers manage individual variants precisely.
+    const productItems = items.filter((i) => i.product_id === dish.id);
+    if (productItems.length === 0) return;
+    // Pick the last item (most recently added variation)
+    const lastItem = productItems[productItems.length - 1];
+    updateQuantity(lastItem.cart_key, lastItem.quantity - 1);
   }
 
   return (

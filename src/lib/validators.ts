@@ -44,6 +44,11 @@ export const placeOrderSchema = z.object({
     price: z.number().positive(),
     quantity: z.number().int().positive().max(50),
     notes: z.string().max(200).optional().nullable(),
+    selected_addons: z.array(z.object({
+      addon_item_id: z.string().uuid(),
+      name: z.string(),
+      price: z.number().min(0),
+    })).optional().default([]),
   })).min(1, 'Order must have at least one item'),
 }).refine(
   (data) => {
