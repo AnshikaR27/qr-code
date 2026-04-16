@@ -191,9 +191,9 @@ export async function extractMenuFromImage(
       continue;
     }
 
-    const result = scannedDishSchema.safeParse(raw);
-    if (result.success) {
-      const dish = result.data;
+    const parseResult = scannedDishSchema.safeParse(raw);
+    if (parseResult.success) {
+      const dish = parseResult.data;
       // Clean marketing/decorative words from category names
       if (dish.category) {
         dish.category = cleanCategory(dish.category) || dish.category;
@@ -205,7 +205,7 @@ export async function extractMenuFromImage(
       }
       dishes.push(dish);
     } else {
-      console.log('[ai-scanner] Skipped invalid item:', JSON.stringify(raw).slice(0, 200), result.error.issues);
+      console.log('[ai-scanner] Skipped invalid item:', JSON.stringify(raw).slice(0, 200), parseResult.error.issues);
     }
   }
 

@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import { createClient } from '@/lib/supabase/server';
 import { extractMenuFromImage } from '@/lib/ai-scanner';
 
-const GROQ_SUPPORTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const GEMINI_SUPPORTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export async function POST(req: NextRequest) {
   // Auth check
@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
     let imageBuffer: Buffer = rawBuffer;
     let mime = file.type;
 
-    // Convert unsupported formats (e.g. AVIF) to JPEG for Groq
-    if (!GROQ_SUPPORTED_TYPES.has(mime)) {
+    // Convert unsupported formats (e.g. AVIF, GIF) to JPEG for Gemini
+    if (!GEMINI_SUPPORTED_TYPES.has(mime)) {
       imageBuffer = Buffer.from(await sharp(rawBuffer).jpeg({ quality: 90 }).toBuffer());
       mime = 'image/jpeg';
     }

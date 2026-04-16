@@ -324,6 +324,13 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
     try {
       const supabase = createClient();
 
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Session expired — please log in again');
+        setSavingAll(false);
+        return;
+      }
+
       // Build a map of category name → id (create new ones as needed)
       const categoryMap: Record<string, string> = {};
       for (const cat of existingCategories) {
@@ -350,32 +357,40 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
         }
       }
 
-      // Step 2: Create child categories with parent_category_id linked
-      const childCategoryNames = Array.from(
-        new Set(
-          selected
-            .map((r) => r.category)
-            .filter((c) => !categoryMap[c.toLowerCase()])
-        )
-      );
+      // Step 2: Create child categories with parent_category_id linked.
+      // Deduplicate by lowercase to avoid inserting "Pizza" and "pizza" as two separate categories.
+      const seenChildKeys = new Map<string, string>();
+      for (const c of selected.map((r) => r.category)) {
+        const key = c.toLowerCase();
+        if (!categoryMap[key] && !seenChildKeys.has(key)) {
+          seenChildKeys.set(key, c);
+        }
+      }
+      const childCategoryNames = Array.from(seenChildKeys.values());
 
       if (childCategoryNames.length > 0) {
         const childInserts = childCategoryNames.map((name) => {
-          const sampleRow = selected.find((r) => r.category === name);
+          const sampleRow = selected.find((r) => r.category.toLowerCase() === name.toLowerCase());
           const parentId = sampleRow?.parent_category
             ? categoryMap[sampleRow.parent_category.toLowerCase()] ?? null
             : null;
           return { restaurant_id: restaurant.id, name, parent_category_id: parentId };
         });
 
-        const { data: newCats, error } = await supabase
+        const { error } = await supabase
           .from('categories')
-          .insert(childInserts)
-          .select();
+          .insert(childInserts);
         if (error) throw error;
-        for (const cat of newCats ?? []) {
-          categoryMap[cat.name.toLowerCase()] = cat.id;
-        }
+      }
+
+      // Re-fetch all categories fresh — .insert().select() can return nothing if RLS
+      // only allows SELECT on existing rows, leaving categoryMap stale and products uncategorized.
+      const { data: freshCats } = await supabase
+        .from('categories')
+        .select('id, name')
+        .eq('restaurant_id', restaurant.id);
+      for (const cat of freshCats ?? []) {
+        if (cat.name) categoryMap[cat.name.toLowerCase()] = cat.id;
       }
 
       // Step 3: Insert products with sort_order derived from position within each category.
@@ -413,7 +428,9 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
       router.refresh();
       toast.success(`${selected.length} dish${selected.length !== 1 ? 'es' : ''} saved to your menu!`);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save dishes');
+      console.error('[MenuScan] Save failed:', err);
+      const msg = err instanceof Error ? err.message : typeof err === 'object' && err !== null && 'message' in err ? String((err as { message: unknown }).message) : 'Failed to save dishes';
+      toast.error(msg, { duration: 10000 });
     } finally {
       setSavingAll(false);
     }
