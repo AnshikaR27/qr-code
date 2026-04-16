@@ -77,7 +77,7 @@ function SortableRow({ row, updateRow, toggleRow, removeRow }: RowProps) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'grid grid-cols-1 sm:grid-cols-[24px_auto_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-3 items-center',
+        'grid grid-cols-1 sm:grid-cols-[24px_auto_1fr_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-3 items-center',
         !row._selected && 'opacity-40',
         isDragging && 'opacity-30 bg-gray-50',
       )}
@@ -123,6 +123,14 @@ function SortableRow({ row, updateRow, toggleRow, removeRow }: RowProps) {
           </span>
         )}
       </div>
+
+      {/* Description */}
+      <Input
+        value={row.description ?? ''}
+        onChange={(e) => updateRow(row._id, 'description', e.target.value || null)}
+        className="h-8 text-sm"
+        placeholder="Description"
+      />
 
       {/* Price */}
       <Input
@@ -557,11 +565,12 @@ export default function MenuScanClient({ restaurant, existingCategories }: Props
           </div>
 
           {/* Table header */}
-          <div className="hidden sm:grid grid-cols-[24px_auto_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div className="hidden sm:grid grid-cols-[24px_auto_1fr_1fr_1fr_80px_80px_80px_1fr_40px] gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             <span />
             <span />
             <span>Name</span>
             <span>Category</span>
+            <span>Description</span>
             <span>Price (₹)</span>
             <span>Hindi</span>
             <span>Veg?</span>
