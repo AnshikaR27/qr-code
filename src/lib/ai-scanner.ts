@@ -48,6 +48,11 @@ JAIN DUPLICATE RULE: If a "Jain Food" or "Special Jain Food" section contains di
 
 CATEGORY GROUPING RULE: If a menu page has ONE section header (e.g. "Indian Cuisine", "Italian Corner", "Chinese"), keep ALL items under that SINGLE category name. Do NOT split them into sub-categories like "Rice", "Biryani", "Breads", "Main Course" based on the dish names. The restaurant chose to group them together — respect that grouping. Only create separate categories when the menu VISIBLY has separate section headers with their own titles.
 
+VARIANT ITEMS RULE:
+- If an item has size variants listed separately (e.g. "Mineral Water ₹20 Small" and "Mineral Water ₹30 Big"), create SEPARATE dish entries for each: "Mineral Water (Small)" ₹20 and "Mineral Water (Big)" ₹30.
+- If a price shows "MRP" instead of a number (e.g. "Red Bull ₹MRP"), SKIP that item entirely — there is no fixed price to extract.
+- If an item lists sub-options in parentheses or smaller text below it (e.g. "Soft Drinks ₹40" with "(Thumbs up, Coca-cola, Sprite, Fanta)" below), create ONE dish entry at that price. Put the sub-options in the description field: name: "Soft Drinks", price: 40, description: "Thumbs Up, Coca-Cola, Sprite, Fanta". These sub-options will be configured as customization choices separately.
+
 FULL NAMES RULE: Always extract the COMPLETE dish name as shown on the menu, including accompaniments and descriptions that are part of the name. For example:
 - "Paneer Bhurji With Butter Tawa Paratha (2pc)" — use the FULL name, not just "Paneer Bhurji"
 - "Dal Makhni With Jeera Rice / Lemon Rice / Mint Rice" — include the full accompaniment text
@@ -177,6 +182,12 @@ export async function extractMenuFromImage(
     // Safety net: filter out items explicitly marked as add-ons
     if (raw.is_addon === true) {
       console.log('[ai-scanner] Filtered is_addon item:', raw.name);
+      continue;
+    }
+
+    // Safety net: filter out items with no valid price (e.g. "MRP" that parsed to NaN)
+    if (typeof raw.price === 'number' && isNaN(raw.price)) {
+      console.log('[ai-scanner] Filtered NaN price item:', raw.name);
       continue;
     }
 
