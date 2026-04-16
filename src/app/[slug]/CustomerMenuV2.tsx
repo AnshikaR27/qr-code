@@ -7,8 +7,6 @@ import { formatPrice } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
-import { createClient } from '@/lib/supabase/client';
-import { getAddonGroupsForProduct } from '@/lib/addon-utils';
 import WelcomeScreenV2 from '@/components/menu/WelcomeScreenV2';
 import MenuNavbarV2 from '@/components/menu/MenuNavbarV2';
 import CategoryTabsV2 from '@/components/menu/CategoryTabsV2';
@@ -18,7 +16,7 @@ import CartBarV2 from '@/components/menu/CartBarV2';
 import CartSheetV2 from '@/components/menu/CartSheetV2';
 import AddonSheet from '@/components/menu/AddonSheet';
 import { useCart } from '@/hooks/useCart';
-import type { CartItem, Category, Product, Restaurant } from '@/types';
+import type { AddonGroup, CartItem, Category, Product, Restaurant } from '@/types';
 
 type ActiveFilter = 'all' | 'veg' | 'non_veg' | 'bestseller';
 type Lang = 'en' | 'hi';
@@ -29,6 +27,7 @@ interface Props {
   categories: Category[];
   products: Product[];
   tableId: string | null;
+  addonGroupMap?: Record<string, AddonGroup[]>;
 }
 
 /* ── Custom Toast Component ─────────────────────────────────────────── */
@@ -75,7 +74,7 @@ function SundayToast({
   );
 }
 
-export default function CustomerMenuV2({ restaurant, categories, products, tableId }: Props) {
+export default function CustomerMenuV2({ restaurant, categories, products, tableId, addonGroupMap = {} }: Props) {
   const tokens = useMemo(
     () => buildMenuTokens(restaurant.design_tokens),
     [restaurant.design_tokens]
@@ -291,14 +290,8 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
     return ps;
   }
 
-  /**
-   * Called when a customer taps the "+" button on a dish card.
-   * - If the dish has addon groups → open the AddonSheet
-   * - If not → add directly (unchanged behaviour)
-   */
-  async function handleDishAdd(dish: Product) {
-    const supabase = createClient();
-    const groups = await getAddonGroupsForProduct(supabase, dish.id, dish.category_id ?? null);
+  function handleDishAdd(dish: Product) {
+    const groups = addonGroupMap[dish.id] ?? [];
     if (groups.length > 0) {
       setAddonProduct(dish);
     } else {
@@ -621,6 +614,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               {/* Addon customization sheet */}
               <AddonSheet
                 product={addonProduct}
+                preloadedGroups={addonProduct ? (addonGroupMap[addonProduct.id] ?? []) : undefined}
                 onClose={() => setAddonProduct(null)}
               />
             </>

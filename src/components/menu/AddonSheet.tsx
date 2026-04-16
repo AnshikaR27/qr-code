@@ -11,6 +11,7 @@ import type { AddonGroup, Product, SelectedAddon } from '@/types';
 interface Props {
   product: Product | null;
   onClose: () => void;
+  preloadedGroups?: AddonGroup[];
 }
 
 /**
@@ -22,7 +23,7 @@ interface Props {
  *
  * The sheet lets the customer pick add-ons, set quantity, then adds to cart.
  */
-export default function AddonSheet({ product, onClose }: Props) {
+export default function AddonSheet({ product, onClose, preloadedGroups }: Props) {
   const { addItem } = useCart();
 
   const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
@@ -36,20 +37,26 @@ export default function AddonSheet({ product, onClose }: Props) {
   const [dragY, setDragY] = useState(0);
   const [touchStartY, setTouchStartY] = useState(0);
 
-  // Fetch addon groups whenever the product changes
+  // Use preloaded groups when available (server-fetched, bypasses RLS for anonymous customers).
+  // Fall back to a client-side fetch only if no preloaded data was passed.
   useEffect(() => {
     if (!product) return;
     setSelections({});
     setQty(1);
     setDragY(0);
-    setLoading(true);
 
+    if (preloadedGroups) {
+      setAddonGroups(preloadedGroups);
+      return;
+    }
+
+    setLoading(true);
     const supabase = createClient();
     getAddonGroupsForProduct(supabase, product.id, product.category_id ?? null)
       .then((groups) => setAddonGroups(groups))
       .catch(() => setAddonGroups([]))
       .finally(() => setLoading(false));
-  }, [product?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [product?.id, preloadedGroups]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock body scroll
   useEffect(() => {
