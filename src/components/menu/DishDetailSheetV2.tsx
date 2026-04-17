@@ -172,7 +172,7 @@ export default function DishDetailSheetV2({
           >
             <div
               className="w-9 h-1 rounded-full"
-              style={{ backgroundColor: dish.image_url ? 'rgba(255,255,255,0.5)' : 'var(--sunday-border, #E8D5B0)' }}
+              style={{ backgroundColor: (dish.detail_image_url || dish.image_url) ? 'rgba(255,255,255,0.5)' : 'var(--sunday-border, #E8D5B0)' }}
             />
           </div>
 
@@ -181,7 +181,7 @@ export default function DishDetailSheetV2({
             onClick={onClose}
             className="absolute top-3 left-3 z-[11] w-9 h-9 rounded-full flex items-center justify-center text-white"
             style={{
-              ...(dish.image_url
+              ...((dish.detail_image_url || dish.image_url)
                 ? { background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }
                 : { backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text, #1c1c17)' }),
               boxShadow: 'var(--sunday-shadow-md)',
@@ -191,20 +191,24 @@ export default function DishDetailSheetV2({
           </button>
 
           {/* Hero image */}
-          {dish.image_url ? (
-            <div className="w-full aspect-[16/9] overflow-hidden relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={dish.image_url}
-                alt={dish.name}
-                className="w-full h-full object-cover block will-change-transform"
-                style={{
-                  transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
-                  transition: 'none',
-                }}
-              />
-            </div>
-          ) : (
+          {(dish.detail_image_url || dish.image_url) ? (() => {
+            const src = dish.detail_image_url ?? dish.image_url!;
+            const isDetail = !!dish.detail_image_url;
+            return (
+              <div className={isDetail ? 'w-full overflow-hidden relative' : 'w-full aspect-[16/9] overflow-hidden relative'}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={dish.name}
+                  className={isDetail ? 'w-full h-auto block object-contain' : 'w-full h-full object-cover block will-change-transform'}
+                  style={isDetail ? {} : {
+                    transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
+                    transition: 'none',
+                  }}
+                />
+              </div>
+            );
+          })() : (
             <div
               className="w-full aspect-[4/3] flex items-center justify-center"
               style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
@@ -217,7 +221,7 @@ export default function DishDetailSheetV2({
           <div
             className="pb-32"
             style={{
-              paddingTop: dish.image_url ? spacingScale.px : 'calc(40px + 4px)',
+              paddingTop: (dish.detail_image_url || dish.image_url) ? spacingScale.px : 'calc(40px + 4px)',
               paddingLeft: spacingScale.px,
               paddingRight: spacingScale.px,
             }}

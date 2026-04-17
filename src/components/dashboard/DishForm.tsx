@@ -89,6 +89,7 @@ interface FormState {
   spice_level: number;
   allergens: string[];
   image_url: string;
+  detail_image_url: string;
   tax_category: TaxCategory;
 }
 
@@ -105,6 +106,7 @@ function getInitialState(product?: Product | null): FormState {
       spice_level: product.spice_level,
       allergens: product.allergens ?? [],
       image_url: product.image_url ?? '',
+      detail_image_url: product.detail_image_url ?? '',
       tax_category: product.tax_category ?? 'food',
     };
   }
@@ -119,6 +121,7 @@ function getInitialState(product?: Product | null): FormState {
     spice_level: 1,
     allergens: [],
     image_url: '',
+    detail_image_url: '',
     tax_category: 'food',
   };
 }
@@ -134,10 +137,12 @@ export default function DishForm({
   const [form, setForm] = useState<FormState>(() => getInitialState(editProduct));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingDetail, setUploadingDetail] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAiDesc, setIsAiDesc] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const detailFileRef = useRef<HTMLInputElement>(null);
   const descriptionManuallyEdited = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -165,6 +170,32 @@ export default function DishForm({
       toast.error(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
+    }
+  }, []);
+
+  const uploadDetailFile = useCallback(async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('File is not an image');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('Image must be under 8MB');
+      return;
+    }
+    setUploadingDetail(true);
+    try {
+      const compressed = await compressImage(file, { maxWidth: 3840, quality: 1 });
+      const fd = new FormData();
+      fd.append('file', compressed);
+      const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed');
+      setForm((prev) => ({ ...prev, detail_image_url: data.url }));
+      toast.success('Detail image uploaded');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingDetail(false);
     }
   }, []);
 
@@ -287,6 +318,13 @@ export default function DishForm({
     if (fileRef.current) fileRef.current.value = '';
   }
 
+  async function handleDetailImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadDetailFile(file);
+    if (detailFileRef.current) detailFileRef.current.value = '';
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
@@ -308,6 +346,7 @@ export default function DishForm({
         spice_level: form.spice_level,
         allergens: form.allergens,
         image_url: form.image_url || null,
+        detail_image_url: form.detail_image_url || null,
         tax_category: form.tax_category,
       };
 
@@ -548,9 +587,10 @@ export default function DishForm({
             </div>
           </div>
 
-          {/* Image upload */}
+          {/* Browse image upload */}
           <div className="space-y-1">
-            <Label>Dish Photo</Label>
+            <Label>Browse Photo</Label>
+            <p className="text-xs text-muted-foreground">Top-down or hero shot shown in the menu list</p>
             {form.image_url ? (
               <div className="relative w-24 h-24">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -561,7 +601,7 @@ export default function DishForm({
                 />
                 <button
                   type="button"
-                  onClick={() => set('image_url', '')}
+                  onClick={() => setForm((prev) => ({ ...prev, image_url: '', detail_image_url: '' }))}
                   className="absolute -top-1.5 -right-1.5 bg-white border rounded-full p-0.5 shadow-sm hover:bg-red-50"
                 >
                   <X className="w-3 h-3 text-gray-500" />
@@ -596,6 +636,55 @@ export default function DishForm({
               accept="image/*"
               className="hidden"
               onChange={handleImageUpload}
+            />
+          </div>
+
+          {/* Detail image upload (optional close-up shown on product detail page) */}
+          <div className="space-y-1">
+            <Label>Detail Photo <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <p className="text-xs text-muted-foreground">Close-up shown when customer taps the dish. Falls back to browse photo if not set.</p>
+            {form.detail_image_url ? (
+              <div className="relative w-24 h-24">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={form.detail_image_url}
+                  alt="Detail"
+                  className="w-24 h-24 object-cover rounded-md border"
+                />
+                <button
+                  type="button"
+                  onClick={() => set('detail_image_url', '')}
+                  className="absolute -top-1.5 -right-1.5 bg-white border rounded-full p-0.5 shadow-sm hover:bg-red-50"
+                >
+                  <X className="w-3 h-3 text-gray-500" />
+                </button>
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  'border border-dashed rounded-md transition-colors',
+                  (!form.image_url || uploadingDetail) ? 'opacity-50' : 'hover:bg-gray-50 cursor-pointer'
+                )}
+                onClick={() => form.image_url && !uploadingDetail && detailFileRef.current?.click()}
+              >
+                <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                  {uploadingDetail ? (
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                  ) : (
+                    <Upload className="w-4 h-4 flex-shrink-0" />
+                  )}
+                  <span>
+                    {uploadingDetail ? 'Uploading…' : form.image_url ? 'Upload close-up' : 'Add browse photo first'}
+                  </span>
+                </div>
+              </div>
+            )}
+            <input
+              ref={detailFileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleDetailImageUpload}
             />
           </div>
 

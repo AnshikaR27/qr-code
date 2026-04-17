@@ -190,34 +190,43 @@ export default function DishDetailSheet({ product, tokens, isBestseller, lang = 
           {/* Content */}
           <div style={{ padding: '4px 20px 32px' }}>
             {/* Photo with hero parallax */}
-            {product.image_url && (
-              <div
-                style={{
-                  width: '100%',
-                  aspectRatio: '16/10',
-                  borderRadius: 16,
-                  overflow: 'hidden',
-                  marginBottom: 16,
-                  boxShadow: `0 8px 32px ${tokens.text}14`,
-                  position: 'relative',
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={product.image_url}
-                  alt={product.name}
+            {(product.detail_image_url || product.image_url) && (() => {
+              const src = product.detail_image_url ?? product.image_url!;
+              const isDetail = !!product.detail_image_url;
+              return (
+                <div
                   style={{
                     width: '100%',
-                    height: '115%',
-                    marginTop: '-7.5%',
-                    objectFit: 'cover',
-                    transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
-                    willChange: 'transform',
-                    transition: 'none',
+                    ...(isDetail ? {} : { aspectRatio: '16/10' }),
+                    borderRadius: 16,
+                    overflow: 'hidden',
+                    marginBottom: 16,
+                    boxShadow: `0 8px 32px ${tokens.text}14`,
+                    position: 'relative',
                   }}
-                />
-              </div>
-            )}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt={product.name}
+                    style={isDetail ? {
+                      width: '100%',
+                      height: 'auto',
+                      display: 'block',
+                      objectFit: 'contain',
+                    } : {
+                      width: '100%',
+                      height: '115%',
+                      marginTop: '-7.5%',
+                      objectFit: 'cover',
+                      transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
+                      willChange: 'transform',
+                      transition: 'none',
+                    }}
+                  />
+                </div>
+              );
+            })()}
 
             {/* Badges */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
