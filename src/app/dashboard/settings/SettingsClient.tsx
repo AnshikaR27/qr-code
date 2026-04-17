@@ -149,7 +149,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
 
   async function uploadHeroFile(file: File) {
     if (!file.type.startsWith('image/')) { toast.error('Select an image file'); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error('Image must be under 8MB'); return; }
 
     setUploadingHero(true);
     try {
