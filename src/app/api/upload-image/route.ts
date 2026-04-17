@@ -27,9 +27,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
   }
 
-  if (file.size > 5 * 1024 * 1024) {
-    return NextResponse.json({ error: 'File must be under 5MB' }, { status: 400 });
-  }
+  if (file.size > 8 * 1024 * 1024) {
+  return NextResponse.json({ error: 'File must be under 8MB' }, { status: 400 });
+}
 
   try {
     const buffer = await file.arrayBuffer();

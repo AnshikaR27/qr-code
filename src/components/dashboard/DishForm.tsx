@@ -147,10 +147,10 @@ export default function DishForm({
       toast.error('Clipboard item is not an image');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be under 5MB');
-      return;
-    }
+    if (file.size > 8 * 1024 * 1024) {
+  toast.error('Image must be under 8MB');
+  return;
+  }
     setUploading(true);
     try {
       const compressed = await compressImage(file, { maxWidth: 1024, quality: 0.8 });

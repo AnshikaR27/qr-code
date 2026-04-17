@@ -125,11 +125,11 @@ export default function SettingsClient({ restaurant, categories }: Props) {
   }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) { toast.error('Select an image file'); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
-
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast.error('Select an image file'); return; }
+  if (file.size > 8 * 1024 * 1024) { toast.error('Image must be under 8MB'); return; }
+  
     setUploading(true);
     try {
       const fd = new FormData();
