@@ -153,7 +153,7 @@ export default function DishForm({
   }
     setUploading(true);
     try {
-      const compressed = await compressImage(file, { maxWidth: 1024, quality: 0.8 });
+      const compressed = await compressImage(file, { maxWidth: 3840, quality: 1 });
       const fd = new FormData();
       fd.append('file', compressed);
       const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
