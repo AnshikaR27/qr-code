@@ -36,6 +36,7 @@ export default withSentryConfig(nextConfig, {
     excludeDebugStatements: true,
     excludeReplayIframe: true,
     excludeReplayShadowDOM: true,
+    excludeReplaySdk: true,
   },
 
   webpack: {
