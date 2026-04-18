@@ -1,4 +1,5 @@
-import { notFound } from 'next/navigation';
+import { cache } from 'react';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { buildMenuTokens } from '@/lib/tokens';
 import { cdnImg } from '@/lib/utils';
@@ -89,6 +90,18 @@ function contrastColor(hex: string): string {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#1a1a1a' : '#ffffff';
 }
 
+// Cached per-request so generateMetadata and the page share one query
+const getRestaurant = cache(async (slug: string) => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('restaurants')
+    .select('name, slug, logo_url, city, opening_time, closing_time, design_tokens, ui_theme')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .single();
+  return data;
+});
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 interface Props {
   params: Promise<{ slug: string }>;
@@ -99,23 +112,15 @@ export default async function SplashPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { table: tableId } = await searchParams;
 
-  const supabase = await createClient();
-
-  const { data: restaurant } = await supabase
-    .from('restaurants')
-    .select('name, slug, logo_url, city, opening_time, closing_time, design_tokens, ui_theme')
-    .eq('slug', slug)
-    .eq('is_active', true)
-    .single();
+  const restaurant = await getRestaurant(slug);
 
   if (!restaurant) notFound();
 
   const menuHref = `/${slug}/menu${tableId ? `?table=${tableId}` : ''}`;
 
-  // Sunday theme: skip the splash entirely — go straight to the menu/welcome screen
+  // Sunday theme: skip the splash entirely — 308 is cached by browser and CDN
   if (restaurant.ui_theme === 'sunday') {
-    const { redirect } = await import('next/navigation');
-    redirect(menuHref);
+    permanentRedirect(menuHref);
   }
 
   const tokens = buildMenuTokens(restaurant.design_tokens as Record<string, string> | null);
@@ -319,13 +324,7 @@ export default async function SplashPage({ params, searchParams }: Props) {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const supabase = await createClient();
-
-  const { data: restaurant } = await supabase
-    .from('restaurants')
-    .select('name, city')
-    .eq('slug', slug)
-    .single();
+  const restaurant = await getRestaurant(slug);
 
   if (!restaurant) return { title: 'Menu' };
 
