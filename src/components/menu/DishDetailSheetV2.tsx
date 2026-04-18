@@ -215,7 +215,7 @@ export default function DishDetailSheetV2({
                 alt={dish.name}
                 width={960}
                 height={540}
-                loading="lazy"
+                fetchPriority="high"
                 decoding="async"
                 className="w-full h-full object-cover block will-change-transform"
                 style={{
