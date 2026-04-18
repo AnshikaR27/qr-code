@@ -15,25 +15,38 @@ function isCustomerRoute(pathname: string): boolean {
 
 let phLoaded = false;
 
+function loadPostHog() {
+  if (phLoaded) return;
+  const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://app.posthog.com';
+  if (!key) return;
+  phLoaded = true;
+  import('posthog-js').then(({ default: ph }) => {
+    ph.init(key, {
+      api_host: host,
+      capture_pageview: false,
+      capture_pageleave: true,
+      loaded: (instance) => {
+        if (process.env.NODE_ENV !== 'production') instance.opt_out_capturing();
+      },
+    });
+  });
+}
+
 export default function PostHogProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (isCustomerRoute(pathname) || phLoaded) return;
-    const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-    const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://app.posthog.com';
-    if (!key) return;
-    phLoaded = true;
-    import('posthog-js').then(({ default: ph }) => {
-      ph.init(key, {
-        api_host: host,
-        capture_pageview: false,
-        capture_pageleave: true,
-        loaded: (instance) => {
-          if (process.env.NODE_ENV !== 'production') instance.opt_out_capturing();
-        },
-      });
-    });
+    if (phLoaded) return;
+    if (isCustomerRoute(pathname)) {
+      if ('requestIdleCallback' in window) {
+        const id = requestIdleCallback(loadPostHog);
+        return () => cancelIdleCallback(id);
+      }
+      const id = setTimeout(loadPostHog, 1);
+      return () => clearTimeout(id);
+    }
+    loadPostHog();
   }, [pathname]);
 
   return <>{children}</>;
