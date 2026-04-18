@@ -55,7 +55,7 @@ export function cdnImg(url: string | null | undefined): string | null | undefine
   const m = url.match(/^(https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/);
   if (!m) return url;
   const rest = m[2].replace(/^.*?(v\d+\/)/, '$1');
-  return `${m[1]}w_960,f_auto,q_auto/${rest}`;
+  return `${m[1]}w_1280,f_auto,q_auto/${rest}`;
 }
 
 export function slugify(text: string): string {
