@@ -39,7 +39,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { cn, formatPrice } from '@/lib/utils';
+import { cn, formatPrice, cdnImg } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import DishForm from '@/components/dashboard/DishForm';
 import CategoryManager from '@/components/dashboard/CategoryManager';
@@ -857,7 +857,7 @@ function DishRow({ product, onEdit, onDelete, onToggleAvailability }: DishRowPro
       {product.image_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={product.image_url}
+          src={cdnImg(product.image_url)!}
           alt={product.name}
           className="w-10 h-10 rounded-md object-cover flex-shrink-0 border"
         />

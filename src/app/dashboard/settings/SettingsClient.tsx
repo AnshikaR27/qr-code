@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
-import { cn } from '@/lib/utils';
+import { cn, cdnImg } from '@/lib/utils';
 import { INDIAN_STATES } from '@/lib/constants';
 import PrinterSettings from '@/components/dashboard/PrinterSettings';
 import type { BillingConfig, Category, Restaurant } from '@/types';
@@ -320,7 +320,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
               >
                 {form.logo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={form.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                  <img src={cdnImg(form.logo_url)!} alt="Logo" className="w-full h-full object-cover" />
                 ) : (
                   <div className="flex flex-col items-center gap-1 text-muted-foreground">
                     <Upload className="w-6 h-6 opacity-40" />
@@ -363,7 +363,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
                 >
                   {form.hero_image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={form.hero_image_url} alt="Hero" className="w-full h-full object-cover" />
+                    <img src={cdnImg(form.hero_image_url)!} alt="Hero" className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center gap-1 text-muted-foreground">
                       <Upload className="w-6 h-6 opacity-40" />
@@ -614,7 +614,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
                 >
                   {form.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={form.logo_url} alt="Logo" className="h-10 w-auto object-contain" />
+                    <img src={cdnImg(form.logo_url)!} alt="Logo" className="h-10 w-auto object-contain" />
                   ) : (
                     <p className="text-white font-bold">{form.name || 'Your Restaurant'}</p>
                   )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { Utensils } from 'lucide-react';
+import { cdnImg } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Restaurant, Category, Product } from '@/types';
 
@@ -67,7 +68,7 @@ export default function WelcomeScreenV2({
           {restaurant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={restaurant.logo_url}
+              src={cdnImg(restaurant.logo_url)!}
               alt={restaurant.name}
               className="rounded-full object-cover"
               style={{ width: sizeScale.logoImg, height: sizeScale.logoImg }}
@@ -133,7 +134,7 @@ export default function WelcomeScreenV2({
                 {imgUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={imgUrl}
+                    src={cdnImg(imgUrl)!}
                     alt={cat.name}
                     className="w-full h-full object-cover"
                   />

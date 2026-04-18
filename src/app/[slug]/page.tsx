@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { buildMenuTokens } from '@/lib/tokens';
+import { cdnImg } from '@/lib/utils';
 
 // Cache the splash page at the edge for 5 minutes.
 // After the first visitor, everyone else gets instant HTML — no Supabase query.
@@ -217,7 +218,7 @@ export default async function SplashPage({ params, searchParams }: Props) {
         {restaurant.logo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={restaurant.logo_url}
+            src={cdnImg(restaurant.logo_url)!}
             alt={restaurant.name}
             width={108}
             height={108}

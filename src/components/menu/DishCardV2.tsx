@@ -4,7 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Utensils } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, cdnImg } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Product } from '@/types';
 
@@ -196,7 +196,7 @@ export default function DishCardV2({
             {dish.image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={dish.image_url}
+                src={cdnImg(dish.image_url)!}
                 alt={dish.name}
                 draggable={false}
                 loading="lazy"

@@ -1,7 +1,7 @@
 'use client';
 
 import { CreditCard } from 'lucide-react';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, cdnImg } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
 import type { Restaurant } from '@/types';
 
@@ -60,7 +60,7 @@ export default function PayViewV2({
           {restaurant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={restaurant.logo_url}
+              src={cdnImg(restaurant.logo_url)!}
               alt={restaurant.name}
               className="w-[90px] h-[90px] rounded-full object-cover"
             />

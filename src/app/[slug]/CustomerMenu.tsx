@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { SlidersHorizontal, ChevronDown, X, ChevronUp, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, cdnImg } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import MenuNavbar from '@/components/menu/MenuNavbar';
@@ -718,7 +718,7 @@ export default function CustomerMenu({ restaurant, categories, products, tableId
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={zoomedImage.url}
+            src={cdnImg(zoomedImage.url)!}
             alt={zoomedImage.name}
             style={{ maxWidth: '94%', maxHeight: '78vh', objectFit: 'contain', borderRadius: 12 }}
           />

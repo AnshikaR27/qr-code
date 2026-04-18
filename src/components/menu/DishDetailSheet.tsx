@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { cdnImg } from '@/lib/utils';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
@@ -204,7 +205,7 @@ export default function DishDetailSheet({ product, tokens, isBestseller, lang = 
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={product.image_url}
+                  src={cdnImg(product.image_url)!}
                   alt={product.name}
                   style={{
                     width: '100%',

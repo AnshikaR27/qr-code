@@ -2,6 +2,7 @@
 
 import { Utensils } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
+import { cdnImg } from '@/lib/utils';
 import type { Product } from '@/types';
 
 interface Props {
@@ -31,7 +32,7 @@ export default function PairingSuggestions({ suggestions }: Props) {
               {item.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={item.image_url}
+                  src={cdnImg(item.image_url)!}
                   alt={item.name}
                   className="w-full h-full object-cover"
                 />

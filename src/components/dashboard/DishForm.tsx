@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { cn, cdnImg } from '@/lib/utils';
 import { SPICE_LEVELS, ALLERGEN_OPTIONS, TAX_CATEGORIES } from '@/lib/constants';
 import type { Category, Product, TaxCategory } from '@/types';
 
@@ -555,7 +555,7 @@ export default function DishForm({
               <div className="relative w-24 h-24">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={form.image_url}
+                  src={cdnImg(form.image_url)!}
                   alt="Dish"
                   className="w-24 h-24 object-cover rounded-md border"
                 />

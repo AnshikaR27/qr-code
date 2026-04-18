@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Utensils } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { cdnImg } from '@/lib/utils';
 import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
@@ -189,7 +190,7 @@ export default function DishCard({ dish, tokens, index, isBestseller, lang = 'en
           {dish.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={dish.image_url}
+              src={cdnImg(dish.image_url)!}
               alt={dish.name}
               draggable={false}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
