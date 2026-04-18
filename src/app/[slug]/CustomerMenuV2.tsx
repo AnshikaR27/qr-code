@@ -434,7 +434,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               </div>
 
               {/* Scrolling content */}
-              <div style={{ paddingBottom: 'calc(60px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
+              <div style={{ paddingBottom: `calc(${sizeScale.cartBarH} + env(safe-area-inset-bottom, 0px) + 24px)` }}>
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
@@ -508,11 +508,9 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   </div>
                 )}
 
-                {categories.map((cat, catIndex) => {
+                {categories.map((cat) => {
                   const filtered = getFilteredProducts(cat.id);
                   if (filtered.length === 0 && isFiltering) return null;
-                  const catLabel = lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name;
-                  const indexLabel = String(catIndex + 1).padStart(2, '0');
 
                   return (
                     <div
@@ -522,75 +520,32 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                         else sectionRefs.current.delete(cat.id);
                       }}
                       data-category-id={cat.id}
-                      style={{ scrollMarginTop: '110px', marginTop: '32px' }}
+                      style={{ scrollMarginTop: '110px', marginTop: spacingScale.sectionGap }}
                     >
-                      {/* Section heading — oversized chapter anchor */}
+                      {/* Section heading */}
                       <div
                         style={{
-                          paddingLeft: '20px',
-                          paddingRight: '20px',
-                          paddingTop: '4px',
-                          paddingBottom: '4px',
-                          marginBottom: '4px',
-                          display: 'flex',
-                          alignItems: 'baseline',
-                          gap: '10px',
+                          paddingTop: spacingScale.px,
+                          paddingBottom: spacingScale.cardPad,
+                          paddingLeft: spacingScale.px,
+                          paddingRight: spacingScale.px,
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: '11px',
-                            fontWeight: 500,
-                            color: 'var(--sunday-text-muted, #7A6040)',
-                            fontFamily: 'var(--sunday-font-body)',
-                            letterSpacing: '0.06em',
-                            flexShrink: 0,
-                            lineHeight: 1,
-                            paddingBottom: '2px',
-                          }}
-                        >
-                          {indexLabel}
-                        </span>
                         <h2
-                          className="m-0 leading-tight"
-                          style={{
-                            fontSize: 'clamp(24px, 6.5vw, 32px)',
-                            fontWeight: 800,
-                            letterSpacing: '-0.025em',
-                            color: 'var(--sunday-text, #1c1c17)',
-                            fontFamily: 'var(--sunday-font-heading)',
-                            flex: 1,
-                          }}
+                          className="font-semibold leading-tight"
+                          style={{ fontSize: typeScale.xl, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
                         >
-                          {catLabel}
+                          {lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name}
                         </h2>
+                        {cat.name_hindi && lang === 'en' && (
+                          <p
+                            className="mt-0.5"
+                            style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+                          >
+                            {cat.name_hindi}
+                          </p>
+                        )}
                       </div>
-                      {/* Accent rule under heading */}
-                      <div
-                        style={{
-                          height: '2px',
-                          width: '24px',
-                          marginLeft: '20px',
-                          marginBottom: '8px',
-                          backgroundColor: 'var(--sunday-accent, #b12d00)',
-                          borderRadius: '1px',
-                        }}
-                      />
-
-                      {cat.name_hindi && lang === 'en' && (
-                        <p
-                          className="m-0"
-                          style={{
-                            fontSize: typeScale.xs,
-                            color: 'var(--sunday-text-muted, #7A6040)',
-                            fontFamily: 'var(--sunday-font-body)',
-                            paddingLeft: '20px',
-                            marginBottom: '8px',
-                          }}
-                        >
-                          {cat.name_hindi}
-                        </p>
-                      )}
 
                       {filtered.length === 0 ? (
                         <div
@@ -600,7 +555,14 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                           Coming soon
                         </div>
                       ) : (
-                        <div className="flex flex-col">
+                        <div
+                          className="flex flex-col pb-2"
+                          style={{
+                            gap: spacingScale.dishGap,
+                            paddingLeft: spacingScale.px,
+                            paddingRight: spacingScale.px,
+                          }}
+                        >
                           {filtered.map((dish, i) => (
                             <DishCardV2
                               key={dish.id}
@@ -630,7 +592,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                   onClick={() => window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })}
                   className="fixed right-4 w-10 h-10 rounded-full border-none cursor-pointer flex items-center justify-center shadow-lg z-[39]"
                   style={{
-                    bottom: 'calc(68px + env(safe-area-inset-bottom, 0px))',
+                    bottom: 'calc(76px + env(safe-area-inset-bottom, 0px))',
                     backgroundColor: accentColor,
                     color: accentTextColor,
                   }}

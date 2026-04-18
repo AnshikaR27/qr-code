@@ -5,6 +5,7 @@ import { Utensils } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { formatPrice, cdnImg } from '@/lib/utils';
+import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Product } from '@/types';
 
 interface Props {
@@ -14,10 +15,13 @@ interface Props {
   lang?: 'en' | 'hi';
   onTap: () => void;
   onLongPressImage?: (url: string, name: string) => void;
+  /**
+   * Called when the customer taps the "+" button.
+   * The parent decides whether to open AddonSheet or add directly.
+   * If omitted, falls back to addItem directly (no-addon behaviour).
+   */
   onAdd?: (dish: Product) => void;
 }
-
-const EASING = 'cubic-bezier(0.23, 1, 0.32, 1)';
 
 export default function DishCardV2({
   dish,
@@ -39,16 +43,17 @@ export default function DishCardV2({
     const el = outerRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setRevealed(true); },
-      { threshold: 0.05 }
+      ([entry]) => { setRevealed(entry.isIntersecting); },
+      { threshold: 0.1 }
     );
     obs.observe(el);
     return () => obs.disconnect();
   }, [reduced]);
 
-  const staggerDelay = reduced ? 0 : Math.min(index, 4) * 30;
+  const staggerDelay = reduced ? 0 : Math.min(index, 5) * 50;
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   function startLongPress() {
     if (!dish.image_url || !onLongPressImage) return;
     longPressTimer.current = setTimeout(() => {
@@ -56,179 +61,128 @@ export default function DishCardV2({
       onLongPressImage(dish.image_url!, dish.name);
     }, 500);
   }
+
   function cancelLongPress() {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
   }
 
+  // Total qty across ALL addon variants of this product
   const qty = getProductCount(dish.id);
-  const primaryName = lang === 'hi' && dish.name_hindi ? dish.name_hindi : dish.name;
-  const unavailable = !dish.is_available;
+  const primaryName = (lang === 'hi' && dish.name_hindi) ? dish.name_hindi : dish.name;
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
-    if (onAdd) onAdd(dish);
-    else addItem(dish);
+    if (onAdd) {
+      onAdd(dish);
+    } else {
+      addItem(dish);
+    }
     navigator.vibrate?.(50);
   }
+
   function handleIncrease(e: React.MouseEvent) {
     e.stopPropagation();
-    if (onAdd) onAdd(dish);
-    else addItem(dish);
+    // "+" always opens a new customization sheet (or adds directly if no addons)
+    if (onAdd) {
+      onAdd(dish);
+    } else {
+      addItem(dish);
+    }
     navigator.vibrate?.(30);
   }
+
   function handleDecrease(e: React.MouseEvent) {
     e.stopPropagation();
+    // Decrease the most recently added variant's quantity by 1.
+    // The cart sheet lets customers manage individual variants precisely.
     const productItems = items.filter((i) => i.product_id === dish.id);
     if (productItems.length === 0) return;
-    const last = productItems[productItems.length - 1];
-    updateQuantity(last.cart_key, last.quantity - 1);
+    // Pick the last item (most recently added variation)
+    const lastItem = productItems[productItems.length - 1];
+    updateQuantity(lastItem.cart_key, lastItem.quantity - 1);
   }
 
   return (
     <div
       ref={outerRef}
       style={{
-        opacity: revealed ? (unavailable ? 0.42 : 1) : 0,
-        transform: revealed ? 'translateY(0)' : 'translateY(8px)',
+        opacity: revealed ? (dish.is_available ? 1 : 0.45) : 0,
+        transform: revealed ? 'translateY(0)' : 'translateY(20px)',
         transition: reduced
           ? 'none'
-          : `opacity 280ms ${EASING} ${staggerDelay}ms, transform 280ms ${EASING} ${staggerDelay}ms`,
+          : `opacity 400ms ease-out ${staggerDelay}ms, transform 400ms ease-out ${staggerDelay}ms`,
         willChange: revealed ? 'auto' : 'opacity, transform',
       }}
     >
       <div
-        onClick={unavailable ? undefined : onTap}
-        className={`flex items-start ${unavailable ? 'cursor-default' : 'cursor-pointer'}`}
+        onClick={dish.is_available ? onTap : undefined}
+        onMouseDown={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'; } : undefined}
+        onMouseUp={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
+        onMouseLeave={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
+        onTouchStart={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'; } : undefined}
+        onTouchEnd={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
+        className={`flex items-start ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
         style={{
-          gap: '12px',
-          padding: '14px 20px',
-          transition: 'transform 120ms ease-out',
+          gap: spacingScale.gap,
+          padding: spacingScale.cardPad,
+          borderRadius: 'var(--sunday-radius, 12px)',
+          backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
+          boxShadow: 'var(--sunday-shadow-md)',
+          transition: 'transform 120ms ease',
           willChange: 'transform',
         }}
-        onMouseDown={unavailable ? undefined : (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.99)'; }}
-        onMouseUp={unavailable ? undefined : (e) => { (e.currentTarget as HTMLElement).style.transform = ''; }}
-        onMouseLeave={unavailable ? undefined : (e) => { (e.currentTarget as HTMLElement).style.transform = ''; }}
-        onTouchStart={unavailable ? undefined : (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.99)'; }}
-        onTouchEnd={unavailable ? undefined : (e) => { (e.currentTarget as HTMLElement).style.transform = ''; }}
       >
-        {/* Left: text */}
+        {/* Left: text content */}
         <div className="flex-1 min-w-0">
-          {/* Veg/non-veg indicator — framed square, not plain dot */}
-          <div className="flex items-center gap-1.5 mb-2">
-            <div
-              style={{
-                width: '12px',
-                height: '12px',
-                border: `1.5px solid ${dish.is_veg ? 'var(--sunday-veg, #0F8A00)' : 'var(--sunday-nonveg, #E23744)'}`,
-                borderRadius: '2px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
+          {/* Sold out badge — only for unavailable items */}
+          {!dish.is_available && (
+            <span
+              className="font-bold text-red-500 mb-1.5 block"
+              style={{ fontSize: typeScale.xs, fontFamily: 'var(--sunday-font-body)' }}
             >
-              <div
-                style={{
-                  width: '5px',
-                  height: '5px',
-                  borderRadius: '50%',
-                  backgroundColor: dish.is_veg ? 'var(--sunday-veg, #0F8A00)' : 'var(--sunday-nonveg, #E23744)',
-                }}
-              />
-            </div>
-            {isBestseller && (
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  color: 'var(--sunday-badge-bg, #C8991A)',
-                  fontFamily: 'var(--sunday-font-body)',
-                }}
-              >
-                Popular
-              </span>
-            )}
-            {dish.is_jain && (
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  color: 'var(--sunday-text-muted, #7A6040)',
-                  fontFamily: 'var(--sunday-font-body)',
-                }}
-              >
-                Jain
-              </span>
-            )}
-            {unavailable && (
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  color: 'var(--sunday-nonveg, #E23744)',
-                  fontFamily: 'var(--sunday-font-body)',
-                }}
-              >
-                Sold out
-              </span>
-            )}
-          </div>
+              Sold out
+            </span>
+          )}
 
+          {/* Dish name */}
           <h3
-            className="font-semibold line-clamp-2 m-0"
-            style={{
-              fontSize: '14px',
-              lineHeight: 1.35,
-              color: 'var(--sunday-text, #1c1c17)',
-              fontFamily: 'var(--sunday-font-heading)',
-              marginBottom: '4px',
-            }}
+            className="font-semibold line-clamp-2 mb-1.5"
+            style={{ fontSize: typeScale.md, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
           >
             {primaryName}
           </h3>
 
+          {/* Price */}
+          <p
+            className="font-semibold mb-1"
+            style={{ fontSize: typeScale.md, color: 'var(--sunday-primary, #361f1a)', fontFamily: 'var(--sunday-font-body)' }}
+          >
+            {formatPrice(dish.price)}
+          </p>
+
+          {/* Description */}
           {dish.description && (
             <p
-              className="line-clamp-2 m-0"
-              style={{
-                fontSize: '12px',
-                lineHeight: 1.5,
-                color: 'var(--sunday-text-muted, #7A6040)',
-                fontFamily: 'var(--sunday-font-body)',
-                marginBottom: '6px',
-              }}
+              className="leading-relaxed line-clamp-2"
+              style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
             >
               {dish.description}
             </p>
           )}
 
-          <p
-            className="font-semibold m-0"
-            style={{
-              fontSize: '13px',
-              color: 'var(--sunday-text, #1c1c17)',
-              fontFamily: 'var(--sunday-font-body)',
-            }}
-          >
-            {formatPrice(dish.price)}
-          </p>
         </div>
 
-        {/* Right: image + controls */}
-        <div className="shrink-0 flex flex-col items-center" style={{ gap: '6px' }}>
-          {/* Image — slightly larger, no cantilevered button */}
+        {/* Right: image + add button */}
+        <div className="relative shrink-0">
           <div
             className="overflow-hidden flex items-center justify-center select-none"
             style={{
-              width: '96px',
-              height: '96px',
-              borderRadius: '10px',
+              width: sizeScale.dishImage,
+              height: sizeScale.dishImage,
+              borderRadius: 'var(--sunday-radius, 12px)',
               backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
             }}
             onTouchStart={(e) => { e.stopPropagation(); startLongPress(); }}
@@ -249,88 +203,64 @@ export default function DishCardV2({
                 className="w-full h-full object-cover block pointer-events-none"
               />
             ) : (
-              <Utensils
-                size={22}
-                strokeWidth={1.5}
-                style={{ color: 'var(--sunday-text-muted, #7A6040)' }}
-              />
+              <Utensils size={24} strokeWidth={1.5} style={{ color: 'var(--sunday-text-muted, #7A6040)' }} />
             )}
           </div>
 
-          {/* Add controls — below the image, not overlapping */}
-          {!unavailable && (
-            <div onClick={(e) => e.stopPropagation()}>
+          {/* + button or qty stepper */}
+          {dish.is_available && (
+            <div
+              className="absolute -bottom-1.5 -right-1.5"
+              onClick={(e) => e.stopPropagation()}
+            >
               {qty === 0 ? (
                 <button
                   key="add-btn"
                   onClick={handleAdd}
                   aria-label={`Add ${primaryName} to cart`}
-                  className="flex items-center justify-center border-none cursor-pointer"
+                  className="rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100 animate-scale-in"
                   style={{
-                    width: '96px',
-                    height: '30px',
-                    borderRadius: '6px',
-                    backgroundColor: 'var(--sunday-accent, #b12d00)',
-                    color: '#fff',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    fontFamily: 'var(--sunday-font-body)',
-                    letterSpacing: '0.02em',
-                    transition: 'transform 120ms ease-out',
+                    width: sizeScale.addBtn,
+                    height: sizeScale.addBtn,
+                    background: 'linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))',
+                    boxShadow: 'var(--sunday-shadow-md)',
                   }}
-                  onMouseDown={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.97)'; }}
-                  onMouseUp={(e) => { (e.currentTarget as HTMLElement).style.transform = ''; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = ''; }}
-                  onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.97)'; }}
-                  onTouchEnd={(e) => { (e.currentTarget as HTMLElement).style.transform = ''; }}
                 >
-                  Add +
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
                 </button>
               ) : (
                 <div
                   key="stepper"
-                  className="flex items-center justify-between"
+                  className="flex items-center px-1 py-0.5 animate-scale-in"
                   style={{
-                    width: '96px',
-                    height: '30px',
-                    borderRadius: '6px',
-                    border: '1.5px solid var(--sunday-accent, #b12d00)',
+                    borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                     backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
-                    padding: '0 4px',
+                    border: '1px solid var(--sunday-accent, #b12d00)',
+                    boxShadow: 'var(--sunday-shadow-sm)',
                   }}
                 >
                   <button
                     onClick={handleDecrease}
                     aria-label={`Remove one ${primaryName}`}
-                    className="w-6 h-6 rounded-full bg-transparent border-none cursor-pointer flex items-center justify-center font-semibold"
-                    style={{
-                      fontSize: '16px',
-                      lineHeight: 1,
-                      color: 'var(--sunday-text, #1c1c17)',
-                    }}
+                    className="w-6 h-6 rounded-full bg-transparent border-none text-base font-semibold cursor-pointer flex items-center justify-center leading-none"
+                    style={{ color: 'var(--sunday-text, #1c1c17)' }}
                   >
                     −
                   </button>
                   <span
-                    className="font-bold text-center"
-                    style={{
-                      fontSize: '13px',
-                      minWidth: '18px',
-                      color: 'var(--sunday-text, #1c1c17)',
-                      fontFamily: 'var(--sunday-font-body)',
-                    }}
+                    className="font-bold min-w-[16px] text-center"
+                    style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
                   >
                     {qty}
                   </span>
                   <button
                     onClick={handleIncrease}
                     aria-label={`Add another ${primaryName}`}
-                    className="w-6 h-6 rounded-full bg-transparent border-none cursor-pointer flex items-center justify-center font-semibold"
-                    style={{
-                      fontSize: '16px',
-                      lineHeight: 1,
-                      color: 'var(--sunday-accent, #b12d00)',
-                    }}
+                    className="w-6 h-6 rounded-full bg-transparent border-none text-base font-semibold cursor-pointer flex items-center justify-center leading-none"
+                    style={{ color: 'var(--sunday-text, #1c1c17)' }}
                   >
                     +
                   </button>
@@ -340,16 +270,6 @@ export default function DishCardV2({
           )}
         </div>
       </div>
-
-      {/* Hairline divider — replaces the card box shadow */}
-      <div
-        style={{
-          height: '1px',
-          marginLeft: '20px',
-          backgroundColor:
-            'color-mix(in srgb, var(--sunday-border, #E8D5B0) 55%, transparent)',
-        }}
-      />
     </div>
   );
 }
