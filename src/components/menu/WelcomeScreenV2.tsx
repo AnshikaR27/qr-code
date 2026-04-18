@@ -160,7 +160,6 @@ export default function WelcomeScreenV2({
                     alt={cat.name}
                     width={400}
                     height={267}
-                    loading="lazy"
                     decoding="async"
                     className="w-full h-full object-cover"
                   />

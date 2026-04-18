@@ -204,7 +204,7 @@ export default function DishCardV2({
                 width={256}
                 height={256}
                 draggable={false}
-                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover block pointer-events-none"
               />
             ) : (
