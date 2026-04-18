@@ -5,6 +5,14 @@ import CustomerMenuV2 from '../CustomerMenuV2';
 import type { AddonGroup, Category, Product, Restaurant } from '@/types';
 
 export const revalidate = 30;
+export const dynamicParams = true;
+
+// Returning [] means no paths are pre-built at build time.
+// Combined with dynamicParams = true, new slugs are rendered on first request
+// and then cached by Vercel CDN for `revalidate` seconds (ISR).
+export async function generateStaticParams() {
+  return [];
+}
 
 interface Props {
   params: Promise<{ slug: string }>;
