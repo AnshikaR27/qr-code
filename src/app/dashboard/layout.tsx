@@ -4,6 +4,7 @@ import Sidebar from '@/components/dashboard/Sidebar';
 import GlobalNotifications from '@/components/dashboard/GlobalNotifications';
 import { AutoPrintListener } from '@/components/dashboard/AutoPrintListener';
 import { OrdersProvider } from '@/contexts/OrdersContext';
+import SentryInit from '@/components/SentryInit';
 import type { Order, Restaurant } from '@/types';
 
 export default async function DashboardLayout({
@@ -41,6 +42,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-gray-50">
+      <SentryInit />
       {/* Persists across all dashboard tab navigations */}
       <AutoPrintListener
         restaurantId={restaurant.id}
