@@ -5,6 +5,8 @@ import CustomerMenu from '../CustomerMenu';
 import CustomerMenuV2 from '../CustomerMenuV2';
 import type { AddonGroup, AddonItem, Category, Product, Restaurant } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 interface Props {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ table?: string }>;
