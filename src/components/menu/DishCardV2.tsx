@@ -4,7 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Utensils } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { formatPrice, cdnImg, cdnBlur } from '@/lib/utils';
+import { formatPrice } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Product } from '@/types';
 
@@ -184,9 +184,6 @@ export default function DishCardV2({
               height: sizeScale.dishImage,
               borderRadius: 'var(--sunday-radius, 12px)',
               backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
-              backgroundImage: dish.image_url ? `url(${cdnBlur(dish.image_url)})` : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
             }}
             onTouchStart={(e) => { e.stopPropagation(); startLongPress(); }}
             onTouchEnd={(e) => { e.stopPropagation(); cancelLongPress(); }}
@@ -199,12 +196,10 @@ export default function DishCardV2({
             {dish.image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={cdnImg(dish.image_url, 256)}
+                src={dish.image_url}
                 alt={dish.name}
-                width={256}
-                height={256}
                 draggable={false}
-                decoding="async"
+                loading="lazy"
                 className="w-full h-full object-cover block pointer-events-none"
               />
             ) : (

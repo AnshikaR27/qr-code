@@ -50,46 +50,6 @@ export function getNavbarBrand(hexColor: string): string {
   return `rgb(${Math.floor(r * 0.15 + 10)}, ${Math.floor(g * 0.15 + 10)}, ${Math.floor(b * 0.15 + 10)})`;
 }
 
-/**
- * Returns a Cloudinary URL resized to w×h with auto quality and format.
- * Strips any existing transformation params already in the stored URL.
- * Square dimensions (w === h) use c_fill; different dimensions use c_limit.
- * Non-Cloudinary URLs pass through unchanged.
- */
-export function cdnImg(url: string | null | undefined, w: number, h = w): string {
-  if (!url) return '';
-  const uploadIdx = url.indexOf('/image/upload/');
-  if (uploadIdx === -1) return url;
-  const base = url.slice(0, uploadIdx + '/image/upload/'.length);
-  const rest = url.slice(base.length);
-  // Strip existing Cloudinary transform segments (they contain _ or ,) before version/public_id
-  const cleaned = rest.replace(/^(?:[^/]*[_,][^/]*\/)+/, '');
-  const crop = w === h ? 'c_fill' : 'c_limit';
-  return `${base}w_${w},h_${h},${crop},q_auto,f_auto/${cleaned}`;
-}
-
-/** Full-view tier: width-only constraint with q_auto:best for maximum perceived quality. */
-export function cdnImgBest(url: string | null | undefined, w: number): string {
-  if (!url) return '';
-  const uploadIdx = url.indexOf('/image/upload/');
-  if (uploadIdx === -1) return url;
-  const base = url.slice(0, uploadIdx + '/image/upload/'.length);
-  const rest = url.slice(base.length);
-  const cleaned = rest.replace(/^(?:[^/]*[_,][^/]*\/)+/, '');
-  return `${base}w_${w},c_limit,q_auto:best,f_auto/${cleaned}`;
-}
-
-/** Returns a tiny blurry Cloudinary URL for use as an LQIP background placeholder. */
-export function cdnBlur(url: string | null | undefined): string {
-  if (!url) return '';
-  const uploadIdx = url.indexOf('/image/upload/');
-  if (uploadIdx === -1) return url;
-  const base = url.slice(0, uploadIdx + '/image/upload/'.length);
-  const rest = url.slice(base.length);
-  const cleaned = rest.replace(/^(?:[^/]*[_,][^/]*\/)+/, '');
-  return `${base}w_20,h_20,f_auto,q_10,e_blur:500/${cleaned}`;
-}
-
 export function slugify(text: string): string {
   return text
     .toLowerCase()

@@ -5,7 +5,7 @@ import { X, Minus, Plus, Utensils } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getAddonGroupsForProduct } from '@/lib/addon-utils';
 import { useCart } from '@/hooks/useCart';
-import { formatPrice, cdnImg, cdnBlur } from '@/lib/utils';
+import { formatPrice } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { AddonGroup, Product, SelectedAddon } from '@/types';
 
@@ -216,14 +216,11 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
               height: sizeScale.cartThumb,
               borderRadius: 'var(--sunday-radius, 12px)',
               backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
-              backgroundImage: product.image_url ? `url(${cdnBlur(product.image_url)})` : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
             }}
           >
             {product.image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={cdnImg(product.image_url, 128)} alt={product.name} width={128} height={128} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+              <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
             ) : (
               <Utensils size={22} strokeWidth={1.5} style={{ color: 'var(--sunday-text-muted, #7A6040)' }} />
             )}

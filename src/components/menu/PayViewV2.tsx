@@ -1,7 +1,7 @@
 'use client';
 
 import { CreditCard } from 'lucide-react';
-import { formatPrice, cdnImg, cdnBlur } from '@/lib/utils';
+import { formatPrice } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
 import type { Restaurant } from '@/types';
 
@@ -35,23 +35,12 @@ export default function PayViewV2({
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       {/* Hero image */}
-      <div
-        className="w-full h-[30vh] relative overflow-hidden"
-        style={{
-          backgroundImage: heroUrl ? `url(${cdnBlur(heroUrl)})` : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
+      <div className="w-full h-[30vh] relative overflow-hidden">
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={cdnImg(heroUrl, 960, 400)}
+            src={heroUrl}
             alt={restaurant.name}
-            width={960}
-            height={400}
-            fetchPriority="high"
-            decoding="async"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -66,22 +55,13 @@ export default function PayViewV2({
       <div className="flex justify-center -mt-[55px] relative z-10">
         <div
           className="w-[110px] h-[110px] rounded-full shadow-lg flex items-center justify-center overflow-hidden border-4 border-white"
-          style={{
-            backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
-            backgroundImage: restaurant.logo_url ? `url(${cdnBlur(restaurant.logo_url)})` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
+          style={{ backgroundColor: 'var(--sunday-card-bg, #FFFFFF)' }}
         >
           {restaurant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={cdnImg(restaurant.logo_url, 180)}
+              src={restaurant.logo_url}
               alt={restaurant.name}
-              width={180}
-              height={180}
-              fetchPriority="high"
-              decoding="async"
               className="w-[90px] h-[90px] rounded-full object-cover"
             />
           ) : (

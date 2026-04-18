@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Plus, Minus } from 'lucide-react';
-import { formatPrice, cdnImg, cdnBlur } from '@/lib/utils';
+import { formatPrice } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Restaurant, Product } from '@/types';
@@ -202,14 +202,11 @@ export default function CartSheetV2({
                           height: sizeScale.cartThumb,
                           borderRadius: 'calc(var(--sunday-radius, 12px) * 0.66)',
                           backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
-                          backgroundImage: imgUrl ? `url(${cdnBlur(imgUrl)})` : undefined,
-                          backgroundSize: 'cover',
-                          backgroundPosition: 'center',
                         }}
                       >
                         {imgUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={cdnImg(imgUrl, 128)} alt={item.name} width={128} height={128} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                          <img src={imgUrl} alt={item.name} className="w-full h-full object-cover" />
                         ) : (
                           <span className="text-xl">🍽️</span>
                         )}

@@ -1,7 +1,6 @@
 'use client';
 
 import { Utensils } from 'lucide-react';
-import { cdnImg, cdnBlur } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Restaurant, Category, Product } from '@/types';
 
@@ -33,24 +32,12 @@ export default function WelcomeScreenV2({
   return (
     <div className="min-h-[100dvh]" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       {/* Hero image — fluid height, no breakpoint needed */}
-      <div
-        className="w-full relative overflow-hidden"
-        style={{
-          height: '25dvh',
-          backgroundImage: heroUrl ? `url(${cdnBlur(heroUrl)})` : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
+      <div className="w-full relative overflow-hidden" style={{ height: '25dvh' }}>
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={cdnImg(heroUrl, 960, 360)}
+            src={heroUrl}
             alt={restaurant.name}
-            width={960}
-            height={360}
-            fetchPriority="high"
-            decoding="async"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -75,20 +62,13 @@ export default function WelcomeScreenV2({
             height: sizeScale.logoCircle,
             backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
             boxShadow: 'var(--sunday-shadow-lg)',
-            backgroundImage: restaurant.logo_url ? `url(${cdnBlur(restaurant.logo_url)})` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
           }}
         >
           {restaurant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={cdnImg(restaurant.logo_url, 180)}
+              src={restaurant.logo_url}
               alt={restaurant.name}
-              width={180}
-              height={180}
-              fetchPriority="high"
-              decoding="async"
               className="rounded-full object-cover"
               style={{ width: sizeScale.logoImg, height: sizeScale.logoImg }}
             />
@@ -148,19 +128,13 @@ export default function WelcomeScreenV2({
                   borderRadius: 'var(--sunday-radius, 12px)',
                   backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
                   boxShadow: 'var(--sunday-shadow-sm)',
-                  backgroundImage: imgUrl ? `url(${cdnBlur(imgUrl)})` : undefined,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
                 }}
               >
                 {imgUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={cdnImg(imgUrl, 400, 267)}
+                    src={imgUrl}
                     alt={cat.name}
-                    width={400}
-                    height={267}
-                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 ) : (
