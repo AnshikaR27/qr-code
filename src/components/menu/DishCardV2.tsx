@@ -196,7 +196,7 @@ export default function DishCardV2({
             {dish.image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={cdnImg(dish.image_url)!}
+                src={cdnImg(dish.image_url, 256)!}
                 alt={dish.name}
                 draggable={false}
                 loading="lazy"
