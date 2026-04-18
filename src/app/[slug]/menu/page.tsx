@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import CustomerMenuV2 from '../CustomerMenuV2';
 import type { AddonGroup, Category, Product, Restaurant } from '@/types';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 30;
 
 interface Props {
   params: Promise<{ slug: string }>;
