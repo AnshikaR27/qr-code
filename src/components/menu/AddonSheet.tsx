@@ -5,6 +5,7 @@ import { X, Minus, Plus, Utensils } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getAddonGroupsForProduct } from '@/lib/addon-utils';
 import { useCart } from '@/hooks/useCart';
+import { formatPrice } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { AddonGroup, Product, SelectedAddon } from '@/types';
 
@@ -63,6 +64,15 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
     document.body.style.overflow = product ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [product]);
+
+  useEffect(() => {
+    if (!product) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [product, onClose]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     setTouchStartY(e.touches[0].clientY);
@@ -228,13 +238,14 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
               className="mt-0.5"
               style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
             >
-              ₹{product.price}
+              {formatPrice(product.price)}
             </p>
           </div>
 
           {/* Close button */}
           <button
             onClick={onClose}
+            aria-label="Close customization"
             className="w-8 h-8 rounded-full border-none cursor-pointer flex items-center justify-center shrink-0 mt-0.5"
             style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text, #1c1c17)' }}
           >
@@ -292,8 +303,8 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
                           style={{
                             fontSize: typeScale.xs,
                             borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
-                            backgroundColor: '#FEF3C7',
-                            color: '#92400E',
+                            backgroundColor: 'color-mix(in srgb, var(--sunday-accent, #b12d00) 12%, var(--sunday-card-bg, #FFFFFF))',
+                            color: 'var(--sunday-accent, #b12d00)',
                             fontFamily: 'var(--sunday-font-body)',
                           }}
                         >
@@ -375,7 +386,7 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
                             >
                               {isSelected && (
                                 <div
-                                  className="w-2 h-2 rounded-full"
+                                  className="w-2 h-2 rounded-full animate-check-pop"
                                   style={{ backgroundColor: 'var(--sunday-accent, #b12d00)' }}
                                 />
                               )}
@@ -394,7 +405,7 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
                               }}
                             >
                               {isSelected && (
-                                <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="animate-check-pop">
                                   <polyline points="2,6 5,9 10,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                               )}
@@ -430,7 +441,7 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
                               fontFamily: 'var(--sunday-font-body)',
                             }}
                           >
-                            {item.price === 0 ? 'Included' : `+₹${item.price}`}
+                            {item.price === 0 ? 'Included' : `+${formatPrice(item.price)}`}
                           </span>
                         </button>
                       );
@@ -467,12 +478,15 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
             >
               <button
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
+                aria-label="Decrease quantity"
+                disabled={qty <= 1}
                 className="bg-transparent border-none font-light cursor-pointer flex items-center justify-center"
                 style={{
                   width: sizeScale.stepperW,
                   height: sizeScale.stepperH,
                   fontSize: typeScale.xl,
                   color: 'var(--sunday-text, #1c1c17)',
+                  opacity: qty <= 1 ? 0.35 : 1,
                 }}
               >
                 <Minus size={14} strokeWidth={2.5} />
@@ -485,6 +499,7 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
               </span>
               <button
                 onClick={() => setQty((q) => q + 1)}
+                aria-label="Increase quantity"
                 className="bg-transparent border-none font-light cursor-pointer flex items-center justify-center"
                 style={{
                   width: sizeScale.stepperW,
@@ -511,7 +526,7 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
               }}
             >
               {allRequiredSatisfied
-                ? `Add to cart · ₹${itemTotal}`
+                ? `Add to cart · ${formatPrice(itemTotal)}`
                 : 'Select required options'}
             </button>
           </div>

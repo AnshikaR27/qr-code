@@ -44,7 +44,8 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
           {hasItems ? `View your order · ${formatPrice(total)}` : 'View your order'}
         </span>
         <div
-          className="rounded-full bg-white flex items-center justify-center font-black"
+          key={itemCount}
+          className="rounded-full bg-white flex items-center justify-center font-black animate-pop-scale"
           style={{
             width: sizeScale.cartBadge,
             height: sizeScale.cartBadge,

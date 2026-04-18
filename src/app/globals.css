@@ -176,8 +176,8 @@ input, textarea, [contenteditable] {
 
 /* ── Sunday theme animations ────────────────────────────────────────── */
 @keyframes sundaySlideUp {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
+  from { transform: translateY(55%); opacity: 0.2; }
+  to   { transform: translateY(0);   opacity: 1; }
 }
 @keyframes sundayFadeIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -201,12 +201,48 @@ input, textarea, [contenteditable] {
   100% { transform: scale(1); }
 }
 
-.sunday-slide-up   { animation: sundaySlideUp   0.4s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.sunday-slide-up   { animation: sundaySlideUp   0.42s cubic-bezier(0.32, 0.72, 0, 1) both; }
 .sunday-fade-in    { animation: sundayFadeIn     0.3s ease-out both; }
 .sunday-cart-slide { animation: sundayCartSlide  0.4s cubic-bezier(0.32, 0.72, 0, 1) both; }
 .sunday-toast-in   { animation: sundayToastIn    0.3s ease-out both; }
 .sunday-toast-out  { animation: sundayToastOut   0.3s ease-in both; }
 .sunday-btn-pulse  { animation: sundayBtnPulse   0.2s ease-out; }
+
+/* ── Backdrop ────────────────────────────────────────────────────────── */
+@keyframes sundayBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes sundayBackdropOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ── Sheet exit ──────────────────────────────────────────────────────── */
+@keyframes sundaySheetOut {
+  from { transform: translateY(0);   opacity: 1; }
+  to   { transform: translateY(55%); opacity: 0; }
+}
+
+/* ── Count badge pop (cart bar) ─────────────────────────────────────── */
+@keyframes popScale {
+  0%   { transform: scale(0.5); }
+  65%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* ── Check / radio indicator pop ────────────────────────────────────── */
+@keyframes checkPop {
+  0%   { transform: scale(0) rotate(-15deg); opacity: 0; }
+  65%  { transform: scale(1.3) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg);   opacity: 1; }
+}
+
+.sunday-backdrop-in  { animation: sundayBackdropIn  0.22s ease-out both; }
+.sunday-backdrop-out { animation: sundayBackdropOut 0.22s ease-in  both; }
+.sunday-sheet-out    { animation: sundaySheetOut    0.28s cubic-bezier(0.4, 0, 1, 1) both; }
+.animate-pop-scale   { animation: popScale          0.3s  cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-check-pop   { animation: checkPop          0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 /* ── iOS input zoom prevention (font-size must be ≥16px) ────────────── */
 input, select, textarea {

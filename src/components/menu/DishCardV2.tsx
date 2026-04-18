@@ -199,6 +199,7 @@ export default function DishCardV2({
                 src={dish.image_url}
                 alt={dish.name}
                 draggable={false}
+                loading="lazy"
                 className="w-full h-full object-cover block pointer-events-none"
               />
             ) : (
@@ -214,9 +215,10 @@ export default function DishCardV2({
             >
               {qty === 0 ? (
                 <button
+                  key="add-btn"
                   onClick={handleAdd}
                   aria-label={`Add ${primaryName} to cart`}
-                  className="rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100"
+                  className="rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100 animate-scale-in"
                   style={{
                     width: sizeScale.addBtn,
                     height: sizeScale.addBtn,
@@ -231,7 +233,8 @@ export default function DishCardV2({
                 </button>
               ) : (
                 <div
-                  className="flex items-center px-1 py-0.5"
+                  key="stepper"
+                  className="flex items-center px-1 py-0.5 animate-scale-in"
                   style={{
                     borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
                     backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',

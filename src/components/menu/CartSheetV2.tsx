@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Plus, Minus } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
@@ -29,13 +29,37 @@ export default function CartSheetV2({
   const [customerName, setCustomerName] = useState('');
   const [noteOpen, setNoteOpen] = useState(false);
   const [orderNote, setOrderNote] = useState('');
+  const [mounted, setMounted] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [open]);
+    if (exitTimer.current) clearTimeout(exitTimer.current);
+    if (open) {
+      setMounted(true);
+      setExiting(false);
+      document.body.style.overflow = 'hidden';
+    } else if (mounted) {
+      setExiting(true);
+      document.body.style.overflow = '';
+      exitTimer.current = setTimeout(() => {
+        setMounted(false);
+        setExiting(false);
+      }, 300);
+    }
+    return () => { if (exitTimer.current) clearTimeout(exitTimer.current); };
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
+  if (!mounted) return null;
 
   function handlePlaceOrder() {
     localStorage.setItem(
@@ -93,12 +117,12 @@ export default function CartSheetV2({
       {/* Backdrop */}
       <div
         onClick={onClose}
-        className="fixed inset-0 z-[70] backdrop-blur-sm flex items-end justify-center"
+        className={`fixed inset-0 z-[70] backdrop-blur-sm flex items-end justify-center ${exiting ? 'sunday-backdrop-out' : 'sunday-backdrop-in'}`}
         style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-[480px] max-h-[82vh] flex flex-col overflow-hidden sunday-slide-up"
+          className={`w-full max-w-[480px] max-h-[82vh] flex flex-col overflow-hidden ${exiting ? 'sunday-sheet-out' : 'sunday-slide-up'}`}
           style={{
             borderRadius: 'calc(var(--sunday-radius, 12px) * 1.5) calc(var(--sunday-radius, 12px) * 1.5) 0 0',
             backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
@@ -126,6 +150,7 @@ export default function CartSheetV2({
             </span>
             <button
               onClick={onClose}
+              aria-label="Close basket"
               className="w-8 h-8 rounded-full border-none cursor-pointer flex items-center justify-center"
               style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text, #1c1c17)' }}
             >
@@ -216,7 +241,7 @@ export default function CartSheetV2({
                             <span className="pl-2">+ {sa.name}</span>
                             {sa.price > 0 && (
                               <span className="shrink-0 ml-2" style={{ color: 'var(--sunday-text-muted, #7A6040)' }}>
-                                +₹{sa.price}
+                                +{formatPrice(sa.price)}
                               </span>
                             )}
                           </div>
@@ -235,6 +260,7 @@ export default function CartSheetV2({
                       <div className="flex items-center gap-2 shrink-0 mt-0.5">
                         <button
                           onClick={() => updateQuantity(item.cart_key, item.quantity - 1)}
+                          aria-label={`Remove one ${item.name}`}
                           className="w-7 h-7 rounded-full bg-transparent cursor-pointer flex items-center justify-center"
                           style={{ border: '1px solid var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text, #1c1c17)' }}
                         >
@@ -248,6 +274,7 @@ export default function CartSheetV2({
                         </span>
                         <button
                           onClick={() => updateQuantity(item.cart_key, item.quantity + 1)}
+                          aria-label={`Add another ${item.name}`}
                           className="w-7 h-7 rounded-full bg-transparent cursor-pointer flex items-center justify-center"
                           style={{ border: '1px solid var(--sunday-border, #E8D5B0)', color: 'var(--sunday-text, #1c1c17)' }}
                         >
@@ -367,6 +394,7 @@ export default function CartSheetV2({
                 </div>
                 <button
                   onClick={handlePlaceOrder}
+                  aria-label={`Place order for ${formatPrice(total)}`}
                   className="w-full py-3.5 text-white font-bold border-none cursor-pointer active:scale-[0.98] transition-transform duration-100"
                   style={{
                     fontSize: typeScale.lg,
