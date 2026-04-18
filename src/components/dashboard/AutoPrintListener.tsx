@@ -54,9 +54,7 @@ export function AutoPrintListener({ restaurantId, restaurantName, printerConfig 
 
     import('@/lib/printer-service').then(async ({ printerService }) => {
       const results = await printerService.reconnectAll(config);
-      results.forEach((connected, printerId) => {
-        console.log(`[AutoPrint] Printer ${printerId}: ${connected ? 'connected' : 'disconnected'}`);
-      });
+      void results;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -99,7 +97,6 @@ export function AutoPrintListener({ restaurantId, restaurantName, printerConfig 
           if (!data) return;
           const order = data as Order;
 
-          console.log(`[AutoPrint] New order #${order.order_number}, printing KOT`);
           await autoPrintKOT(
             order,
             restaurantId,

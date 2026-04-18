@@ -138,7 +138,6 @@ export interface Product {
   description: string | null;
   price: number;
   image_url: string | null;
-  detail_image_url: string | null;
   is_veg: boolean;
   is_jain: boolean | string;
   spice_level: SpiceLevel;

@@ -4,13 +4,12 @@ import { useRef, useState, useEffect } from 'react';
 import { Utensils } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { formatPrice } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
-import type { MenuTokens } from '@/lib/tokens';
 import type { Product } from '@/types';
 
 interface Props {
   dish: Product;
-  tokens: MenuTokens;
   index: number;
   isBestseller: boolean;
   lang?: 'en' | 'hi';
@@ -115,7 +114,7 @@ export default function DishCardV2({
         transition: reduced
           ? 'none'
           : `opacity 400ms ease-out ${staggerDelay}ms, transform 400ms ease-out ${staggerDelay}ms`,
-        willChange: 'opacity, transform',
+        willChange: revealed ? 'auto' : 'opacity, transform',
       }}
     >
       <div
@@ -161,7 +160,7 @@ export default function DishCardV2({
             className="font-semibold mb-1"
             style={{ fontSize: typeScale.md, color: 'var(--sunday-primary, #361f1a)', fontFamily: 'var(--sunday-font-body)' }}
           >
-            ₹{dish.price}
+            {formatPrice(dish.price)}
           </p>
 
           {/* Description */}
@@ -216,6 +215,7 @@ export default function DishCardV2({
               {qty === 0 ? (
                 <button
                   onClick={handleAdd}
+                  aria-label={`Add ${primaryName} to cart`}
                   className="rounded-full text-white border-2 border-white cursor-pointer flex items-center justify-center leading-none active:scale-90 transition-transform duration-100"
                   style={{
                     width: sizeScale.addBtn,
@@ -241,6 +241,7 @@ export default function DishCardV2({
                 >
                   <button
                     onClick={handleDecrease}
+                    aria-label={`Remove one ${primaryName}`}
                     className="w-6 h-6 rounded-full bg-transparent border-none text-base font-semibold cursor-pointer flex items-center justify-center leading-none"
                     style={{ color: 'var(--sunday-text, #1c1c17)' }}
                   >
@@ -254,6 +255,7 @@ export default function DishCardV2({
                   </span>
                   <button
                     onClick={handleIncrease}
+                    aria-label={`Add another ${primaryName}`}
                     className="w-6 h-6 rounded-full bg-transparent border-none text-base font-semibold cursor-pointer flex items-center justify-center leading-none"
                     style={{ color: 'var(--sunday-text, #1c1c17)' }}
                   >

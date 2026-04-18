@@ -114,8 +114,6 @@ export async function extractMenuFromImage(
   ]);
 
   const text = result.response.text().trim();
-  console.log('[ai-scanner] Raw Gemini response:', text.slice(0, 500));
-
   // Strip markdown code fences if the model wraps in them
   let json = text
     .replace(/^```json\s*/i, '')
@@ -175,19 +173,14 @@ export async function extractMenuFromImage(
 
     // Safety net: filter out add-on items even if Gemini ignores the prompt
     if (typeof raw.name === 'string' && /^extra\s/i.test(raw.name) && typeof raw.price === 'number' && raw.price <= 50) {
-      console.log('[ai-scanner] Filtered add-on item:', raw.name);
       continue;
     }
 
-    // Safety net: filter out items explicitly marked as add-ons
     if (raw.is_addon === true) {
-      console.log('[ai-scanner] Filtered is_addon item:', raw.name);
       continue;
     }
 
-    // Safety net: filter out items with no valid price (e.g. "MRP" that parsed to NaN)
     if (typeof raw.price === 'number' && isNaN(raw.price)) {
-      console.log('[ai-scanner] Filtered NaN price item:', raw.name);
       continue;
     }
 
@@ -204,8 +197,6 @@ export async function extractMenuFromImage(
         dish.parent_category = (!cleaned || cleaned === dish.category) ? null : cleaned;
       }
       dishes.push(dish);
-    } else {
-      console.log('[ai-scanner] Skipped invalid item:', JSON.stringify(raw).slice(0, 200), parseResult.error.issues);
     }
   }
 

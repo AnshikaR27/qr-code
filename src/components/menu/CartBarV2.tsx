@@ -23,6 +23,7 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
     >
       <button
         onClick={onOpen}
+        aria-label={`View cart, ${itemCount} items`}
         className="pointer-events-auto w-full flex items-center justify-between border-none cursor-pointer transition-all duration-200 active:scale-[0.98]"
         style={{
           height: sizeScale.cartBarH,

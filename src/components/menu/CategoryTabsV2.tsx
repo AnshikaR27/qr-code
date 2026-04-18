@@ -2,13 +2,11 @@
 
 import { useEffect, useRef } from 'react';
 import { typeScale, spacingScale } from '@/lib/sunday-scale';
-import type { MenuTokens } from '@/lib/tokens';
 import type { Category } from '@/types';
 
 interface Props {
   categories: Category[];
   activeTab: string;
-  tokens: MenuTokens;
   onSelect: (id: string) => void;
   lang?: 'en' | 'hi';
 }
@@ -30,7 +28,7 @@ export default function CategoryTabsV2({
   }, [activeTab]);
 
   return (
-    <div style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)' }}>
+    <div style={{ backgroundColor: 'var(--sunday-nav-bg, #efebe2)' }} role="tablist" aria-label="Menu categories">
       <div
         className="flex overflow-x-auto scrollbar-hide [&::-webkit-scrollbar]:hidden"
         style={{
@@ -51,6 +49,8 @@ export default function CategoryTabsV2({
               key={cat.id}
               ref={active ? activeRef : undefined}
               onClick={() => onSelect(cat.id)}
+              role="tab"
+              aria-selected={active}
               className="shrink-0 rounded-full whitespace-nowrap transition-all duration-150 border-none bg-transparent"
               style={{
                 fontSize: typeScale.body,

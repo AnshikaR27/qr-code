@@ -197,11 +197,6 @@ export default function MenuManager({ restaurant, initialCategories, initialProd
       if (error) throw error;
       setProducts((prev) => prev.filter((p) => p.id !== product.id));
       toast.success('Dish deleted');
-      // Clean up images from Cloudinary (best-effort, non-blocking)
-      const imagesToDelete = [product.image_url, product.detail_image_url].filter(Boolean);
-      for (const url of imagesToDelete) {
-        fetch('/api/delete-image', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) }).catch(() => {});
-      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete dish');
     }

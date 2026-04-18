@@ -40,7 +40,12 @@
       "Bash(file -- \"-\" \"Implement\")",
       "Bash(git revert:*)",
       "Bash(ffprobe -i public/notify.mp3 -show_entries format=duration -v quiet -of csv=\"p=0\")",
-      "Bash(xargs basename:*)"
+      "Bash(xargs basename:*)",
+      "Bash(unzip *)",
+      "Bash(mkdir -p \"C:/Users/12ans/Downloads/qrcode/.claude/skills\")",
+      "Bash(cp /tmp/skill-extract/skill-main/skills/emil-design-eng/SKILL.md \"C:/Users/12ans/Downloads/qrcode/.claude/skills/emil-design-eng.md\")",
+      "Bash(cp *)",
+      "Bash(git *)"
     ]
   }
 }

@@ -4,13 +4,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ChevronLeft, Utensils, Check, MessageSquare, X } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { formatPrice } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
-import type { MenuTokens } from '@/lib/tokens';
 import type { Product, Category, CartAddon } from '@/types';
 
 interface Props {
   product: Product | null;
-  tokens: MenuTokens;
   isBestseller?: boolean;
   lang?: 'en' | 'hi';
   onClose: () => void;
@@ -87,6 +86,15 @@ export default function DishDetailSheetV2({
     document.body.style.overflow = product ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [product]);
+
+  useEffect(() => {
+    if (!product) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [product, onClose]);
 
 
   if (!product) return null;
@@ -172,16 +180,17 @@ export default function DishDetailSheetV2({
           >
             <div
               className="w-9 h-1 rounded-full"
-              style={{ backgroundColor: (dish.detail_image_url || dish.image_url) ? 'rgba(255,255,255,0.5)' : 'var(--sunday-border, #E8D5B0)' }}
+              style={{ backgroundColor: dish.image_url ? 'rgba(255,255,255,0.5)' : 'var(--sunday-border, #E8D5B0)' }}
             />
           </div>
 
           {/* Back button */}
           <button
             onClick={onClose}
+            aria-label="Close dish details"
             className="absolute top-3 left-3 z-[11] w-9 h-9 rounded-full flex items-center justify-center text-white"
             style={{
-              ...((dish.detail_image_url || dish.image_url)
+              ...(dish.image_url
                 ? { background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }
                 : { backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text, #1c1c17)' }),
               boxShadow: 'var(--sunday-shadow-md)',
@@ -191,24 +200,20 @@ export default function DishDetailSheetV2({
           </button>
 
           {/* Hero image */}
-          {(dish.detail_image_url || dish.image_url) ? (() => {
-            const src = dish.detail_image_url ?? dish.image_url!;
-            const isDetail = !!dish.detail_image_url;
-            return (
-              <div className={isDetail ? 'w-full overflow-hidden relative' : 'w-full aspect-[16/9] overflow-hidden relative'}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={src}
-                  alt={dish.name}
-                  className={isDetail ? 'w-full h-auto block object-contain' : 'w-full h-full object-cover block will-change-transform'}
-                  style={isDetail ? {} : {
-                    transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
-                    transition: 'none',
-                  }}
-                />
-              </div>
-            );
-          })() : (
+          {dish.image_url ? (
+            <div className="w-full aspect-[16/9] overflow-hidden relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={dish.image_url}
+                alt={dish.name}
+                className="w-full h-full object-cover block will-change-transform"
+                style={{
+                  transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
+                  transition: 'none',
+                }}
+              />
+            </div>
+          ) : (
             <div
               className="w-full aspect-[4/3] flex items-center justify-center"
               style={{ backgroundColor: 'var(--sunday-surface-low, #f6f2e9)' }}
@@ -221,7 +226,7 @@ export default function DishDetailSheetV2({
           <div
             className="pb-32"
             style={{
-              paddingTop: (dish.detail_image_url || dish.image_url) ? spacingScale.px : 'calc(40px + 4px)',
+              paddingTop: dish.image_url ? spacingScale.px : 'calc(40px + 4px)',
               paddingLeft: spacingScale.px,
               paddingRight: spacingScale.px,
             }}
@@ -233,7 +238,7 @@ export default function DishDetailSheetV2({
                 className="font-medium"
                 style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
               >
-                {dish.is_available ? 'Orderable' : 'Sold out'}
+                {dish.is_available ? 'Available' : 'Sold out'}
               </span>
               {isBestseller && (
                 <span
@@ -288,7 +293,7 @@ export default function DishDetailSheetV2({
               className="font-semibold mb-5"
               style={{ fontSize: typeScale.base, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
             >
-              ₹{dish.price}
+              {formatPrice(dish.price)}
             </p>
 
             {/* Add-ons section */}
@@ -335,7 +340,7 @@ export default function DishDetailSheetV2({
                           className="font-semibold shrink-0"
                           style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
                         >
-                          +₹{addon.price}
+                          +{formatPrice(addon.price)}
                         </span>
                       </button>
                     );
@@ -375,6 +380,7 @@ export default function DishDetailSheetV2({
                   <button
                     type="button"
                     onClick={() => { setNotes(''); setShowNotes(false); }}
+                    aria-label="Remove note"
                     className="p-1 rounded-full bg-transparent border-none cursor-pointer"
                     style={{ color: 'var(--sunday-text-muted, #7A6040)' }}
                   >
@@ -445,12 +451,15 @@ export default function DishDetailSheetV2({
               >
                 <button
                   onClick={() => setLocalQty((q) => Math.max(1, q - 1))}
+                  aria-label="Decrease quantity"
+                  disabled={localQty <= 1}
                   className="bg-transparent border-none font-light cursor-pointer flex items-center justify-center"
                   style={{
                     width: sizeScale.stepperW,
                     height: sizeScale.stepperH,
                     fontSize: typeScale.xl,
                     color: 'var(--sunday-text, #1c1c17)',
+                    opacity: localQty <= 1 ? 0.35 : 1,
                   }}
                 >
                   −
@@ -463,6 +472,7 @@ export default function DishDetailSheetV2({
                 </span>
                 <button
                   onClick={() => setLocalQty((q) => q + 1)}
+                  aria-label="Increase quantity"
                   className="bg-transparent border-none font-light cursor-pointer flex items-center justify-center"
                   style={{
                     width: sizeScale.stepperW,
@@ -478,6 +488,7 @@ export default function DishDetailSheetV2({
               {/* Add button */}
               <button
                 onClick={handleAddToOrder}
+                aria-label={`Add ${localQty} ${primaryName} to order`}
                 className="flex-1 py-3 text-white font-bold border-none cursor-pointer active:scale-[0.98] transition-transform duration-100"
                 style={{
                   fontSize: typeScale.md,
@@ -487,7 +498,7 @@ export default function DishDetailSheetV2({
                   fontFamily: 'var(--sunday-font-body)',
                 }}
               >
-                Add {localQty} item{localQty > 1 ? 's' : ''} · ₹{itemTotal}
+                Add {localQty} item{localQty > 1 ? 's' : ''} · {formatPrice(itemTotal)}
               </button>
             </div>
           ) : (

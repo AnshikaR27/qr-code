@@ -6,7 +6,6 @@ import { X, Plus, Minus } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
-import type { MenuTokens } from '@/lib/tokens';
 import type { Restaurant, Product } from '@/types';
 
 interface Props {
@@ -14,7 +13,6 @@ interface Props {
   onClose: () => void;
   restaurant: Restaurant;
   tableId: string | null;
-  tokens: MenuTokens;
   products?: Product[];
 }
 

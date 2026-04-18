@@ -349,7 +349,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 <CategoryTabsV2
                   categories={categories}
                   activeTab={activeTab}
-                  tokens={tokens}
                   onSelect={scrollToCategory}
                   lang={lang}
                 />
@@ -554,7 +553,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                             <DishCardV2
                               key={dish.id}
                               dish={dish}
-                              tokens={tokens}
                               index={i}
                               isBestseller={topDishIds.has(dish.id)}
                               lang={lang}
@@ -593,7 +591,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
               {/* Dish detail sheet */}
               <DishDetailSheetV2
                 product={selectedDish}
-                tokens={tokens}
                 isBestseller={selectedDish ? topDishIds.has(selectedDish.id) : false}
                 lang={lang}
                 onClose={() => setSelectedDish(null)}
@@ -607,7 +604,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                 onClose={() => setCartOpen(false)}
                 restaurant={restaurant}
                 tableId={tableId}
-                tokens={tokens}
                 products={products}
               />
 

@@ -60,7 +60,6 @@ export function OrdersProvider({ restaurantId, initialOrders, children }: Props)
             if (data) {
               const newOrder = data as Order;
               setOrders((prev) => [newOrder, ...prev]);
-              console.log(`[orders-ctx] New order #${newOrder.order_number}`);
             }
           } else if (payload.eventType === 'UPDATE') {
             if ('merge_group_id' in payload.new) {
@@ -89,7 +88,7 @@ export function OrdersProvider({ restaurantId, initialOrders, children }: Props)
           }
         },
       )
-      .subscribe((status) => { console.log('[orders-ctx] subscription status:', status); });
+      .subscribe();
 
     isFirstRender.current = false;
     return () => { supabase.removeChannel(channel); };
