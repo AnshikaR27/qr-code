@@ -65,7 +65,7 @@ export default function PayViewV2({
               className="w-[90px] h-[90px] rounded-full object-cover"
             />
           ) : (
-            <span className="font-display text-3xl font-bold" style={{ color: 'var(--sunday-accent, #b12d00)' }}>
+            <span className="font-display text-3xl font-extrabold" style={{ color: 'var(--sunday-accent, #b12d00)' }}>
               {restaurant.name.charAt(0)}
             </span>
           )}
@@ -81,10 +81,10 @@ export default function PayViewV2({
 
       {/* Left to pay */}
       <div className="flex items-center justify-between px-5 mt-5 mb-6">
-        <span className="font-display text-2xl font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+        <span className="font-display text-2xl font-extrabold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
           Left to pay
         </span>
-        <span className="font-display text-2xl font-bold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
+        <span className="font-display text-2xl font-extrabold" style={{ color: 'var(--sunday-text, #1c1c17)' }}>
           ₹{total.toFixed(2)}
         </span>
       </div>

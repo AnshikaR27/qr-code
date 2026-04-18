@@ -175,7 +175,7 @@ export default function SplitBillSheet({ open, onClose }: Props) {
             <div className="flex flex-col items-center pt-4">
               {/* Progress ring placeholder */}
               <div className="w-40 h-40 rounded-full border-4 flex items-center justify-center mb-8" style={{ borderColor: 'var(--sunday-accent)' }}>
-                <span className="font-display text-2xl font-bold text-[#1A1A1A]">
+                <span className="font-display text-2xl font-extrabold text-[#1A1A1A]">
                   {formatPrice(total)}
                 </span>
               </div>
@@ -229,7 +229,7 @@ export default function SplitBillSheet({ open, onClose }: Props) {
               {/* Split total */}
               <div className="text-center mb-6">
                 <span className="font-body text-sm text-[#666]">Total</span>
-                <p className="font-display text-2xl font-bold text-[#1A1A1A] mt-1">
+                <p className="font-display text-2xl font-extrabold text-[#1A1A1A] mt-1">
                   {formatPrice(splitAmount)}
                 </p>
               </div>

@@ -1,26 +1,10 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Cormorant_Garamond, Playfair_Display, DM_Sans, Epilogue, Manrope } from 'next/font/google';
+import { Epilogue, Manrope } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import PostHogProvider from '@/components/PostHogProvider';
 import * as Sentry from '@sentry/nextjs';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-const cormorant = Cormorant_Garamond({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
-  variable: '--font-serif',
-});
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  weight: ['600', '700', '800'],
-  variable: '--font-display',
-});
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-body',
-});
 const epilogue = Epilogue({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700', '800'],
@@ -53,8 +37,8 @@ export function generateMetadata(): Metadata {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${cormorant.variable} ${playfair.variable} ${dmSans.variable} ${epilogue.variable} ${manrope.variable}`}>
-      <body className="font-sans antialiased">
+    <html lang="en" className={`${epilogue.variable} ${manrope.variable}`}>
+      <body className="antialiased" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
         <PostHogProvider>
           {children}
           <Toaster />
