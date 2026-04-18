@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ChevronLeft, Utensils, Check, MessageSquare, X } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { formatPrice, cdnImg } from '@/lib/utils';
+import { formatPrice, cdnImg, cdnBlur } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Product, Category, CartAddon } from '@/types';
 
@@ -201,7 +201,14 @@ export default function DishDetailSheetV2({
 
           {/* Hero image */}
           {dish.image_url ? (
-            <div className="w-full aspect-[16/9] overflow-hidden relative">
+            <div
+              className="w-full aspect-[16/9] overflow-hidden relative"
+              style={{
+                backgroundImage: `url(${cdnBlur(dish.image_url)})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={cdnImg(dish.image_url, 960, 540)}

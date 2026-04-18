@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Plus, Minus } from 'lucide-react';
-import { formatPrice, cdnImg } from '@/lib/utils';
+import { formatPrice, cdnImg, cdnBlur } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Restaurant, Product } from '@/types';
@@ -202,6 +202,9 @@ export default function CartSheetV2({
                           height: sizeScale.cartThumb,
                           borderRadius: 'calc(var(--sunday-radius, 12px) * 0.66)',
                           backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
+                          backgroundImage: imgUrl ? `url(${cdnBlur(imgUrl)})` : undefined,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
                         }}
                       >
                         {imgUrl ? (
