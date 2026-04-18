@@ -111,38 +111,12 @@ input, textarea, [contenteditable] {
   }
 }
 
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 @keyframes scaleIn {
   from { transform: scale(0.88); opacity: 0; }
   to   { transform: scale(1);    opacity: 1; }
 }
 
-@keyframes cartBounce {
-  0%   { transform: translateY(100%); }
-  100% { transform: translateY(0); }
-}
-
-@keyframes shimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position:  200% center; }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 var(--glow-color, rgba(0,0,0,0)); }
-  50%       { box-shadow: 0 0 0 8px var(--glow-color, rgba(0,0,0,0)); }
-}
-
-.animate-fade-in-up  { animation: fadeInUp   0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-scale-in    { animation: scaleIn    0.2s  cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-cart-bounce { animation: cartBounce 0.4s  cubic-bezier(0.22, 1, 0.36, 1) both; }
-
-/* Cart bar spring slide */
-.cart-spring-enter  { transform: translateY(0);    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
-.cart-spring-exit   { transform: translateY(110%); transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+.animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 /* ── Spring bottom-sheet override (Radix CartSheet) ──────────────────── */
 [data-slot="sheet-content"][data-side="bottom"][data-state="open"] {
@@ -154,59 +128,18 @@ input, textarea, [contenteditable] {
   animation-duration: 250ms !important;
 }
 
-/* ── Add-button celebration burst ───────────────────────────────────── */
-@keyframes menuParticleBurst {
-  from { transform: translate(0, 0) scale(1); opacity: 1; }
-  to   { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
-}
-.menu-particle {
-  animation: menuParticleBurst 500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  will-change: transform, opacity;
-}
-
-/* ── Category section blur-in (Vercel-style) ─────────────────────────── */
-@keyframes sectionBlurIn {
-  from { opacity: 0.65; filter: blur(4px); }
-  to   { opacity: 1;    filter: blur(0px); }
-}
-.section-blur-enter {
-  animation: sectionBlurIn 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: opacity, filter;
-}
-
 /* ── Sunday theme animations ────────────────────────────────────────── */
 @keyframes sundaySlideUp {
   from { transform: translateY(55%); opacity: 0.2; }
   to   { transform: translateY(0);   opacity: 1; }
 }
-@keyframes sundayFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes sundayCartSlide {
-  from { transform: translateX(-50%) translateY(110%); opacity: 0; }
-  to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
-}
 @keyframes sundayToastIn {
   from { transform: translateX(-50%) translateY(20px); opacity: 0; }
   to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
 }
-@keyframes sundayToastOut {
-  from { transform: translateY(0);    opacity: 1; }
-  to   { transform: translateY(20px); opacity: 0; }
-}
-@keyframes sundayBtnPulse {
-  0%   { transform: scale(1); }
-  50%  { transform: scale(0.9); }
-  100% { transform: scale(1); }
-}
 
-.sunday-slide-up   { animation: sundaySlideUp   0.42s cubic-bezier(0.32, 0.72, 0, 1) both; }
-.sunday-fade-in    { animation: sundayFadeIn     0.3s ease-out both; }
-.sunday-cart-slide { animation: sundayCartSlide  0.4s cubic-bezier(0.32, 0.72, 0, 1) both; }
-.sunday-toast-in   { animation: sundayToastIn    0.3s ease-out both; }
-.sunday-toast-out  { animation: sundayToastOut   0.3s ease-in both; }
-.sunday-btn-pulse  { animation: sundayBtnPulse   0.2s ease-out; }
+.sunday-slide-up { animation: sundaySlideUp 0.42s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.sunday-toast-in { animation: sundayToastIn 0.3s ease-out both; }
 
 /* ── Backdrop ────────────────────────────────────────────────────────── */
 @keyframes sundayBackdropIn {
@@ -267,6 +200,11 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible, input:focu
 button:active, [role="button"]:active {
   opacity: 0.85;
   transition: opacity 60ms ease-out;
+}
+
+/* ── Dish card press: CSS :active replaces JS imperative handlers ────── */
+.dish-card-pressable:active {
+  transform: scale(0.98);
 }
 
 /* ── Global reduced-motion kill-switch ───────────────────────────────── */

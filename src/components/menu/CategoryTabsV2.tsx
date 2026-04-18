@@ -68,7 +68,6 @@ export default function CategoryTabsV2({
                   : {
                       color: 'var(--sunday-text-muted, #7A6040)',
                       fontWeight: 500,
-                      opacity: 0.6,
                     }),
               }}
             >

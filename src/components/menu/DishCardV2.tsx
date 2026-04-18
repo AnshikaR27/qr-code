@@ -43,7 +43,12 @@ export default function DishCardV2({
     const el = outerRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([entry]) => { setRevealed(entry.isIntersecting); },
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setRevealed(true);
+          obs.disconnect();
+        }
+      },
       { threshold: 0.1 }
     );
     obs.observe(el);
@@ -119,19 +124,14 @@ export default function DishCardV2({
     >
       <div
         onClick={dish.is_available ? onTap : undefined}
-        onMouseDown={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'; } : undefined}
-        onMouseUp={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
-        onMouseLeave={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
-        onTouchStart={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'; } : undefined}
-        onTouchEnd={dish.is_available ? (e) => { (e.currentTarget as HTMLElement).style.transform = ''; } : undefined}
-        className={`flex items-start ${dish.is_available ? 'cursor-pointer' : 'cursor-default'}`}
+        className={`flex items-start ${dish.is_available ? 'cursor-pointer dish-card-pressable' : 'cursor-default'}`}
         style={{
           gap: spacingScale.gap,
           padding: spacingScale.cardPad,
           borderRadius: 'var(--sunday-radius, 12px)',
           backgroundColor: 'var(--sunday-card-bg, #FFFFFF)',
           boxShadow: 'var(--sunday-shadow-md)',
-          transition: 'transform 120ms ease',
+          transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1)',
           willChange: 'transform',
         }}
       >
@@ -155,10 +155,10 @@ export default function DishCardV2({
             {primaryName}
           </h3>
 
-          {/* Price */}
+          {/* Price — primary decision signal, distinct from description */}
           <p
-            className="font-medium mb-1"
-            style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+            className="font-semibold mb-1"
+            style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
           >
             {formatPrice(dish.price)}
           </p>
