@@ -2,7 +2,6 @@ import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
-import CustomerMenu from '../CustomerMenu';
 import CustomerMenuV2 from '../CustomerMenuV2';
 import type { AddonGroup, Category, Product, Restaurant } from '@/types';
 
@@ -43,7 +42,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
       .order('sort_order', { ascending: true }),
     supabase
       .from('products')
-      .select('id, name, name_hindi, description, price, image_url, is_veg, is_jain, spice_level, allergens, dietary_tags, is_available, sort_order, order_count, category_id, restaurants!inner(id)')
+      .select('id, name, name_hindi, description, price, image_url, is_veg, is_jain, allergens, is_available, sort_order, order_count, category_id, restaurants!inner(id)')
       .eq('restaurants.slug', slug)
       .eq('restaurants.is_active', true)
       .order('sort_order', { ascending: true }),
@@ -58,24 +57,13 @@ export default async function MenuPage({ params, searchParams }: Props) {
   // Stage 2: addon groups with nested items (single query stage)
   const addonGroupMap = await fetchAddonGroupMap(prods, cats);
 
-  if (r.ui_theme === 'sunday') {
-    return (
-      <CustomerMenuV2
-        restaurant={r}
-        categories={cats}
-        products={prods}
-        tableId={tableId}
-        addonGroupMap={addonGroupMap}
-      />
-    );
-  }
-
   return (
-    <CustomerMenu
+    <CustomerMenuV2
       restaurant={r}
       categories={cats}
       products={prods}
       tableId={tableId}
+      addonGroupMap={addonGroupMap}
     />
   );
 }
@@ -94,12 +82,12 @@ async function fetchAddonGroupMap(
   const [{ data: productLinks }, { data: catLinks }] = await Promise.all([
     admin
       .from('product_addon_groups')
-      .select('product_id, addon_group:addon_groups(id, name, selection_type, is_required, max_selections, sort_order, items:addon_items(id, addon_group_id, name, price, is_veg, is_available, sort_order))')
+      .select('product_id, addon_group:addon_groups(id, name, selection_type, is_required, max_selections, sort_order, items:addon_items(id, name, price, is_veg, is_available, sort_order))')
       .in('product_id', productIds),
     catIds.length > 0
       ? admin
           .from('category_addon_groups')
-          .select('category_id, addon_group:addon_groups(id, name, selection_type, is_required, max_selections, sort_order, items:addon_items(id, addon_group_id, name, price, is_veg, is_available, sort_order))')
+          .select('category_id, addon_group:addon_groups(id, name, selection_type, is_required, max_selections, sort_order, items:addon_items(id, name, price, is_veg, is_available, sort_order))')
           .in('category_id', catIds)
       : Promise.resolve({ data: [] as any[] }),
   ]);
