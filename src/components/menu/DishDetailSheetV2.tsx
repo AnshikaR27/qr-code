@@ -208,6 +208,8 @@ export default function DishDetailSheetV2({
                 alt={dish.name}
                 width={960}
                 height={540}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover block will-change-transform"
                 style={{
                   transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,

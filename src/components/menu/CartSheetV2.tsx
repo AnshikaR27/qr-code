@@ -206,7 +206,7 @@ export default function CartSheetV2({
                       >
                         {imgUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={cdnImg(imgUrl, 128)} alt={item.name} width={128} height={128} className="w-full h-full object-cover" />
+                          <img src={cdnImg(imgUrl, 128)} alt={item.name} width={128} height={128} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           <span className="text-xl">🍽️</span>
                         )}

@@ -43,6 +43,8 @@ export default function PayViewV2({
             alt={restaurant.name}
             width={960}
             height={400}
+            fetchpriority="high"
+            decoding="async"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -66,6 +68,8 @@ export default function PayViewV2({
               alt={restaurant.name}
               width={180}
               height={180}
+              fetchpriority="high"
+              decoding="async"
               className="w-[90px] h-[90px] rounded-full object-cover"
             />
           ) : (

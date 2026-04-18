@@ -41,6 +41,8 @@ export default function WelcomeScreenV2({
             alt={restaurant.name}
             width={960}
             height={360}
+            fetchpriority="high"
+            decoding="async"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -74,6 +76,8 @@ export default function WelcomeScreenV2({
               alt={restaurant.name}
               width={180}
               height={180}
+              fetchpriority="high"
+              decoding="async"
               className="rounded-full object-cover"
               style={{ width: sizeScale.logoImg, height: sizeScale.logoImg }}
             />
@@ -142,6 +146,8 @@ export default function WelcomeScreenV2({
                     alt={cat.name}
                     width={400}
                     height={267}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 ) : (
