@@ -75,7 +75,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
   const [form, setForm] = useState<FormState>(toForm(restaurant));
   const [billing, setBilling] = useState<BillingConfig>(() => toBillingForm(restaurant));
   const [billingErrors, setBillingErrors] = useState<Record<string, string>>({});
-  const [uiTheme, setUiTheme] = useState<'classic' | 'sunday'>(restaurant.ui_theme ?? 'classic');
+  const uiTheme = 'sunday' as const;
   const [serviceMode, setServiceMode] = useState<'self_service' | 'table_service'>(restaurant.service_mode ?? 'self_service');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -346,8 +346,7 @@ export default function SettingsClient({ restaurant, categories }: Props) {
         </Section>
 
         {/* ── Welcome Screen (Sunday theme) ── */}
-        {uiTheme === 'sunday' && (
-          <Section title="Welcome Screen">
+        <Section title="Welcome Screen">
             {/* Hero image */}
             <Label className="text-sm font-medium">Hero Image</Label>
             <p className="text-xs text-muted-foreground mt-0.5 mb-3">
@@ -413,7 +412,6 @@ export default function SettingsClient({ restaurant, categories }: Props) {
               </p>
             </div>
           </Section>
-        )}
 
         {/* ── Service Style ── */}
         <Section title="Service Style">
@@ -452,86 +450,6 @@ export default function SettingsClient({ restaurant, categories }: Props) {
           </div>
         </Section>
 
-        {/* ── Menu Style ── */}
-        <Section title="Menu Style">
-          <p className="text-xs text-muted-foreground -mt-1">
-            Choose how your customer-facing menu looks. Same functionality, different layout.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            {/* Classic */}
-            <button
-              type="button"
-              onClick={() => setUiTheme('classic')}
-              className={cn(
-                'relative rounded-xl border-2 p-3 text-left transition-colors',
-                uiTheme === 'classic' ? 'border-primary bg-primary/5' : 'border-border'
-              )}
-            >
-              {/* Mini preview */}
-              <div className="mb-2 rounded-md overflow-hidden border border-border bg-muted/40 h-20 flex flex-col gap-1 p-1.5">
-                <div className="flex gap-1">
-                  <div className="h-3 w-10 rounded-full bg-foreground/70" />
-                  <div className="h-3 w-8 rounded-full bg-muted-foreground/30" />
-                  <div className="h-3 w-8 rounded-full bg-muted-foreground/30" />
-                </div>
-                {[1, 2].map((n) => (
-                  <div key={n} className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-1">
-                    <div className="h-5 w-5 rounded bg-muted-foreground/20 flex-shrink-0" />
-                    <div className="flex-1 space-y-0.5">
-                      <div className="h-1.5 w-10 rounded bg-foreground/60" />
-                      <div className="h-1 w-7 rounded bg-muted-foreground/40" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs font-semibold text-foreground">Classic</p>
-              <p className="text-xs text-muted-foreground">Card-based menu</p>
-              {uiTheme === 'classic' && (
-                <span className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </span>
-              )}
-            </button>
-
-            {/* Minimal */}
-            <button
-              type="button"
-              onClick={() => setUiTheme('sunday')}
-              className={cn(
-                'relative rounded-xl border-2 p-3 text-left transition-colors',
-                uiTheme === 'sunday' ? 'border-primary bg-primary/5' : 'border-border'
-              )}
-            >
-              {/* Mini preview */}
-              <div className="mb-2 rounded-md overflow-hidden border border-border bg-muted/40 h-20 flex flex-col p-1.5">
-                <div className="flex gap-2 border-b border-border pb-1 mb-1">
-                  <div className="h-2 w-8 rounded-sm bg-foreground/70" />
-                  <div className="h-2 w-6 rounded-sm bg-muted-foreground/30" />
-                </div>
-                {[1, 2].map((n) => (
-                  <div key={n} className="flex items-center justify-between border-b border-border py-1 last:border-0">
-                    <div className="space-y-0.5">
-                      <div className="h-1.5 w-10 rounded bg-foreground/60" />
-                      <div className="h-1 w-7 rounded bg-muted-foreground/40" />
-                    </div>
-                    <div className="h-5 w-5 rounded bg-muted-foreground/25 flex-shrink-0" />
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs font-semibold text-foreground">Minimal</p>
-              <p className="text-xs text-muted-foreground">Clean list layout</p>
-              {uiTheme === 'sunday' && (
-                <span className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </span>
-              )}
-            </button>
-          </div>
-        </Section>
 
         {/* ── Stitch Theme ── */}
         <Section title="Theme — Powered by Stitch">

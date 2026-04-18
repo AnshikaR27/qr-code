@@ -1,4 +1,4 @@
-import { cache } from 'react';
+import { cache, Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { supabasePublic } from '@/lib/supabase/public';
 import CustomerMenuV2 from '../CustomerMenuV2';
@@ -8,7 +8,6 @@ export const revalidate = 30;
 
 interface Props {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ table?: string }>;
 }
 
 // Cached per-request so generateMetadata and the page share one query
@@ -22,9 +21,8 @@ const getRestaurant = cache(async (slug: string) => {
   return data as Restaurant | null;
 });
 
-export default async function MenuPage({ params, searchParams }: Props) {
+export default async function MenuPage({ params }: Props) {
   const { slug } = await params;
-  const { table: tableId = null } = await searchParams;
 
   // Stage 1: restaurant + categories + products in parallel
   const [restaurant, { data: rawCategories }, { data: rawProducts }] = await Promise.all([
@@ -53,13 +51,14 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const addonGroupMap = await fetchAddonGroupMap(prods, cats);
 
   return (
-    <CustomerMenuV2
-      restaurant={r}
-      categories={cats}
-      products={prods}
-      tableId={tableId}
-      addonGroupMap={addonGroupMap}
-    />
+    <Suspense fallback={null}>
+      <CustomerMenuV2
+        restaurant={r}
+        categories={cats}
+        products={prods}
+        addonGroupMap={addonGroupMap}
+      />
+    </Suspense>
   );
 }
 

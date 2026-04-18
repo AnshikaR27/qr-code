@@ -45,7 +45,13 @@
       "Bash(mkdir -p \"C:/Users/12ans/Downloads/qrcode/.claude/skills\")",
       "Bash(cp /tmp/skill-extract/skill-main/skills/emil-design-eng/SKILL.md \"C:/Users/12ans/Downloads/qrcode/.claude/skills/emil-design-eng.md\")",
       "Bash(cp *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(node *)",
+      "Bash(cat C:\\\\\\\\Users\\\\\\\\12ans\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\C--Users-12ans-Downloads-qrcode\\\\\\\\f08c9ec1-a35d-45dd-b3be-4b0c881a22dd\\\\\\\\tasks\\\\\\\\bf1aico2v.output)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001)",
+      "Bash(cat next.config.mjs)",
+      "Bash(cat next.config.js)",
+      "Bash(cat next.config.ts)"
     ]
   }
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { X, ChevronUp, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatPrice, cdnImg } from '@/lib/utils';
@@ -26,7 +27,6 @@ interface Props {
   restaurant: Restaurant;
   categories: Category[];
   products: Product[];
-  tableId: string | null;
   addonGroupMap?: Record<string, AddonGroup[]>;
 }
 
@@ -74,7 +74,8 @@ function SundayToast({
   );
 }
 
-export default function CustomerMenuV2({ restaurant, categories, products, tableId, addonGroupMap = {} }: Props) {
+export default function CustomerMenuV2({ restaurant, categories, products, addonGroupMap = {} }: Props) {
+  const tableId = useSearchParams().get('table');
   const tokens = useMemo(
     () => buildMenuTokens(restaurant.design_tokens),
     [restaurant.design_tokens]
