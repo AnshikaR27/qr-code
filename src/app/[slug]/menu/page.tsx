@@ -2,7 +2,6 @@ import { cache, Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { supabasePublic } from '@/lib/supabase/public';
 import CustomerMenuV2 from '../CustomerMenuV2';
-import MenuLoading from './loading';
 import type { AddonGroup, Category, Product, Restaurant } from '@/types';
 
 export const revalidate = 30;
@@ -60,7 +59,7 @@ export default async function MenuPage({ params }: Props) {
   const addonGroupMap = await fetchAddonGroupMap(prods, cats);
 
   return (
-    <Suspense fallback={<MenuLoading />}>
+    <Suspense fallback={null}>
       <CustomerMenuV2
         restaurant={r}
         categories={cats}
