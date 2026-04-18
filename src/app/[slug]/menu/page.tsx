@@ -20,7 +20,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
 
   const { data: restaurant } = await supabase
     .from('restaurants')
-    .select('*')
+    .select('id, name, slug, logo_url, hero_image_url, tagline, address, city, design_tokens, ui_theme')
     .eq('slug', slug)
     .eq('is_active', true)
     .single();
@@ -30,12 +30,12 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const [{ data: categories }, { data: products }] = await Promise.all([
     supabase
       .from('categories')
-      .select('*')
+      .select('id, name, name_hindi, sort_order, parent_category_id')
       .eq('restaurant_id', restaurant.id)
       .order('sort_order', { ascending: true }),
     supabase
       .from('products')
-      .select('*')
+      .select('id, name, name_hindi, description, price, image_url, is_veg, is_jain, spice_level, allergens, dietary_tags, is_available, sort_order, order_count, category_id')
       .eq('restaurant_id', restaurant.id)
       .order('sort_order', { ascending: true }),
   ]);
@@ -95,8 +95,8 @@ async function fetchAddonGroupMap(
   if (groupIds.length === 0) return {};
 
   const [{ data: groupsData }, { data: itemsData }] = await Promise.all([
-    admin.from('addon_groups').select('*').in('id', groupIds).order('sort_order', { ascending: true }),
-    admin.from('addon_items').select('*').in('addon_group_id', groupIds).order('sort_order', { ascending: true }),
+    admin.from('addon_groups').select('id, name, selection_type, is_required, max_selections, sort_order').in('id', groupIds).order('sort_order', { ascending: true }),
+    admin.from('addon_items').select('id, addon_group_id, name, price, is_veg, is_available, sort_order').in('addon_group_id', groupIds).order('sort_order', { ascending: true }),
   ]);
 
   const allItems = (itemsData ?? []) as AddonItem[];

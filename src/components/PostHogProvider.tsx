@@ -1,25 +1,40 @@
 'use client';
 
-import posthog from 'posthog-js';
-import { PostHogProvider as PHProvider } from 'posthog-js/react';
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+
+function isCustomerRoute(pathname: string): boolean {
+  if (pathname === '/') return false;
+  if (pathname.startsWith('/dashboard')) return false;
+  if (pathname.startsWith('/login')) return false;
+  if (pathname.startsWith('/register')) return false;
+  if (pathname.startsWith('/auth')) return false;
+  if (pathname.startsWith('/monitoring')) return false;
+  return true;
+}
+
+let phLoaded = false;
 
 export default function PostHogProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
   useEffect(() => {
+    if (isCustomerRoute(pathname) || phLoaded) return;
     const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
     const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://app.posthog.com';
-
     if (!key) return;
-
-    posthog.init(key, {
-      api_host: host,
-      capture_pageview: false, // handled manually below
-      capture_pageleave: true,
-      loaded: (ph) => {
-        if (process.env.NODE_ENV !== 'production') ph.opt_out_capturing();
-      },
+    phLoaded = true;
+    import('posthog-js').then(({ default: ph }) => {
+      ph.init(key, {
+        api_host: host,
+        capture_pageview: false,
+        capture_pageleave: true,
+        loaded: (instance) => {
+          if (process.env.NODE_ENV !== 'production') instance.opt_out_capturing();
+        },
+      });
     });
-  }, []);
+  }, [pathname]);
 
-  return <PHProvider client={posthog}>{children}</PHProvider>;
+  return <>{children}</>;
 }

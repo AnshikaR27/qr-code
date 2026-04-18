@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
     const result = await cloudinary.uploader.upload(dataUri, {
       folder: 'restaurant-menu/dishes',
       transformation: [
-        { width: 3840, height: 3840, crop: 'limit' },
-        { quality: 100, fetch_format: 'auto' },
+        { width: 1200, height: 1200, crop: 'limit' },
+        { quality: 'auto', fetch_format: 'auto' },
       ],
     });
 

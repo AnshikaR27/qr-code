@@ -66,7 +66,7 @@ function SundayToast({
         }}
       >
         <span>{message}</span>
-        <button onClick={onClose} className="ml-3 text-white/60 bg-transparent border-none cursor-pointer">
+        <button onClick={onClose} aria-label="Dismiss" className="ml-3 text-white/60 bg-transparent border-none cursor-pointer">
           <X size={14} />
         </button>
       </div>
@@ -397,6 +397,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                       {searchQuery && (
                         <button
                           onClick={() => setSearchQuery('')}
+                          aria-label="Clear search"
                           className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5"
                           style={{ color: 'var(--sunday-text-muted, #7A6040)' }}
                         >
@@ -465,6 +466,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                     </div>
                     <button
                       onClick={handleRepeatOrder}
+                      aria-label="Repeat last order"
                       className="px-3 py-1.5 border-none font-bold cursor-pointer shrink-0 text-white"
                       style={{
                         fontSize: typeScale.sm,
@@ -477,6 +479,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                     </button>
                     <button
                       onClick={() => setShowRepeat(false)}
+                      aria-label="Dismiss repeat order"
                       className="bg-transparent border-none cursor-pointer p-1 shrink-0"
                       style={{ color: 'var(--sunday-text-muted, #7A6040)' }}
                     >
@@ -487,10 +490,21 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
 
                 {isFiltering && !hasAnyResults && (
                   <div
-                    className="py-12 px-4 text-center font-body"
-                    style={{ fontSize: typeScale.body, color: 'var(--sunday-text-muted, #7A6040)' }}
+                    className="py-16 px-6 text-center flex flex-col items-center gap-2"
+                    style={{ fontFamily: 'var(--sunday-font-body)' }}
                   >
-                    No items found
+                    <p
+                      className="font-bold m-0"
+                      style={{ fontSize: typeScale.md, color: 'var(--sunday-text, #1c1c17)' }}
+                    >
+                      No dishes found
+                    </p>
+                    <p
+                      className="m-0"
+                      style={{ fontSize: typeScale.body, color: 'var(--sunday-text-muted, #7A6040)' }}
+                    >
+                      Try a different search or filter
+                    </p>
                   </div>
                 )}
 
@@ -535,10 +549,10 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
 
                       {filtered.length === 0 ? (
                         <div
-                          className="px-4 py-4"
+                          className="py-6 text-center"
                           style={{ fontSize: typeScale.body, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
                         >
-                          No dishes in this category
+                          Coming soon
                         </div>
                       ) : (
                         <div
@@ -635,6 +649,8 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
       {zoomedImage && (
         <div
           onClick={() => setZoomedImage(null)}
+          role="dialog"
+          aria-label={`Zoomed image of ${zoomedImage.name}`}
           className="fixed inset-0 z-[9999] bg-black/92 flex flex-col items-center justify-center gap-3"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}

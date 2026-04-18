@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ChevronLeft, Utensils, Check, MessageSquare, X } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, cdnImg } from '@/lib/utils';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Product, Category, CartAddon } from '@/types';
 
@@ -204,8 +204,10 @@ export default function DishDetailSheetV2({
             <div className="w-full aspect-[16/9] overflow-hidden relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={dish.image_url}
+                src={cdnImg(dish.image_url, 960, 540)}
                 alt={dish.name}
+                width={960}
+                height={540}
                 className="w-full h-full object-cover block will-change-transform"
                 style={{
                   transform: reduced ? 'none' : `translateY(${-imgOffset}px)`,
