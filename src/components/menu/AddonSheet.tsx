@@ -220,7 +220,7 @@ export default function AddonSheet({ product, onClose, preloadedGroups }: Props)
           >
             {product.image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={cdnImg(product.image_url, 256)!} alt={product.name} className="w-full h-full object-cover" />
+              <img src={cdnImg(product.image_url)!} alt={product.name} className="w-full h-full object-cover" />
             ) : (
               <Utensils size={22} strokeWidth={1.5} style={{ color: 'var(--sunday-text-muted, #7A6040)' }} />
             )}

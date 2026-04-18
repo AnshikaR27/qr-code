@@ -38,7 +38,7 @@ export default function WelcomeScreenV2({
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={cdnImg(heroUrl, 960)!}
+            src={cdnImg(heroUrl)!}
             alt={restaurant.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             fetchPriority="high"
@@ -71,7 +71,7 @@ export default function WelcomeScreenV2({
           {restaurant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={cdnImg(restaurant.logo_url, 180)!}
+              src={cdnImg(restaurant.logo_url)!}
               alt={restaurant.name}
               className="rounded-full object-cover"
               style={{ width: sizeScale.logoImg, height: sizeScale.logoImg }}
@@ -137,7 +137,7 @@ export default function WelcomeScreenV2({
                 {imgUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={cdnImg(imgUrl, 480)!}
+                    src={cdnImg(imgUrl)!}
                     alt={cat.name}
                     className="w-full h-full object-cover"
                   />

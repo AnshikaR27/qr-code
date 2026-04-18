@@ -204,7 +204,7 @@ export default function DishDetailSheetV2({
             <div className="w-full aspect-[16/9] overflow-hidden relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={cdnImg(dish.image_url, 960)!}
+                src={cdnImg(dish.image_url)!}
                 alt={dish.name}
                 className="w-full h-full object-cover block will-change-transform"
                 style={{
