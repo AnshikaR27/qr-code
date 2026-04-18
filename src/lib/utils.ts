@@ -68,6 +68,17 @@ export function cdnImg(url: string | null | undefined, w: number, h = w): string
   return `${base}w_${w},h_${h},${crop},q_auto,f_auto/${cleaned}`;
 }
 
+/** Full-view tier: width-only constraint with q_auto:best for maximum perceived quality. */
+export function cdnImgBest(url: string | null | undefined, w: number): string {
+  if (!url) return '';
+  const uploadIdx = url.indexOf('/image/upload/');
+  if (uploadIdx === -1) return url;
+  const base = url.slice(0, uploadIdx + '/image/upload/'.length);
+  const rest = url.slice(base.length);
+  const cleaned = rest.replace(/^(?:[^/]*[_,][^/]*\/)+/, '');
+  return `${base}w_${w},c_limit,q_auto:best,f_auto/${cleaned}`;
+}
+
 /** Returns a tiny blurry Cloudinary URL for use as an LQIP background placeholder. */
 export function cdnBlur(url: string | null | undefined): string {
   if (!url) return '';
