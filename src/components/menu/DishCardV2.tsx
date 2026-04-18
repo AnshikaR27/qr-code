@@ -149,16 +149,16 @@ export default function DishCardV2({
 
           {/* Dish name */}
           <h3
-            className="font-semibold line-clamp-2 mb-1.5"
-            style={{ fontSize: typeScale.md, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+            className="font-bold line-clamp-2 mb-1.5"
+            style={{ fontSize: typeScale.lg, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
           >
             {primaryName}
           </h3>
 
           {/* Price */}
           <p
-            className="font-semibold mb-1"
-            style={{ fontSize: typeScale.md, color: 'var(--sunday-primary, #361f1a)', fontFamily: 'var(--sunday-font-body)' }}
+            className="font-medium mb-1"
+            style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
           >
             {formatPrice(dish.price)}
           </p>

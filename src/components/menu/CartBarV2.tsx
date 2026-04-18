@@ -37,11 +37,21 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
           WebkitBackdropFilter: 'blur(12px)',
         }}
       >
-        <span
-          className="font-semibold text-white"
-          style={{ fontSize: typeScale.md, fontFamily: 'var(--sunday-font-body)' }}
-        >
-          {hasItems ? `View your order · ${formatPrice(total)}` : 'View your order'}
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span
+            className="font-semibold text-white"
+            style={{ fontSize: typeScale.md, fontFamily: 'var(--sunday-font-body)' }}
+          >
+            View your order
+          </span>
+          {hasItems && (
+            <span
+              className="font-bold text-white"
+              style={{ fontSize: typeScale.md, fontFamily: 'var(--sunday-font-body)', opacity: 0.75 }}
+            >
+              {formatPrice(total)}
+            </span>
+          )}
         </span>
         <div
           key={itemCount}

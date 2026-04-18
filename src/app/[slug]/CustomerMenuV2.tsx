@@ -525,15 +525,15 @@ export default function CustomerMenuV2({ restaurant, categories, products, table
                       {/* Section heading */}
                       <div
                         style={{
-                          paddingTop: spacingScale.px,
+                          paddingTop: spacingScale.sectionGap,
                           paddingBottom: spacingScale.cardPad,
                           paddingLeft: spacingScale.px,
                           paddingRight: spacingScale.px,
                         }}
                       >
                         <h2
-                          className="font-semibold leading-tight"
-                          style={{ fontSize: typeScale.xl, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+                          className="font-bold leading-tight"
+                          style={{ fontSize: typeScale['3xl'], color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
                         >
                           {lang === 'hi' && cat.name_hindi ? cat.name_hindi : cat.name}
                         </h2>
