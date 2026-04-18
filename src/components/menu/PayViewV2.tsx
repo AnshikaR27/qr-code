@@ -39,7 +39,7 @@ export default function PayViewV2({
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={heroUrl}
+            src={cdnImg(heroUrl)!}
             alt={restaurant.name}
             className="w-full h-full object-cover"
           />

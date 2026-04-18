@@ -1,6 +1,7 @@
 import { cache, Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { supabasePublic } from '@/lib/supabase/public';
+import { cdnImg } from '@/lib/utils';
 import CustomerMenuV2 from '../CustomerMenuV2';
 import type { AddonGroup, Category, Product, Restaurant } from '@/types';
 
@@ -58,15 +59,26 @@ export default async function MenuPage({ params }: Props) {
   // Stage 2: addon groups with nested items
   const addonGroupMap = await fetchAddonGroupMap(prods, cats);
 
+  // Preload the hero image so the browser fetches it before JS hydrates.
+  // Must match the exact URL WelcomeScreenV2 uses (same cdnImg transform).
+  const heroImageUrl = r.hero_image_url ?? prods.find((p) => p.image_url)?.image_url ?? null;
+  const preloadHero = heroImageUrl ? cdnImg(heroImageUrl) : null;
+
   return (
-    <Suspense fallback={null}>
-      <CustomerMenuV2
-        restaurant={r}
-        categories={cats}
-        products={prods}
-        addonGroupMap={addonGroupMap}
-      />
-    </Suspense>
+    <>
+      {preloadHero && (
+        // Next.js hoists <link> tags from server components to <head>
+        <link rel="preload" as="image" href={preloadHero} fetchPriority="high" />
+      )}
+      <Suspense fallback={null}>
+        <CustomerMenuV2
+          restaurant={r}
+          categories={cats}
+          products={prods}
+          addonGroupMap={addonGroupMap}
+        />
+      </Suspense>
+    </>
   );
 }
 

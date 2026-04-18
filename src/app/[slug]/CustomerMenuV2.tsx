@@ -318,7 +318,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
   const activeCategoryName = categories.find((c) => c.id === activeTab)?.name;
 
   return (
-    <div className="max-w-[480px] mx-auto min-h-[100dvh] relative" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
+    <main className="max-w-[480px] mx-auto min-h-[100dvh] relative" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       <style>{`* { -webkit-tap-highlight-color: transparent; }`}</style>
 
       {/* Welcome screen */}
@@ -668,6 +668,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
           </p>
         </div>
       )}
-    </div>
+    </main>
   );
 }

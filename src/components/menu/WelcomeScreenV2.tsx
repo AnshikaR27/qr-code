@@ -33,13 +33,16 @@ export default function WelcomeScreenV2({
   return (
     <div className="min-h-[100dvh]" style={{ backgroundColor: 'var(--sunday-bg, #fdf9f0)' }}>
       {/* Hero image — fluid height, no breakpoint needed */}
-      <div className="w-full relative overflow-hidden" style={{ height: '25dvh' }}>
+      {/* Inline styles so this renders before external CSS loads (LCP path) */}
+      <div style={{ width: '100%', position: 'relative', overflow: 'hidden', height: '25dvh' }}>
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={heroUrl}
+            src={cdnImg(heroUrl)!}
             alt={restaurant.name}
-            className="w-full h-full object-cover"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            fetchPriority="high"
+            loading="eager"
           />
         ) : (
           <div
