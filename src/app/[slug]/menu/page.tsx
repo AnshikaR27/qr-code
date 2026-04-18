@@ -1,7 +1,6 @@
 import { cache } from 'react';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { supabasePublic } from '@/lib/supabase/public';
 import CustomerMenuV2 from '../CustomerMenuV2';
 import type { AddonGroup, Category, Product, Restaurant } from '@/types';
 
@@ -14,8 +13,7 @@ interface Props {
 
 // Cached per-request so generateMetadata and the page share one query
 const getRestaurant = cache(async (slug: string) => {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const { data } = await supabasePublic
     .from('restaurants')
     .select('id, name, slug, logo_url, hero_image_url, tagline, address, city, design_tokens, ui_theme')
     .eq('slug', slug)
@@ -27,20 +25,17 @@ const getRestaurant = cache(async (slug: string) => {
 export default async function MenuPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { table: tableId = null } = await searchParams;
-  const supabase = await createClient();
 
   // Stage 1: restaurant + categories + products in parallel
-  // Categories/products filter through an inner join on restaurants.slug
-  // so they don't need restaurant.id upfront.
   const [restaurant, { data: rawCategories }, { data: rawProducts }] = await Promise.all([
     getRestaurant(slug),
-    supabase
+    supabasePublic
       .from('categories')
       .select('id, name, name_hindi, sort_order, parent_category_id, restaurants!inner(id)')
       .eq('restaurants.slug', slug)
       .eq('restaurants.is_active', true)
       .order('sort_order', { ascending: true }),
-    supabase
+    supabasePublic
       .from('products')
       .select('id, name, name_hindi, description, price, image_url, is_veg, is_jain, allergens, is_available, sort_order, order_count, category_id, restaurants!inner(id)')
       .eq('restaurants.slug', slug)
@@ -54,7 +49,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const cats = ((rawCategories ?? []) as any[]).map(({ restaurants: _, ...rest }) => rest) as Category[];
   const prods = ((rawProducts ?? []) as any[]).map(({ restaurants: _, ...rest }) => rest) as Product[];
 
-  // Stage 2: addon groups with nested items (single query stage)
+  // Stage 2: addon groups with nested items
   const addonGroupMap = await fetchAddonGroupMap(prods, cats);
 
   return (
@@ -74,18 +69,16 @@ async function fetchAddonGroupMap(
 ): Promise<Record<string, AddonGroup[]>> {
   if (prods.length === 0) return {};
 
-  const admin = getSupabaseAdmin();
   const productIds = prods.map((p) => p.id);
   const catIds = cats.map((c) => c.id);
 
-  // Single stage: fetch links with nested addon groups and their items
   const [{ data: productLinks }, { data: catLinks }] = await Promise.all([
-    admin
+    supabasePublic
       .from('product_addon_groups')
       .select('product_id, addon_group:addon_groups(id, name, selection_type, is_required, max_selections, sort_order, items:addon_items(id, name, price, is_veg, is_available, sort_order))')
       .in('product_id', productIds),
     catIds.length > 0
-      ? admin
+      ? supabasePublic
           .from('category_addon_groups')
           .select('category_id, addon_group:addon_groups(id, name, selection_type, is_required, max_selections, sort_order, items:addon_items(id, name, price, is_veg, is_available, sort_order))')
           .in('category_id', catIds)
