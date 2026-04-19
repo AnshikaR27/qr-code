@@ -39,7 +39,7 @@ export default function MenuNavbarV2({
 
   return (
     <div
-      className="backdrop-blur-md transition-all duration-200 flex items-center"
+      className="backdrop-blur-md flex items-center"
       style={{
         paddingTop: isScrolled ? spacingScale.navPyS : spacingScale.navPy,
         paddingBottom: isScrolled ? spacingScale.navPyS : spacingScale.navPy,
@@ -49,6 +49,7 @@ export default function MenuNavbarV2({
           ? 'color-mix(in srgb, var(--sunday-nav-bg, #efebe2) 95%, transparent)'
           : 'var(--sunday-surface-low, color-mix(in srgb, var(--sunday-primary) 3%, var(--sunday-nav-bg, #efebe2)))',
         boxShadow: isScrolled ? 'var(--sunday-shadow-sm)' : 'none',
+        transition: 'background-color 200ms ease-out, box-shadow 200ms ease-out, padding 200ms ease-out',
       }}
     >
       {/* Left: back arrow */}
@@ -71,8 +72,8 @@ export default function MenuNavbarV2({
       {/* Center: cafe name */}
       <div className="flex-1 flex items-center justify-center min-w-0">
         <span
-          className="truncate transition-all duration-200"
-          style={{ fontSize: typeScale.lg, fontWeight: 300, letterSpacing: '0.01em', color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)' }}
+          className="truncate"
+          style={{ fontSize: typeScale.lg, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-heading)', transition: 'opacity 150ms ease-out' }}
         >
           {restaurant.name}
         </span>

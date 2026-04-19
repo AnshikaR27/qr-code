@@ -46,7 +46,7 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
             className="font-semibold text-white"
             style={{ fontSize: typeScale.md, fontFamily: 'var(--sunday-font-body)' }}
           >
-            View your order
+            Your basket
           </span>
           {hasItems && (
             <span

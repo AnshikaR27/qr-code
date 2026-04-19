@@ -51,8 +51,9 @@ export default function CategoryTabsV2({
               onClick={() => onSelect(cat.id)}
               role="tab"
               aria-selected={active}
-              className="shrink-0 rounded-full whitespace-nowrap transition-all duration-150 border-none bg-transparent"
+              className="shrink-0 rounded-full whitespace-nowrap border-none bg-transparent"
               style={{
+                transition: 'background-color 150ms ease-out, color 150ms ease-out',
                 fontSize: typeScale.body,
                 paddingLeft: spacingScale.tabPx,
                 paddingRight: spacingScale.tabPx,
