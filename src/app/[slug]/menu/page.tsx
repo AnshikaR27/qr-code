@@ -62,7 +62,7 @@ export default async function MenuPage({ params }: Props) {
   // Preload the hero image so the browser fetches it before JS hydrates.
   // Must match the exact URL WelcomeScreenV2 uses (same cdnImg transform).
   const heroImageUrl = r.hero_image_url ?? prods.find((p) => p.image_url)?.image_url ?? null;
-  const preloadHero = heroImageUrl ? cdnImg(heroImageUrl, 960) : null;
+  const preloadHero = heroImageUrl ? cdnImg(heroImageUrl) : null;
 
   return (
     <>

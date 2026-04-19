@@ -38,7 +38,7 @@ export default function WelcomeScreenV2({
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={cdnImg(heroUrl, 960)!}
+            src={cdnImg(heroUrl)!}
             alt={restaurant.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             fetchPriority="high"
