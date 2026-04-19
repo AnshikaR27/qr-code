@@ -472,7 +472,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
                       style={{
                         fontSize: typeScale.sm,
                         borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
-                        background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))`,
+                        backgroundColor: 'var(--sunday-accent, #b12d00)',
                         fontFamily: 'var(--sunday-font-body)',
                       }}
                     >

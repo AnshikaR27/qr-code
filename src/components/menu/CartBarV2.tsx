@@ -34,10 +34,8 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
           paddingLeft: spacingScale.px,
           paddingRight: spacingScale.px,
           borderRadius: 'calc(var(--sunday-radius, 12px) * 1.5)',
-          background: 'linear-gradient(135deg, color-mix(in srgb, var(--sunday-primary, #361f1a) 95%, transparent), color-mix(in srgb, var(--sunday-accent, #b12d00) 95%, transparent))',
+          backgroundColor: 'var(--sunday-primary, #361f1a)',
           boxShadow: '0 -4px 20px rgba(54, 31, 26, 0.15), var(--sunday-shadow-lg)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
           transition: 'transform 160ms cubic-bezier(0.23, 1, 0.32, 1)',
         }}
       >

@@ -191,7 +191,7 @@ export default function DishDetailSheetV2({
             className="absolute top-3 left-3 z-[11] w-9 h-9 rounded-full flex items-center justify-center text-white"
             style={{
               ...(dish.image_url
-                ? { background: `linear-gradient(135deg, var(--sunday-primary, #361f1a), var(--sunday-accent, #b12d00))` }
+                ? { backgroundColor: 'var(--sunday-accent, #b12d00)' }
                 : { backgroundColor: 'var(--sunday-surface-low, #f6f2e9)', color: 'var(--sunday-text, #1c1c17)' }),
               boxShadow: 'var(--sunday-shadow-md)',
             }}

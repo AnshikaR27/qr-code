@@ -62,6 +62,9 @@ export default function CartSheetV2({
   if (!mounted) return null;
 
   function handlePlaceOrder() {
+    // Persist design tokens so order pages can restore the brand theme
+    // (CustomerMenuV2 removes --sunday-* from :root on unmount when router.push fires)
+    sessionStorage.setItem('menuDesignTokens', JSON.stringify(restaurant.design_tokens ?? null));
     localStorage.setItem(
       `last-order-${restaurant.slug}`,
       JSON.stringify({
