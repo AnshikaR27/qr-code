@@ -50,12 +50,12 @@ export function getNavbarBrand(hexColor: string): string {
   return `rgb(${Math.floor(r * 0.15 + 10)}, ${Math.floor(g * 0.15 + 10)}, ${Math.floor(b * 0.15 + 10)})`;
 }
 
-export function cdnImg(url: string | null | undefined): string | null | undefined {
+export function cdnImg(url: string | null | undefined, width = 1280): string | null | undefined {
   if (!url || typeof url !== 'string') return url;
   const m = url.match(/^(https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/);
   if (!m) return url;
   const rest = m[2].replace(/^.*?(v\d+\/)/, '$1');
-  return `${m[1]}w_1280,f_auto,q_auto/${rest}`;
+  return `${m[1]}w_${width},f_auto,q_auto/${rest}`;
 }
 
 export function slugify(text: string): string {
