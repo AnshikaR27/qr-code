@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { supabasePublic } from '@/lib/supabase/public';
 import { cdnImg } from '@/lib/utils';
 import CustomerMenuV2 from '../CustomerMenuV2';
+import MenuLoading from './loading';
 import type { AddonGroup, Category, Product, Restaurant } from '@/types';
 
 export const revalidate = 30;
@@ -70,7 +71,7 @@ export default async function MenuPage({ params }: Props) {
         // Next.js hoists <link> tags from server components to <head>
         <link rel="preload" as="image" href={preloadHero} fetchPriority="high" />
       )}
-      <Suspense fallback={null}>
+      <Suspense fallback={<MenuLoading />}>
         <CustomerMenuV2
           restaurant={r}
           categories={cats}
