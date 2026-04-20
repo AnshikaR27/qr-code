@@ -1,57 +1,61 @@
 export default function MenuLoading() {
+  const skel: React.CSSProperties = {
+    background: 'linear-gradient(90deg, #e8e0d0 25%, #f0e8d8 37%, #e8e0d0 63%)',
+    backgroundSize: '800px 100%',
+    animation: 'skel-shimmer 1.4s ease-in-out infinite',
+  };
+
   return (
-    <main
-      className="max-w-[480px] mx-auto min-h-[100dvh] relative"
-      style={{ backgroundColor: '#fdf9f0' }}
-    >
+    <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100dvh', position: 'relative' }}>
       <style>{`
-        @keyframes shimmer {
-          0% { background-position: -400px 0; }
-          100% { background-position: 400px 0; }
-        }
-        .skel {
-          background: linear-gradient(90deg, #e8e0d0 25%, #f0e8d8 37%, #e8e0d0 63%);
-          background-size: 800px 100%;
-          animation: shimmer 1.4s ease-in-out infinite;
+        @keyframes skel-shimmer {
+          0% { background-position: -400px 0 }
+          100% { background-position: 400px 0 }
         }
       `}</style>
 
       {/* Hero */}
-      <div className="skel" style={{ width: '100%', height: '25dvh' }} />
+      <div style={{ ...skel, width: '100%', height: '25dvh' }} />
 
       {/* Logo circle */}
-      <div className="flex justify-center" style={{ marginTop: -36, position: 'relative', zIndex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: -36, position: 'relative', zIndex: 1 }}>
         <div
-          className="skel rounded-full border-4 border-white"
-          style={{ width: 72, height: 72 }}
+          style={{
+            ...skel,
+            width: 72,
+            height: 72,
+            borderRadius: '50%',
+            border: '4px solid #fff',
+          }}
         />
       </div>
 
       {/* Title */}
-      <div className="flex justify-center mt-3">
-        <div className="skel" style={{ width: 180, height: 24, borderRadius: 8 }} />
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+        <div style={{ ...skel, width: 180, height: 24, borderRadius: 8 }} />
       </div>
 
       {/* Tagline */}
-      <div className="flex justify-center mt-2">
-        <div className="skel" style={{ width: 140, height: 14, borderRadius: 6 }} />
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+        <div style={{ ...skel, width: 140, height: 14, borderRadius: 6 }} />
       </div>
 
-      {/* Category grid */}
+      {/* Category grid — 2 columns */}
       <div
-        className="grid grid-cols-2 mt-6"
-        style={{ gap: 12, paddingLeft: 16, paddingRight: 16 }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 12,
+          padding: '24px 16px 0',
+        }}
       >
         {[0, 1, 2, 3].map((i) => (
           <div key={i}>
-            <div
-              className="skel"
-              style={{ aspectRatio: '3/2', borderRadius: 12, marginBottom: 8 }}
-            />
-            <div className="skel" style={{ width: '60%', height: 14, borderRadius: 6 }} />
+            <div style={{ ...skel, aspectRatio: '3/2', borderRadius: 12, marginBottom: 8 }} />
+            <div style={{ ...skel, width: '60%', height: 14, borderRadius: 6 }} />
           </div>
         ))}
       </div>
-    </main>
+    </div>
   );
 }
