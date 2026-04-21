@@ -65,6 +65,35 @@ export const updateOrderStatusSchema = z.object({
   status: z.enum(['placed', 'preparing', 'ready', 'delivered', 'cancelled']),
 });
 
+export const staffLoginSchema = z.object({
+  restaurant_slug: z.string().min(1),
+  pin: z.string().min(4).max(6).regex(/^\d+$/, 'PIN must be digits only'),
+});
+
+export const staffCreateSchema = z.object({
+  name: z.string().min(1).max(100),
+  pin: z.string().min(4).max(6).regex(/^\d+$/, 'PIN must be digits only'),
+  role: z.enum(['waiter', 'kitchen']),
+});
+
+export const staffUpdateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(100).optional(),
+  pin: z.string().min(4).max(6).regex(/^\d+$/, 'PIN must be digits only').optional(),
+  role: z.enum(['waiter', 'kitchen']).optional(),
+  is_active: z.boolean().optional(),
+});
+
+export const voidItemSchema = z.object({
+  order_item_id: z.string().uuid(),
+  reason: z.string().min(1).max(300),
+  action: z.enum(['void', 'reduce']),
+  new_quantity: z.number().int().positive().optional(),
+}).refine(
+  (data) => data.action !== 'reduce' || (data.new_quantity !== undefined && data.new_quantity > 0),
+  { message: 'new_quantity is required when reducing', path: ['new_quantity'] }
+);
+
 export const restaurantSettingsSchema = z.object({
   name: z.string().min(2).max(100),
   phone: z.string().min(10).max(15).optional().nullable(),

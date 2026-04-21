@@ -13,6 +13,8 @@ import {
   Settings,
   LogOut,
   Printer,
+  Users,
+  ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -24,6 +26,8 @@ const NAV_ITEMS = [
   { href: '/dashboard/menu',       label: 'Menu',      icon: UtensilsCrossed, exact: false },
   { href: '/dashboard/qr',         label: 'QR Codes',  icon: QrCode,         exact: false },
   { href: '/dashboard/floor-plan', label: 'Floor Plan', icon: LayoutGrid,    exact: false },
+  { href: '/dashboard/staff',      label: 'Staff',     icon: Users,          exact: false },
+  { href: '/dashboard/activity',   label: 'Activity',  icon: ScrollText,     exact: false },
   { href: '/dashboard/settings',   label: 'Settings',  icon: Settings,       exact: false },
 ];
 

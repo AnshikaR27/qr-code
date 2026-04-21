@@ -13,11 +13,14 @@ import { ORDER_STATUSES } from '@/lib/constants';
 import { useOrders } from '@/contexts/OrdersContext';
 import PrintOrderDialog from '@/components/dashboard/PrintOrderDialog';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
-import type { Order, OrderStatus, Restaurant, PrinterDevice } from '@/types';
+import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
+import { logOwnerActivity } from '@/lib/log-client';
+import type { Order, OrderItem, OrderStatus, Restaurant, PrinterDevice, StaffSession } from '@/types';
 
 interface Props {
   restaurant: Restaurant;
   initialOrders: Order[];
+  staffSession?: StaffSession | null;
 }
 
 type FilterTab = 'active' | 'all' | 'completed';
@@ -40,8 +43,8 @@ function getStatusLabels(serviceMode: 'self_service' | 'table_service'): Record<
   };
 }
 
-export default function KitchenDashboard({ restaurant }: Props) {
-  const { orders } = useOrders();
+export default function KitchenDashboard({ restaurant, staffSession }: Props) {
+  const { orders, refreshOrders } = useOrders();
   const [filter, setFilter]     = useState<FilterTab>('active');
   const [updating, setUpdating] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,6 +78,11 @@ export default function KitchenDashboard({ restaurant }: Props) {
   // Drag-to-merge state (pointer-events based, no library)
   const [draggingOrderId, setDraggingOrderId]     = useState<string | null>(null);
   const [dropTargetOrderId, setDropTargetOrderId] = useState<string | null>(null);
+
+  // Void item state
+  const [voidOrder, setVoidOrder]     = useState<Order | null>(null);
+  const [voidItem, setVoidItem]       = useState<OrderItem | null>(null);
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
 
   // USB printer connection state
   const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
@@ -135,6 +143,9 @@ export default function KitchenDashboard({ restaurant }: Props) {
         .update({ status: nextStatus })
         .eq('id', order.id);
       if (error) throw error;
+      if (!staffSession) {
+        logOwnerActivity('order.status_changed', 'order', order.id, { from: order.status, to: nextStatus, order_number: order.order_number });
+      }
       if (nextStatus === 'ready') {
         sendReadyPush(order).catch(() => {});
       }
@@ -194,6 +205,12 @@ export default function KitchenDashboard({ restaurant }: Props) {
       // If these were a merged billing group, also clear the tables so the
       // floor plan purple outline disappears (FloorPlanEditor picks this up
       // via its Realtime listener on the tables table).
+      if (!staffSession) {
+        for (const id of orderIds) {
+          logOwnerActivity('order.payment_recorded', 'order', id, { payment_method: data.payment_method });
+        }
+      }
+
       if (isMergedBilling) {
         const tableIds = Array.from(new Set(
           orderIds.map(id => orders.find(o => o.id === id)?.table_id).filter(Boolean) as string[],
@@ -238,6 +255,9 @@ export default function KitchenDashboard({ restaurant }: Props) {
         .update({ status: 'cancelled' })
         .eq('id', order.id);
       if (error) throw error;
+      if (!staffSession) {
+        logOwnerActivity('order.cancelled', 'order', order.id, { order_number: order.order_number });
+      }
       supabase.from('push_subscriptions').delete().eq('order_id', order.id).then(() => {});
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel order');
@@ -564,6 +584,7 @@ export default function KitchenDashboard({ restaurant }: Props) {
                 onCancel={() => cancelOrder(item.order)}
                 onReprint={() => openReprintDialog(item.order)}
                 onPrintBill={() => handlePrintBill(item.order)}
+                onVoidItem={(orderItem) => { setVoidOrder(item.order); setVoidItem(orderItem); setVoidDialogOpen(true); }}
                 isUpdating={updating === item.order.id}
                 draggingOrderId={draggingOrderId}
                 dropTargetOrderId={dropTargetOrderId}
@@ -609,6 +630,15 @@ export default function KitchenDashboard({ restaurant }: Props) {
         restaurant={restaurant}
         onConfirm={handleBillingConfirm}
         onClose={() => { setBillingOrders(null); setPaymentOrder(null); }}
+      />
+
+      {/* ── Void item dialog ── */}
+      <VoidItemDialog
+        open={voidDialogOpen}
+        onOpenChange={setVoidDialogOpen}
+        orderId={voidOrder?.id ?? ''}
+        item={voidItem}
+        onVoided={() => { refreshOrders(); }}
       />
     </div>
   );
@@ -777,6 +807,7 @@ interface OrderCardProps {
   onCancel: () => void;
   onReprint: () => void;
   onPrintBill: () => void;
+  onVoidItem?: (item: import('@/types').OrderItem) => void;
   isUpdating: boolean;
   // Drag-to-merge
   draggingOrderId: string | null;
@@ -788,7 +819,7 @@ interface OrderCardProps {
 }
 
 function OrderCard({
-  order, restaurant, allOrders, onAdvance, onCancel, onReprint, onPrintBill,
+  order, restaurant, allOrders, onAdvance, onCancel, onReprint, onPrintBill, onVoidItem,
   isUpdating,
   draggingOrderId, dropTargetOrderId, onDragStart, onDragOver, onDragDrop, onDragCancel,
 }: OrderCardProps) {
@@ -967,22 +998,40 @@ function OrderCard({
       {/* ── Items ── */}
       <div className="flex-1 px-4 py-3 space-y-1.5">
         {(order.items ?? []).map((item) => {
+          const isVoided = item.status === 'voided';
           const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
           const effectivePrice = item.price + addonTotal;
           return (
-            <div key={item.id}>
-              <div className="flex justify-between gap-2">
+            <div key={item.id} className={isVoided ? 'opacity-50' : ''}>
+              <div className="flex justify-between gap-2 items-start">
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm">
+                  <span className={cn('text-sm', isVoided && 'line-through')}>
                     <span className="font-semibold">{item.quantity}×</span> {item.name}
                   </span>
+                  {isVoided && (
+                    <span className="ml-1.5 text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">VOID</span>
+                  )}
+                  {item.void_reason && (
+                    <p className="text-[10px] text-red-400 mt-0.5">{item.void_reason}</p>
+                  )}
                   {item.notes && (
                     <p className="text-xs text-muted-foreground italic">&ldquo;{item.notes}&rdquo;</p>
                   )}
                 </div>
-                <span className="text-xs text-muted-foreground flex-shrink-0">
-                  {formatPrice(effectivePrice * item.quantity)}
-                </span>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {!isVoided && !isTerminal && onVoidItem && (
+                    <button
+                      onClick={() => onVoidItem(item)}
+                      className="p-0.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      title="Void item"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <span className={cn('text-xs text-muted-foreground', isVoided && 'line-through')}>
+                    {formatPrice(effectivePrice * item.quantity)}
+                  </span>
+                </div>
               </div>
               {(item.selected_addons ?? []).map((addon, ai) => (
                 <div key={ai} className="flex justify-between gap-2 pl-4">

@@ -1,3 +1,42 @@
+// ─── Staff ────────────────────────────────────────────────────────────────────
+
+export type StaffRole = 'waiter' | 'kitchen';
+
+export interface StaffMember {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  role: StaffRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StaffSession {
+  staff_id: string;
+  restaurant_id: string;
+  restaurant_slug: string;
+  name: string;
+  role: StaffRole;
+}
+
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+
+export type ActorType = 'owner' | 'staff' | 'customer' | 'system';
+
+export interface ActivityLogEntry {
+  id: string;
+  restaurant_id: string;
+  actor_type: ActorType;
+  actor_id: string | null;
+  actor_name: string | null;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 // ─── Printer ──────────────────────────────────────────────────────────────────
 
 export type PrinterConnectionType = 'usb' | 'network' | 'browser' | 'serial';
@@ -159,6 +198,8 @@ export interface Table {
   merge_group_id?: string | null;
 }
 
+export type OrderItemStatus = 'active' | 'voided';
+
 export interface Order {
   id: string;
   restaurant_id: string;
@@ -180,9 +221,11 @@ export interface Order {
   updated_at: string;
   /** Shared UUID for orders merged for combined billing (set from Orders tab) */
   merge_group_id?: string | null;
+  placed_by_staff_id?: string | null;
   // joined
   items?: OrderItem[];
   table?: Table;
+  placed_by_staff?: StaffMember | null;
 }
 
 export interface SplitPayment {
@@ -202,6 +245,11 @@ export interface OrderItem {
   category_name: string | null;
   tax_category: TaxCategory;
   selected_addons: SelectedAddon[];
+  status: OrderItemStatus;
+  void_reason: string | null;
+  voided_by: string | null;
+  voided_at: string | null;
+  original_quantity: number | null;
 }
 
 // ─── Add-ons ──────────────────────────────────────────────────────────────────

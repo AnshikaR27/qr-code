@@ -18,11 +18,13 @@
     "@sentry/nextjs": "^10.45.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.99.3",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "groq-sdk": "^1.1.1",
+    "jose": "^6.2.2",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.400.0",
     "next": "14.2.35",
@@ -43,6 +45,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18",
