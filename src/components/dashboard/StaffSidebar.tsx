@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ShoppingBag, LayoutGrid, LogOut } from 'lucide-react';
+import { ShoppingBag, LayoutGrid, ChefHat, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import type { StaffSession, Restaurant } from '@/types';
@@ -21,6 +21,9 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
     { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag },
     ...(staff.role === 'waiter'
       ? [{ href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid }]
+      : []),
+    ...(staff.role === 'kitchen'
+      ? [{ href: '/staff-dashboard/kitchen', label: 'Kitchen', icon: ChefHat }]
       : []),
   ];
 
