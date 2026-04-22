@@ -5,7 +5,7 @@ export default async function StaffDashboardHome() {
   const session = await getStaffSession();
   if (!session) redirect('/staff/login');
 
-  if (session.role === 'kitchen') {
+  if (session.role === 'kitchen' || session.role === 'both') {
     redirect('/staff-dashboard/kitchen');
   }
 

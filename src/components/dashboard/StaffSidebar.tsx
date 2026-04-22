@@ -17,16 +17,13 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
+  const isKitchen = staff.role === 'kitchen' || staff.role === 'both';
+  const isWaiter = staff.role === 'waiter' || staff.role === 'both';
+
   const navItems = [
-    ...(staff.role === 'kitchen'
-      ? [
-          { href: '/staff-dashboard/kitchen', label: 'Orders', icon: ChefHat },
-          { href: '/staff-dashboard/items', label: 'Items', icon: UtensilsCrossed },
-        ]
-      : [
-          { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag },
-          { href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid },
-        ]),
+    { href: isKitchen ? '/staff-dashboard/kitchen' : '/staff-dashboard/orders', label: 'Orders', icon: isKitchen ? ChefHat : ShoppingBag },
+    ...(isWaiter ? [{ href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid }] : []),
+    ...(isKitchen ? [{ href: '/staff-dashboard/items', label: 'Items', icon: UtensilsCrossed }] : []),
   ];
 
   async function handleLogout() {

@@ -25,7 +25,7 @@ export default function StaffForm({ open, onOpenChange, staff, onSaved }: StaffF
   const isEdit = !!staff;
   const [name, setName] = useState(staff?.name ?? '');
   const [pin, setPin] = useState('');
-  const [role, setRole] = useState<'waiter' | 'kitchen'>(staff?.role ?? 'waiter');
+  const [role, setRole] = useState<'waiter' | 'kitchen' | 'both'>(staff?.role ?? 'waiter');
   const [saving, setSaving] = useState(false);
 
   function resetForm() {
@@ -109,28 +109,20 @@ export default function StaffForm({ open, onOpenChange, staff, onSaved }: StaffF
           <div className="space-y-2">
             <Label>Role</Label>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setRole('waiter')}
-                className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
-                  role === 'waiter'
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-white text-muted-foreground border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                Waiter
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('kitchen')}
-                className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
-                  role === 'kitchen'
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-white text-muted-foreground border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                Kitchen
-              </button>
+              {(['waiter', 'kitchen', 'both'] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRole(r)}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
+                    role === r
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-white text-muted-foreground border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {r === 'both' ? 'Both' : r.charAt(0).toUpperCase() + r.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
 
