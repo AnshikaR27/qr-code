@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ShoppingBag, LayoutGrid, ChefHat, LogOut } from 'lucide-react';
+import { ShoppingBag, LayoutGrid, ChefHat, UtensilsCrossed, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import type { StaffSession, Restaurant } from '@/types';
@@ -18,13 +18,15 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
   const router = useRouter();
 
   const navItems = [
-    { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag },
-    ...(staff.role === 'waiter'
-      ? [{ href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid }]
-      : []),
     ...(staff.role === 'kitchen'
-      ? [{ href: '/staff-dashboard/kitchen', label: 'Kitchen', icon: ChefHat }]
-      : []),
+      ? [
+          { href: '/staff-dashboard/kitchen', label: 'Orders', icon: ChefHat },
+          { href: '/staff-dashboard/items', label: 'Items', icon: UtensilsCrossed },
+        ]
+      : [
+          { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag },
+          { href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid },
+        ]),
   ];
 
   async function handleLogout() {
@@ -45,7 +47,7 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
 
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname.startsWith(href);
+          const active = pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
               key={href}
