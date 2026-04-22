@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { verifyStaffToken } from '@/lib/staff-auth';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { logActivity } from '@/lib/activity-logger';
@@ -41,6 +42,8 @@ export async function PATCH(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
   }
+
+  revalidatePath(`/${session.restaurant_slug}`);
 
   logActivity({
     restaurant_id: session.restaurant_id,
