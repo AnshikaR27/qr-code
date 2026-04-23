@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getStaffSession } from '@/lib/staff-auth';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import StaffSidebar from '@/components/dashboard/StaffSidebar';
+import InstallAppBanner from '@/components/dashboard/InstallAppBanner';
 import { StaffProvider } from '@/contexts/StaffContext';
 import { OrdersProvider } from '@/contexts/OrdersContext';
 import type { Order, Restaurant } from '@/types';
@@ -38,6 +39,7 @@ export default async function StaffDashboardLayout({
       <StaffProvider staff={session} restaurant={restaurant as Restaurant}>
         <StaffSidebar staff={session} restaurant={restaurant as Restaurant} />
         <main className="flex-1 overflow-auto">
+          <InstallAppBanner />
           <OrdersProvider restaurantId={restaurant.id} initialOrders={(orders ?? []) as Order[]}>
             {children}
           </OrdersProvider>

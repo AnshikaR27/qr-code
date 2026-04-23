@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { toast } from 'sonner';
-import { Loader2, Download, Trash2, QrCode, Plus, Pencil, Check } from 'lucide-react';
+import { Loader2, Download, Trash2, QrCode, Plus, Pencil, Check, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +28,24 @@ export default function QRManager({ restaurant, initialTables }: Props) {
   const [qrsReady, setQrsReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const staffLoginUrl = `${APP_URL}/staff/${restaurant.slug}`;
+  const [staffQrUrl, setStaffQrUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    QRCode.toDataURL(staffLoginUrl, {
+      width: 300,
+      margin: 2,
+      color: { dark: '#000000', light: '#ffffff' },
+    }).then(setStaffQrUrl);
+  }, [staffLoginUrl]);
+
+  function downloadStaffQr() {
+    if (!staffQrUrl) return;
+    const a = document.createElement('a');
+    a.href = staffQrUrl;
+    a.download = `${restaurant.slug}-staff-login.png`;
+    a.click();
+  }
 
   // Generate QR data URLs for all tables on load and when tables change
   useEffect(() => {
@@ -211,6 +229,38 @@ export default function QRManager({ restaurant, initialTables }: Props) {
             Download All PDF
           </Button>
         )}
+      </div>
+
+      {/* Staff Login QR */}
+      <div className="bg-white rounded-xl border p-5 mb-6">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+          <div className="w-36 h-36 bg-gray-50 rounded-lg border overflow-hidden flex-shrink-0 flex items-center justify-center">
+            {staffQrUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={staffQrUrl} alt="Staff login QR" className="w-full h-full object-contain p-1" />
+            ) : (
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            )}
+          </div>
+          <div className="text-center sm:text-left">
+            <h2 className="font-bold text-base flex items-center gap-2 justify-center sm:justify-start">
+              <Users className="w-4 h-4" />
+              Staff Login QR
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Print this or show it to staff &mdash; they scan, enter their PIN, and start taking orders.
+            </p>
+            <p className="text-xs text-muted-foreground mt-2 font-mono bg-gray-50 px-2 py-1 rounded inline-block break-all">
+              {staffLoginUrl}
+            </p>
+            <div className="mt-3">
+              <Button variant="outline" size="sm" onClick={downloadStaffQr} disabled={!staffQrUrl}>
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Download PNG
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Generate form */}
