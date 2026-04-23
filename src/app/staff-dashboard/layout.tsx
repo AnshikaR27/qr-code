@@ -5,7 +5,12 @@ import StaffSidebar from '@/components/dashboard/StaffSidebar';
 import InstallAppBanner from '@/components/dashboard/InstallAppBanner';
 import { StaffProvider } from '@/contexts/StaffContext';
 import { OrdersProvider } from '@/contexts/OrdersContext';
+import type { Metadata } from 'next';
 import type { Order, Restaurant } from '@/types';
+
+export const metadata: Metadata = {
+  manifest: '/api/staff/manifest',
+};
 
 export default async function StaffDashboardLayout({
   children,
