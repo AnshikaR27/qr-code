@@ -6,7 +6,7 @@ export async function GET() {
   const session = await getStaffSession();
 
   let name = 'MenuQR';
-  let icons: { src: string; sizes: string; type: string }[] = [];
+  let icons: { src: string; sizes: string; type: string; purpose: string }[] = [];
 
   if (session) {
     const admin = getSupabaseAdmin();
@@ -20,8 +20,8 @@ export async function GET() {
       name = restaurant.name;
       if (restaurant.logo_url) {
         icons = [
-          { src: restaurant.logo_url, sizes: '192x192', type: 'image/png' },
-          { src: restaurant.logo_url, sizes: '512x512', type: 'image/png' },
+          { src: restaurant.logo_url, sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: restaurant.logo_url, sizes: '512x512', type: 'image/png', purpose: 'any' },
         ];
       }
     }

@@ -8,9 +8,13 @@ import { OrdersProvider } from '@/contexts/OrdersContext';
 import type { Metadata } from 'next';
 import type { Order, Restaurant } from '@/types';
 
-export const metadata: Metadata = {
-  manifest: '/api/staff/manifest',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const session = await getStaffSession();
+  const slug = session?.restaurant_slug;
+  return {
+    manifest: slug ? `/api/manifest/${slug}?staff=1` : '/api/staff/manifest',
+  };
+}
 
 export default async function StaffDashboardLayout({
   children,

@@ -1,5 +1,8 @@
-// Service Worker — handles Web Push notifications only.
-// No caching, no offline support.
+// Service Worker — handles Web Push notifications + minimal fetch for PWA installability.
+
+self.addEventListener('fetch', (event) => {
+  event.respondWith(fetch(event.request));
+});
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;
