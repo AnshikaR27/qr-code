@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
@@ -90,7 +90,7 @@ export default function StaffTablesPage() {
   );
 
   return (
-    <div className="p-4 sm:p-6 space-y-4">
+    <div className="p-4 sm:p-6 pb-20 md:pb-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Tables</h1>
         <p className="text-sm text-muted-foreground mt-1">Tap a table to place an order</p>
@@ -132,17 +132,33 @@ function StaffFloorCanvas({
   getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[] };
   dbTableIds: Map<number, string>;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    function update() {
+      if (!containerRef.current) return;
+      setScale(Math.min(1, containerRef.current.clientWidth / CANVAS_W));
+    }
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
   return (
-    <div
-      style={{
-        width: CANVAS_W,
-        height: CANVAS_H,
-        position: 'relative',
-        backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)',
-        backgroundSize: `${GRID}px ${GRID}px`,
-        userSelect: 'none',
-      }}
-    >
+    <div ref={containerRef} style={{ overflow: 'hidden', height: CANVAS_H * scale }}>
+      <div
+        style={{
+          width: CANVAS_W,
+          height: CANVAS_H,
+          position: 'relative',
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)',
+          backgroundSize: `${GRID}px ${GRID}px`,
+          userSelect: 'none',
+        }}
+      >
       {plan.labels.map((label) => (
         <div
           key={label.id}
@@ -186,6 +202,7 @@ function StaffFloorCanvas({
           />
         );
       })}
+      </div>
     </div>
   );
 }

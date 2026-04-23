@@ -122,7 +122,7 @@ export default function KitchenStaffPage() {
   return (
     <div className="p-4 sm:p-6 pb-24 max-w-6xl mx-auto space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <ChefHat className="w-6 h-6" /> Kitchen
@@ -131,7 +131,7 @@ export default function KitchenStaffPage() {
             Incoming orders · mark ready when done
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {newCount > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
               <Flame className="w-4 h-4 text-orange-500" />

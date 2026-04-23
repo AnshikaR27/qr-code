@@ -3,10 +3,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
-import { formatPrice } from '@/lib/utils';
+import { cn, formatPrice } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +34,7 @@ export default function StaffNewOrderPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [placing, setPlacing] = useState(false);
   const [search, setSearch] = useState('');
+  const [showMobileCart, setShowMobileCart] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -190,7 +191,7 @@ export default function StaffNewOrderPage() {
           )}
 
           {/* Product list */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          <div className={cn("flex-1 overflow-y-auto p-3 space-y-2", cart.length > 0 && "pb-24 md:pb-3")}>
             {filteredProducts.map((product) => {
               const qty = getCartQuantity(product.id);
               return (
@@ -239,7 +240,7 @@ export default function StaffNewOrderPage() {
 
         {/* Cart sidebar */}
         {cart.length > 0 && (
-          <div className="w-72 border-l bg-white flex flex-col">
+          <div className="hidden md:flex w-72 border-l bg-white flex-col">
             <div className="p-4 border-b">
               <h2 className="font-bold flex items-center gap-2">
                 <ShoppingBag className="w-4 h-4" />
@@ -281,6 +282,81 @@ export default function StaffNewOrderPage() {
           </div>
         )}
       </div>
+
+      {/* Mobile cart bottom bar */}
+      {cart.length > 0 && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-40 pb-[env(safe-area-inset-bottom)]">
+          <div className="flex items-center justify-between p-3 gap-3">
+            <button onClick={() => setShowMobileCart(true)} className="flex items-center gap-2 min-w-0">
+              <ShoppingBag className="w-5 h-5 text-primary flex-shrink-0" />
+              <span className="text-sm font-bold truncate">
+                {cartCount} item{cartCount !== 1 ? 's' : ''} · {formatPrice(cartTotal)}
+              </span>
+            </button>
+            <Button size="sm" className="flex-shrink-0" onClick={placeOrder} disabled={placing}>
+              {placing ? 'Placing...' : 'Place Order'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile cart sheet */}
+      {showMobileCart && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobileCart(false)} />
+          <div className="absolute bottom-0 left-0 right-0 max-h-[80vh] bg-white rounded-t-2xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="font-bold flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4" />
+                Cart ({cartCount})
+              </h2>
+              <button onClick={() => setShowMobileCart(false)} className="p-1 rounded-full hover:bg-gray-100">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {cart.map((item) => (
+                <div key={item.product_id} className="flex items-start justify-between text-sm">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium">{item.name}</p>
+                    <p className="text-muted-foreground">
+                      {item.quantity} x {formatPrice(item.price)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-2">
+                    <div className="flex items-center gap-1">
+                      <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product_id, -1)}>
+                        <Minus className="w-3 h-3" />
+                      </Button>
+                      <span className="w-6 text-center font-medium text-sm">{item.quantity}</span>
+                      <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product_id, 1)}>
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-red-500"
+                      onClick={() => setCart((prev) => prev.filter((c) => c.product_id !== item.product_id))}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t space-y-3 pb-[env(safe-area-inset-bottom)]">
+              <div className="flex justify-between font-bold">
+                <span>Total</span>
+                <span>{formatPrice(cartTotal)}</span>
+              </div>
+              <Button className="w-full" onClick={() => { setShowMobileCart(false); placeOrder(); }} disabled={placing}>
+                {placing ? 'Placing...' : 'Place Order'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
