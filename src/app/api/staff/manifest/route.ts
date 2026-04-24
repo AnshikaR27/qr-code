@@ -20,8 +20,8 @@ export async function GET() {
       name = restaurant.name;
       if (restaurant.logo_url) {
         icons = [
-          { src: restaurant.logo_url, sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: restaurant.logo_url, sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: restaurant.logo_url, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: restaurant.logo_url, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ];
       }
     }
