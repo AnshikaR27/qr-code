@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { supabasePublic } from '@/lib/supabase/public';
 import Script from 'next/script';
 
@@ -6,6 +6,10 @@ interface Props {
   params: Promise<{ slug: string }>;
   children: React.ReactNode;
 }
+
+export const viewport: Viewport = {
+  themeColor: '#fdf9f0',
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -29,7 +33,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       'apple-mobile-web-app-status-bar-style': 'default',
       'mobile-web-app-capable': 'yes',
     },
-    themeColor: '#fdf9f0',
     icons: logoUrl
       ? {
           apple: [{ url: `/api/cafe-icon/${slug}?size=180&v=2`, sizes: '180x180' }],
