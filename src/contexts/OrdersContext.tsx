@@ -20,12 +20,12 @@ export function useOrders() {
 
 interface Props {
   restaurantId: string;
-  initialOrders: Order[];
+  initialOrders?: Order[];
   children: React.ReactNode;
 }
 
 export function OrdersProvider({ restaurantId, initialOrders, children }: Props) {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [orders, setOrders] = useState<Order[]>(initialOrders ?? []);
   const isFirstRender = useRef(true);
 
   const refreshOrders = useCallback(async () => {
@@ -90,7 +90,12 @@ export function OrdersProvider({ restaurantId, initialOrders, children }: Props)
       )
       .subscribe();
 
-    isFirstRender.current = false;
+    if (!initialOrders?.length) {
+      refreshOrders().then(() => { isFirstRender.current = false; });
+    } else {
+      isFirstRender.current = false;
+    }
+
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId]);
 

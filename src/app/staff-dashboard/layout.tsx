@@ -7,7 +7,7 @@ import InstallAppBanner from '@/components/dashboard/InstallAppBanner';
 import { StaffProvider } from '@/contexts/StaffContext';
 import { OrdersProvider } from '@/contexts/OrdersContext';
 import type { Metadata, Viewport } from 'next';
-import type { Order, Restaurant } from '@/types';
+import type { Restaurant } from '@/types';
 
 const getStaffContext = cache(async () => {
   const session = await getStaffSession();
@@ -63,23 +63,13 @@ export default async function StaffDashboardLayout({
   if (!session) redirect('/staff/login');
   if (!restaurant) redirect('/staff/login');
 
-  const admin = getSupabaseAdmin();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const { data: orders } = await admin
-    .from('orders')
-    .select('*, items:order_items(*), table:tables(*)')
-    .eq('restaurant_id', restaurant.id)
-    .gte('created_at', today.toISOString())
-    .order('created_at', { ascending: false });
-
   return (
     <div className="flex min-h-screen bg-gray-50">
       <StaffProvider staff={session} restaurant={restaurant as Restaurant}>
         <StaffSidebar staff={session} restaurant={restaurant as Restaurant} />
         <main className="flex-1 overflow-auto">
           <InstallAppBanner />
-          <OrdersProvider restaurantId={restaurant.id} initialOrders={(orders ?? []) as Order[]}>
+          <OrdersProvider restaurantId={restaurant.id}>
             {children}
           </OrdersProvider>
         </main>
