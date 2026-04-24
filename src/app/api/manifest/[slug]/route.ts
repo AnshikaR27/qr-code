@@ -25,17 +25,28 @@ export async function GET(
     );
   }
 
+  const scope = isStaff ? '/staff-dashboard' : `/${slug}`;
+  const startUrl = isStaff ? '/staff/login' : `/${slug}`;
+  const bg = isStaff ? '#ffffff' : '#fdf9f0';
+  const theme = isStaff ? '#09090b' : '#fdf9f0';
+
   return NextResponse.json(
     {
       name: isStaff ? `${name} Staff` : name,
       short_name: name,
       description: isStaff ? `Staff dashboard — ${name}` : `Menu — ${name}`,
-      start_url: isStaff ? '/staff/login' : `/${slug}`,
+      start_url: startUrl,
+      scope,
       display: 'standalone',
-      background_color: isStaff ? '#ffffff' : '#fdf9f0',
-      theme_color: isStaff ? '#09090b' : '#fdf9f0',
+      background_color: bg,
+      theme_color: theme,
       ...(icons.length > 0 ? { icons } : {}),
     },
-    { headers: { 'Content-Type': 'application/manifest+json' } },
+    {
+      headers: {
+        'Content-Type': 'application/manifest+json',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    },
   );
 }

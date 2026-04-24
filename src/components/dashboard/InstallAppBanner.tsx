@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Download, Share, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -10,21 +10,43 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const DISMISS_KEY = 'staff-install-dismissed';
+const DISMISS_DAYS = 7;
+
+function readDismissed(): boolean {
+  try {
+    const raw = localStorage.getItem(DISMISS_KEY);
+    if (!raw) return false;
+    const ts = parseInt(raw, 10);
+    if (Number.isNaN(ts)) return false;
+    return Date.now() - ts < DISMISS_DAYS * 24 * 60 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+function writeDismissed() {
+  try {
+    localStorage.setItem(DISMISS_KEY, Date.now().toString());
+  } catch {
+    // storage unavailable (Safari private mode, etc.)
+  }
+}
 
 export default function InstallAppBanner() {
   const [show, setShow] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isIOS, setIsIOS] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (window.matchMedia('(min-width: 768px)').matches) return;
     if (window.matchMedia('(display-mode: standalone)').matches) return;
-
-    const dismissed = localStorage.getItem(DISMISS_KEY);
-    if (dismissed && Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000) return;
+    if (readDismissed()) return;
 
     const ua = navigator.userAgent;
-    const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const ios =
+      /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     setIsIOS(ios);
 
     if (ios) {
@@ -36,19 +58,40 @@ export default function InstallAppBanner() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShow(true);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     }
-    window.addEventListener('beforeinstallprompt', handler);
 
-    const timer = setTimeout(() => setShow(true), 3000);
+    function installedHandler() {
+      setShow(false);
+      setDeferredPrompt(null);
+    }
+
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', installedHandler);
+
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      setShow((prev) => {
+        if (prev) return prev;
+        return true;
+      });
+    }, 3000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
-      clearTimeout(timer);
+      window.removeEventListener('appinstalled', installedHandler);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, []);
 
   function dismiss() {
-    localStorage.setItem(DISMISS_KEY, Date.now().toString());
+    writeDismissed();
     setShow(false);
   }
 
@@ -56,8 +99,12 @@ export default function InstallAppBanner() {
     if (!deferredPrompt) return;
     await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setShow(false);
     setDeferredPrompt(null);
+    if (outcome === 'dismissed') {
+      dismiss();
+    } else {
+      setShow(false);
+    }
   }
 
   if (!show) return null;
