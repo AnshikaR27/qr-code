@@ -11,8 +11,40 @@ import type { Order, Restaurant } from '@/types';
 export async function generateMetadata(): Promise<Metadata> {
   const session = await getStaffSession();
   const slug = session?.restaurant_slug;
+
+  let name = 'Staff Dashboard';
+  let hasLogo = false;
+
+  if (session) {
+    const admin = getSupabaseAdmin();
+    const { data: restaurant } = await admin
+      .from('restaurants')
+      .select('name, logo_url')
+      .eq('id', session.restaurant_id)
+      .single();
+    if (restaurant?.name) name = restaurant.name;
+    hasLogo = !!restaurant?.logo_url;
+  }
+
   return {
     manifest: slug ? `/api/manifest/${slug}?staff=1` : '/api/staff/manifest',
+    themeColor: '#09090b',
+    other: {
+      'apple-mobile-web-app-capable': 'yes',
+      'apple-mobile-web-app-title': name,
+      'apple-mobile-web-app-status-bar-style': 'default',
+      'mobile-web-app-capable': 'yes',
+    },
+    icons:
+      slug && hasLogo
+        ? {
+            apple: [{ url: `/api/cafe-icon/${slug}?size=180&v=2`, sizes: '180x180' }],
+            icon: [
+              { url: `/api/cafe-icon/${slug}?size=192&v=2`, sizes: '192x192', type: 'image/png' },
+              { url: `/api/cafe-icon/${slug}?size=512&v=2`, sizes: '512x512', type: 'image/png' },
+            ],
+          }
+        : { icon: [{ url: '/favicon.ico' }] },
   };
 }
 

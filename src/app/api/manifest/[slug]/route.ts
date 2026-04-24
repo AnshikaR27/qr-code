@@ -37,7 +37,7 @@ export async function GET(
       start_url: startUrl,
       scope,
       display: 'standalone',
-      background_color: '#ffffff',
+      background_color: isStaff ? '#f9fafb' : '#fdf9f0',
       theme_color: theme,
       ...(icons.length > 0 ? { icons } : {}),
     },

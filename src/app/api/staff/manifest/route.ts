@@ -35,7 +35,7 @@ export async function GET() {
       description: `Staff dashboard — ${name}`,
       start_url: '/staff/login',
       display: 'standalone',
-      background_color: '#ffffff',
+      background_color: '#f9fafb',
       theme_color: '#09090b',
       ...(icons.length > 0 ? { icons } : {}),
     },
