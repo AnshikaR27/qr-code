@@ -32,10 +32,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     themeColor: '#fdf9f0',
     icons: logoUrl
       ? {
-          apple: [{ url: logoUrl, sizes: '180x180' }],
+          apple: [{ url: `/api/cafe-icon/${slug}?size=180&v=2`, sizes: '180x180' }],
           icon: [
-            { url: logoUrl, sizes: '192x192', type: 'image/png' },
-            { url: logoUrl, sizes: '512x512', type: 'image/png' },
+            { url: `/api/cafe-icon/${slug}?size=192&v=2`, sizes: '192x192', type: 'image/png' },
+            { url: `/api/cafe-icon/${slug}?size=512&v=2`, sizes: '512x512', type: 'image/png' },
           ],
         }
       : undefined,

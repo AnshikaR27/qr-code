@@ -19,9 +19,10 @@ export async function GET() {
     if (restaurant) {
       name = restaurant.name;
       if (restaurant.logo_url) {
+        const s = session.restaurant_slug;
         icons = [
-          { src: restaurant.logo_url, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-          { src: restaurant.logo_url, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: `/api/cafe-icon/${s}?size=192&v=2`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: `/api/cafe-icon/${s}?size=512&v=2`, sizes: '512x512', type: 'image/png', purpose: 'any' },
         ];
       }
     }

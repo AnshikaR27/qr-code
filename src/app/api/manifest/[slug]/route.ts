@@ -1,17 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabase/public';
 
-// Cloudinary URLs support on-the-fly resizing via URL transforms.
-// For non-Cloudinary URLs we reference the original — cafes should
-// upload logos at 512×512 minimum for crisp adaptive icons.
-function resizedIcon(url: string, size: number): string {
-  const m = url.match(
-    /^(https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.*?)(v\d+\/.+)$/,
-  );
-  if (!m) return url;
-  return `${m[1]}w_${size},h_${size},c_fill,f_png,q_auto/${m[3]}`;
-}
-
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
@@ -31,14 +20,13 @@ export async function GET(
 
   if (restaurant?.logo_url) {
     icons.push(
-      { src: resizedIcon(restaurant.logo_url, 192), sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-      { src: resizedIcon(restaurant.logo_url, 512), sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+      { src: `/api/cafe-icon/${slug}?size=192&v=2`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: `/api/cafe-icon/${slug}?size=512&v=2`, sizes: '512x512', type: 'image/png', purpose: 'any' },
     );
   }
 
   const scope = isStaff ? '/staff-dashboard' : `/${slug}`;
   const startUrl = isStaff ? '/staff/login' : `/${slug}`;
-  const bg = isStaff ? '#ffffff' : '#fdf9f0';
   const theme = isStaff ? '#09090b' : '#fdf9f0';
 
   return NextResponse.json(
@@ -49,7 +37,7 @@ export async function GET(
       start_url: startUrl,
       scope,
       display: 'standalone',
-      background_color: bg,
+      background_color: '#ffffff',
       theme_color: theme,
       ...(icons.length > 0 ? { icons } : {}),
     },
