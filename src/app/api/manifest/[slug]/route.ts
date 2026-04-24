@@ -25,8 +25,8 @@ export async function GET(
     );
   }
 
-  const scope = isStaff ? '/staff-dashboard' : `/${slug}`;
-  const startUrl = isStaff ? '/staff/login' : `/${slug}`;
+  const scope = isStaff ? '/' : `/${slug}`;
+  const startUrl = isStaff ? `/staff/${slug}` : `/${slug}`;
   const theme = isStaff ? '#09090b' : '#fdf9f0';
 
   return NextResponse.json(
