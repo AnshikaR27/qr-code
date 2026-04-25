@@ -41,7 +41,8 @@ export default function InstallAppBanner() {
   useEffect(() => {
     if (window.matchMedia('(min-width: 768px)').matches) return;
     if (window.matchMedia('(display-mode: standalone)').matches) return;
-    if (readDismissed()) return;
+
+    const dismissed = readDismissed();
 
     const ua = navigator.userAgent;
     const ios =
@@ -50,7 +51,7 @@ export default function InstallAppBanner() {
     setIsIOS(ios);
 
     if (ios) {
-      setShow(true);
+      if (!dismissed) setShow(true);
       return;
     }
 
@@ -72,13 +73,15 @@ export default function InstallAppBanner() {
     window.addEventListener('beforeinstallprompt', handler);
     window.addEventListener('appinstalled', installedHandler);
 
-    timerRef.current = setTimeout(() => {
-      timerRef.current = null;
-      setShow((prev) => {
-        if (prev) return prev;
-        return true;
-      });
-    }, 3000);
+    if (!dismissed) {
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        setShow((prev) => {
+          if (prev) return prev;
+          return true;
+        });
+      }, 3000);
+    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
