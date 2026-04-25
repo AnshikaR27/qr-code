@@ -636,6 +636,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
                 key={item.groupId}
                 orders={item.groupOrders}
                 restaurant={restaurant}
+                staffSession={staffSession}
                 isUpdating={item.groupOrders.some(o => updating === o.id)}
                 onAdvanceOrder={advanceStatus}
                 updatingId={updating}
@@ -683,6 +684,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
 interface MergedOrderCardProps {
   orders: Order[];
   restaurant: Restaurant;
+  staffSession?: StaffSession | null;
   isUpdating: boolean;
   updatingId: string | null;
   onAdvanceOrder: (order: Order) => void;
@@ -691,7 +693,7 @@ interface MergedOrderCardProps {
 }
 
 function MergedOrderCard({
-  orders, restaurant, isUpdating, updatingId, onAdvanceOrder, onBill, onUnmerge,
+  orders, restaurant, staffSession, isUpdating, updatingId, onAdvanceOrder, onBill, onUnmerge,
 }: MergedOrderCardProps) {
   const STATUS_LABELS = getStatusLabels(restaurant.service_mode ?? 'self_service');
   const tableLabels = orders
@@ -791,20 +793,27 @@ function MergedOrderCard({
       </div>
 
       {/* ── Combined payment footer ── */}
-      <div className="px-4 pb-4 pt-3 border-t">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-gray-500">Combined total</span>
-          <span className="font-bold text-base">{formatPrice(totalAmount)}</span>
-        </div>
-        <button
-          onClick={onBill}
-          disabled={isUpdating}
-          className="w-full py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
-        >
-          <IndianRupee className="w-4 h-4" />
-          Record Payment
-        </button>
-      </div>
+      {(() => {
+        const canBill = !staffSession || hasPermission(staffSession.role, 'order:record_payment');
+        return (
+          <div className="px-4 pb-4 pt-3 border-t">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-500">Combined total</span>
+              <span className="font-bold text-base">{formatPrice(totalAmount)}</span>
+            </div>
+            {canBill && (
+              <button
+                onClick={onBill}
+                disabled={isUpdating}
+                className="w-full py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <IndianRupee className="w-4 h-4" />
+                Record Payment
+              </button>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1093,11 +1102,12 @@ function OrderCard({
           preparing: 'order:set_preparing', ready: 'order:set_ready', delivered: 'order:set_delivered',
         };
         const canAdvance = !staffSession || (nextStatus && hasPermission(staffSession.role, permMap[nextStatus]));
+        const canBill = order.status === 'ready' && (!staffSession || hasPermission(staffSession.role, 'order:record_payment'));
         const canCancel = !staffSession;
 
-        return (canAdvance || canCancel) ? (
+        return (canAdvance || canBill || canCancel) ? (
           <div className="px-4 pb-4 pt-2 flex gap-2">
-            {canAdvance && (
+            {(canAdvance || canBill) && (
               <button
                 onClick={onAdvance}
                 disabled={isUpdating}

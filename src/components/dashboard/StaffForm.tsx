@@ -25,7 +25,7 @@ export default function StaffForm({ open, onOpenChange, staff, onSaved }: StaffF
   const isEdit = !!staff;
   const [name, setName] = useState(staff?.name ?? '');
   const [pin, setPin] = useState('');
-  const [role, setRole] = useState<'waiter' | 'kitchen' | 'both'>(staff?.role ?? 'waiter');
+  const [role, setRole] = useState<'waiter' | 'kitchen' | 'both' | 'counter'>(staff?.role ?? 'waiter');
   const [saving, setSaving] = useState(false);
 
   function resetForm() {
@@ -109,7 +109,7 @@ export default function StaffForm({ open, onOpenChange, staff, onSaved }: StaffF
           <div className="space-y-2">
             <Label>Role</Label>
             <div className="flex gap-2">
-              {(['waiter', 'kitchen', 'both'] as const).map((r) => (
+              {(['waiter', 'kitchen', 'both', 'counter'] as const).map((r) => (
                 <button
                   key={r}
                   type="button"
@@ -120,7 +120,7 @@ export default function StaffForm({ open, onOpenChange, staff, onSaved }: StaffF
                       : 'bg-white text-muted-foreground border-gray-200 hover:bg-gray-50'
                   }`}
                 >
-                  {r === 'both' ? 'Both' : r.charAt(0).toUpperCase() + r.slice(1)}
+                  {r.charAt(0).toUpperCase() + r.slice(1)}
                 </button>
               ))}
             </div>

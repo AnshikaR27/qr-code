@@ -11,12 +11,9 @@ import { useStaff } from '@/contexts/StaffContext';
 import { cn } from '@/lib/utils';
 import type { Order } from '@/types';
 
-type KitchenFilter = 'new' | 'all';
-
 export default function KitchenStaffPage() {
   const { restaurant } = useStaff();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [filter, setFilter] = useState<KitchenFilter>('new');
   const [updating, setUpdating] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
@@ -107,21 +104,22 @@ export default function KitchenStaffPage() {
     }
   }
 
-  const activeOrders = orders.filter(
-    (o) => o.status === 'placed' && !o.payment_method
+  const pendingOrders = orders.filter(
+    (o) => (o.status === 'placed' || o.status === 'preparing') && !o.payment_method
   );
   const readyOrders = orders.filter(
     (o) => o.status === 'ready' && !o.payment_method
   );
-  const displayOrders = filter === 'new' ? activeOrders : [...activeOrders, ...readyOrders];
-  const newCount = activeOrders.length;
+  const displayOrders = [...pendingOrders, ...readyOrders];
+  const newCount = pendingOrders.length;
 
-  // Auto-tick timer
+  // Auto-tick timer for ready-since timestamps
   const [, setTick] = useState(0);
   useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 30_000);
+    if (readyOrders.length === 0) return;
+    const interval = setInterval(() => setTick((t) => t + 1), 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [readyOrders.length]);
 
   return (
     <div className="p-4 sm:p-6 pb-24 max-w-6xl mx-auto space-y-4">
@@ -139,7 +137,13 @@ export default function KitchenStaffPage() {
           {newCount > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
               <Flame className="w-4 h-4 text-orange-500" />
-              <span className="text-sm font-semibold text-orange-700">{newCount} new</span>
+              <span className="text-sm font-semibold text-orange-700">{newCount} to prepare</span>
+            </div>
+          )}
+          {readyOrders.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+              <CheckCheck className="w-4 h-4 text-green-500" />
+              <span className="text-sm font-semibold text-green-700">{readyOrders.length} awaiting pickup</span>
             </div>
           )}
           <button
@@ -157,37 +161,11 @@ export default function KitchenStaffPage() {
         </div>
       </div>
 
-      {/* Filter */}
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit">
-        {([
-          { key: 'new' as const, label: 'New Orders' },
-          { key: 'all' as const, label: 'All Active' },
-        ]).map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={cn(
-              'px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
-              filter === key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
-            )}
-          >
-            {label}
-            {key === 'new' && newCount > 0 && (
-              <span className="ml-1.5 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5">
-                {newCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
       {/* Orders */}
       {displayOrders.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p className="font-medium">
-            {filter === 'new' ? 'No new orders' : 'No active orders'}
-          </p>
+          <p className="font-medium">No active orders</p>
           <p className="text-xs mt-1">Orders will appear here in real-time</p>
         </div>
       ) : (
@@ -206,6 +184,11 @@ export default function KitchenStaffPage() {
   );
 }
 
+function readyMinutesAgo(order: Order): number {
+  const readyAt = new Date(order.updated_at ?? order.created_at);
+  return Math.floor((Date.now() - readyAt.getTime()) / 60_000);
+}
+
 function KitchenOrderCard({
   order,
   onMarkReady,
@@ -215,20 +198,22 @@ function KitchenOrderCard({
   onMarkReady: () => void;
   isUpdating: boolean;
 }) {
-  const isNew = order.status === 'placed';
+  const isNew = order.status === 'placed' || order.status === 'preparing';
   const isReady = order.status === 'ready';
   const tableLabel = order.table
     ? (order.table.display_name?.trim() || `#${order.table.table_number}`)
     : 'Parcel';
 
   const activeItems = (order.items ?? []).filter((i) => i.status !== 'voided');
+  const readyMins = isReady ? readyMinutesAgo(order) : 0;
+  const readySlow = readyMins >= 5;
 
   return (
     <div
       className={cn(
         'bg-white rounded-xl border-2 shadow-sm flex flex-col overflow-hidden',
         isNew && 'border-amber-400',
-        isReady && 'border-green-400 opacity-75',
+        isReady && 'border-green-400 opacity-60',
       )}
     >
       {/* Header */}
@@ -250,15 +235,24 @@ function KitchenOrderCard({
           </div>
         </div>
         <div className="text-right">
-          <span className={cn(
-            'text-xs font-bold px-2 py-1 rounded-full',
-            isNew ? 'bg-amber-200 text-amber-800' : 'bg-green-200 text-green-800',
+          {isNew ? (
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-amber-200 text-amber-800">
+              NEW
+            </span>
+          ) : (
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-200 text-green-800">
+              AWAITING PICKUP
+            </span>
+          )}
+          <div className={cn(
+            'flex items-center gap-1 mt-1.5 text-xs',
+            isReady && readySlow ? 'text-red-600 font-semibold' : 'text-muted-foreground',
           )}>
-            {isNew ? 'NEW' : 'READY'}
-          </span>
-          <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
             <Clock className="w-3 h-3" />
-            {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+            {isReady
+              ? `Ready ${readyMins < 1 ? 'just now' : `${readyMins} min ago`}`
+              : formatDistanceToNow(new Date(order.created_at), { addSuffix: true })
+            }
           </div>
         </div>
       </div>
