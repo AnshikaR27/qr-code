@@ -5,10 +5,11 @@ import { formatDistanceToNow } from 'date-fns';
 import {
   ChefHat, CheckCheck, Clock, Flame, Volume2, VolumeX,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
 import { cn } from '@/lib/utils';
-import type { Order, OrderStatus } from '@/types';
+import type { Order } from '@/types';
 
 type KitchenFilter = 'new' | 'all';
 
@@ -74,12 +75,15 @@ export default function KitchenStaffPage() {
   async function markReady(order: Order) {
     setUpdating(order.id);
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: 'ready' as OrderStatus })
-        .eq('id', order.id);
-      if (error) throw error;
+      const res = await fetch(`/api/staff/orders/${order.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ready' }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update order');
+      }
 
       try {
         const isTableService = restaurant.service_mode === 'table_service';
@@ -96,8 +100,8 @@ export default function KitchenStaffPage() {
           }),
         });
       } catch { /* push is best-effort */ }
-    } catch {
-      // error handled silently, will refresh
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to mark ready');
     } finally {
       setUpdating(null);
     }
