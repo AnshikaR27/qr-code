@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyStaffToken } from '@/lib/staff-auth';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { logActivity } from '@/lib/activity-logger';
 import { hasPermission } from '@/lib/staff-permissions';
 
 export async function PATCH(
@@ -42,6 +43,16 @@ export async function PATCH(
   if (updateError) {
     return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
+
+  logActivity({
+    restaurant_id: session.restaurant_id,
+    actor_type: 'staff',
+    actor_id: session.staff_id,
+    actor_name: `${session.name} (${session.role})`,
+    action: 'waiter_call.dismissed',
+    entity_type: 'waiter_call',
+    entity_id: callId,
+  });
 
   return NextResponse.json({ success: true });
 }

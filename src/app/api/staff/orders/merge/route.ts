@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyStaffToken } from '@/lib/staff-auth';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { logActivity } from '@/lib/activity-logger';
 import { hasPermission } from '@/lib/staff-permissions';
 
 export async function POST(req: NextRequest) {
@@ -65,6 +66,17 @@ export async function POST(req: NextRequest) {
       .in('id', tableIds);
   }
 
+  logActivity({
+    restaurant_id: session.restaurant_id,
+    actor_type: 'staff',
+    actor_id: session.staff_id,
+    actor_name: `${session.name} (${session.role})`,
+    action: 'orders.merged',
+    entity_type: 'order',
+    entity_id: groupId,
+    metadata: { order_ids: body.order_ids, merge_group_id: groupId },
+  });
+
   return NextResponse.json({ success: true, merge_group_id: groupId });
 }
 
@@ -115,6 +127,17 @@ export async function DELETE(req: NextRequest) {
       .update({ merge_group_id: null, merged_with: null })
       .in('id', tableIds);
   }
+
+  logActivity({
+    restaurant_id: session.restaurant_id,
+    actor_type: 'staff',
+    actor_id: session.staff_id,
+    actor_name: `${session.name} (${session.role})`,
+    action: 'orders.unmerged',
+    entity_type: 'order',
+    entity_id: body.merge_group_id,
+    metadata: { order_ids: orders.map(o => o.id), merge_group_id: body.merge_group_id },
+  });
 
   return NextResponse.json({ success: true });
 }

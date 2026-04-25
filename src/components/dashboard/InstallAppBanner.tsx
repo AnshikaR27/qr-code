@@ -58,7 +58,9 @@ export default function InstallAppBanner() {
     function handler(e: Event) {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShow(true);
+      if (!dismissed) {
+        setShow(true);
+      }
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
