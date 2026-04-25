@@ -1,5 +1,6 @@
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
+import Script from 'next/script';
 import { getStaffSession } from '@/lib/staff-auth';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import StaffSidebar from '@/components/dashboard/StaffSidebar';
@@ -76,6 +77,9 @@ export default async function StaffDashboardLayout({
           </OrdersProvider>
         </main>
       </StaffProvider>
+      <Script id="register-sw" strategy="afterInteractive">
+        {`if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}`}
+      </Script>
     </div>
   );
 }

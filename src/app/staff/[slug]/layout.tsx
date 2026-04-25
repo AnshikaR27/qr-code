@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { supabasePublic } from '@/lib/supabase/public';
+import InstallAppBanner from '@/components/dashboard/InstallAppBanner';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -41,5 +43,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default function StaffSlugLayout({ children }: Props) {
-  return <>{children}</>;
+  return (
+    <>
+      <InstallAppBanner />
+      {children}
+      <Script id="register-sw" strategy="afterInteractive">
+        {`if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}`}
+      </Script>
+    </>
+  );
 }
