@@ -58,20 +58,10 @@ const ROLE_PERMISSIONS: Record<StaffRole, Set<Permission>> = {
   manager: MANAGER,
 };
 
-// TEMPORARY: backwards-compat for JWTs issued before the role refactor.
-// Remove this block after 2026-05-09 (2 weeks from deploy on 2026-04-25).
-const LEGACY_ROLE_MAP: Record<string, StaffRole> = {
-  waiter: 'floor',
-  counter: 'floor',
-  both: 'floor',
-};
-
-export function hasPermission(role: string, permission: Permission): boolean {
-  const resolved: StaffRole = LEGACY_ROLE_MAP[role] ?? (role as StaffRole);
-  return ROLE_PERMISSIONS[resolved]?.has(permission) ?? false;
+export function hasPermission(role: StaffRole, permission: Permission): boolean {
+  return ROLE_PERMISSIONS[role]?.has(permission) ?? false;
 }
 
-export function getPermissions(role: string): Set<Permission> {
-  const resolved: StaffRole = LEGACY_ROLE_MAP[role] ?? (role as StaffRole);
-  return ROLE_PERMISSIONS[resolved] ?? new Set();
+export function getPermissions(role: StaffRole): Set<Permission> {
+  return ROLE_PERMISSIONS[role] ?? new Set();
 }
