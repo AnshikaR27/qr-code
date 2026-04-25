@@ -816,12 +816,12 @@ function mergedTableLabel(order: Order, allOrders: Order[]): string {
   const table = order.table;
   if (!table) return '🪑 Dine In';
   const singleLabel = `🪑 Table ${table.display_name?.trim() || table.table_number}`;
-  if (!table.merge_group_id) return singleLabel;
+  if (!order.merge_group_id) return singleLabel;
 
   const seen = new Set<string>();
   const labels: string[] = [];
   for (const o of allOrders) {
-    if (!o.table || o.table.merge_group_id !== table.merge_group_id) continue;
+    if (!o.table || o.merge_group_id !== order.merge_group_id) continue;
     const key = o.table.id;
     if (seen.has(key)) continue;
     seen.add(key);
