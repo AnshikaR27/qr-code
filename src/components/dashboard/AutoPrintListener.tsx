@@ -5,17 +5,20 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { playNewOrder, playOrderAlert, unlockAudio } from '@/lib/sounds';
 import { printKOT } from '@/lib/kot-print';
-import type { Order, PrinterConfig } from '@/types';
+import type { Order, PrinterConfig, BillingConfig } from '@/types';
+import type { BillOrderData } from '@/lib/escpos-bill';
 
 interface Props {
   restaurantId: string;
   restaurantName: string;
+  restaurantPhone?: string | null;
   printerConfig: PrinterConfig | null;
+  billingConfig?: BillingConfig | null;
 }
 
 /**
  * Invisible component that lives in the dashboard LAYOUT so it persists across
- * all dashboard tab navigations. Handles two concerns that must never unmount:
+ * all dashboard tab navigations. Handles three concerns that must never unmount:
  *
  *  1. USB/Serial printer reconnect on layout mount (so printers are ready
  *     before any print attempt, regardless of which page the user lands on).
@@ -24,14 +27,24 @@ interface Props {
  *     a new order arrives (kot_print_trigger === 'on_order'). Previously this
  *     lived in KitchenDashboard and would stop listening when the user
  *     navigated away.
+ *
+ *  3. Supabase Realtime Broadcast listener for bill-print events (Model C).
+ *     Any device can request a bill print; this listener attempts to print
+ *     on the locally-paired bill printer.
  */
-export function AutoPrintListener({ restaurantId, restaurantName, printerConfig }: Props) {
+export function AutoPrintListener({ restaurantId, restaurantName, restaurantPhone, printerConfig, billingConfig }: Props) {
   // Always-current refs so async callbacks never close over stale props
   const printerConfigRef = useRef(printerConfig);
   printerConfigRef.current = printerConfig;
 
   const restaurantNameRef = useRef(restaurantName);
   restaurantNameRef.current = restaurantName;
+
+  const restaurantPhoneRef = useRef(restaurantPhone);
+  restaurantPhoneRef.current = restaurantPhone;
+
+  const billingConfigRef = useRef(billingConfig);
+  billingConfigRef.current = billingConfig;
 
   // ── Unlock audio on first user interaction ─────────────────────────────────
   // Web Audio API requires a user gesture before AudioContext can run.
@@ -59,7 +72,7 @@ export function AutoPrintListener({ restaurantId, restaurantName, printerConfig 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Global auto-print subscription ─────────────────────────────────────────
+  // ── Global auto-print KOT subscription ─────────────────────────────────────
   useEffect(() => {
     if (!restaurantId) return;
 
@@ -106,13 +119,75 @@ export function AutoPrintListener({ restaurantId, restaurantName, printerConfig 
         },
       )
       .subscribe((status) => {
-        console.log('[AutoPrint] Subscription status:', status);
+        console.log('[AutoPrint] KOT subscription status:', status);
       });
 
     isFirstRender.current = false;
 
     return () => {
-      console.log('[AutoPrint] Cleaning up subscription');
+      console.log('[AutoPrint] Cleaning up KOT subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [restaurantId]);
+
+  // ── Bill-print broadcast listener (Model C) ───────────────────────────────
+  useEffect(() => {
+    if (!restaurantId) return;
+
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`bill-print-${restaurantId}`)
+      .on('broadcast', { event: 'print-bill' }, async ({ payload }) => {
+        const config = printerConfigRef.current;
+        const billing = billingConfigRef.current;
+        if (!config?.bill_printer || !billing) return;
+
+        const printer = config.printers.find((p) => p.id === config.bill_printer);
+        if (!printer || printer.type === 'browser') return;
+
+        try {
+          const { buildBillReceipt } = await import('@/lib/escpos-bill');
+          const { printerService } = await import('@/lib/printer-service');
+
+          const orderData = payload as BillOrderData & { order_id: string; order_number: number };
+          const copies = config.copies_bill ?? 1;
+          const dedupeKey = `bill:${orderData.order_id}`;
+
+          const data = buildBillReceipt(
+            orderData,
+            restaurantNameRef.current,
+            restaurantPhoneRef.current ?? null,
+            billing,
+            printer.paper_width,
+            false,
+          );
+
+          const result = await printerService.print(printer, data, dedupeKey);
+          if (result.success) {
+            if (copies === 2) {
+              const dup = buildBillReceipt(
+                orderData,
+                restaurantNameRef.current,
+                restaurantPhoneRef.current ?? null,
+                billing,
+                printer.paper_width,
+                true,
+              );
+              await printerService.print(printer, dup);
+            }
+            toast.success(`Bill #${orderData.order_number} printed`);
+          }
+        } catch (err) {
+          console.error('[AutoPrint] Bill print failed:', err);
+        }
+      })
+      .subscribe((status) => {
+        console.log('[AutoPrint] Bill-print subscription status:', status);
+      });
+
+    return () => {
+      console.log('[AutoPrint] Cleaning up bill-print subscription');
       supabase.removeChannel(channel);
     };
   }, [restaurantId]);

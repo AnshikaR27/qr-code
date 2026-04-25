@@ -408,12 +408,14 @@ class ThermalPrinterService {
     }
   }
 
-  async printToNetwork(ip: string, port: number, data: Uint8Array): Promise<PrintResult> {
+  async printToNetwork(ip: string, port: number, data: Uint8Array, dedupeKey?: string): Promise<PrintResult> {
     try {
+      const body: Record<string, unknown> = { printer_ip: ip, printer_port: port, data: Array.from(data) };
+      if (dedupeKey) body.dedupe_key = dedupeKey;
       const res = await fetch('/api/print', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printer_ip: ip, printer_port: port, data: Array.from(data) }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const json = await res.json() as { error?: string };
@@ -426,11 +428,11 @@ class ThermalPrinterService {
   }
 
   // Smart print — picks the right method based on printer config
-  async print(printer: PrinterDevice, data: Uint8Array): Promise<PrintResult> {
+  async print(printer: PrinterDevice, data: Uint8Array, dedupeKey?: string): Promise<PrintResult> {
     if (printer.type === 'usb') {
       return this.printToUSB(printer.id, data);
     } else if (printer.type === 'network') {
-      return this.printToNetwork(printer.ip ?? '', printer.port ?? 9100, data);
+      return this.printToNetwork(printer.ip ?? '', printer.port ?? 9100, data, dedupeKey);
     } else if (printer.type === 'serial') {
       return this.printToSerial(printer.id, data, printer.baud_rate ?? 9600);
     } else {

@@ -47,7 +47,9 @@ export default async function DashboardLayout({
       <AutoPrintListener
         restaurantId={restaurant.id}
         restaurantName={restaurant.name}
+        restaurantPhone={restaurant.phone}
         printerConfig={restaurant.printer_config}
+        billingConfig={restaurant.billing_config}
       />
       <Sidebar restaurant={restaurant as Restaurant} />
       <main className="flex-1 overflow-auto">

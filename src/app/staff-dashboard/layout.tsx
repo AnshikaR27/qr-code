@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import StaffSidebar from '@/components/dashboard/StaffSidebar';
 import InstallAppBanner from '@/components/dashboard/InstallAppBanner';
 import StaffMobileHeader from '@/components/dashboard/StaffMobileHeader';
+import { AutoPrintListener } from '@/components/dashboard/AutoPrintListener';
 import { StaffProvider } from '@/contexts/StaffContext';
 import { OrdersProvider } from '@/contexts/OrdersContext';
 import type { Metadata, Viewport } from 'next';
@@ -17,7 +18,7 @@ const getStaffContext = cache(async () => {
   const admin = getSupabaseAdmin();
   const { data: restaurant, error } = await admin
     .from('restaurants')
-    .select('id, name, slug, service_mode, floor_plan')
+    .select('id, name, slug, phone, service_mode, floor_plan, printer_config, billing_config')
     .eq('id', session.restaurant_id)
     .single();
 
@@ -66,6 +67,13 @@ export default async function StaffDashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-gray-50">
+      <AutoPrintListener
+        restaurantId={restaurant.id}
+        restaurantName={restaurant.name}
+        restaurantPhone={(restaurant as Restaurant).phone}
+        printerConfig={(restaurant as Restaurant).printer_config}
+        billingConfig={(restaurant as Restaurant).billing_config}
+      />
       <StaffProvider staff={session} restaurant={restaurant as Restaurant}>
         <StaffSidebar staff={session} restaurant={restaurant as Restaurant} />
         <main className="flex-1 overflow-auto">

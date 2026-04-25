@@ -16,6 +16,7 @@ import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/Bi
 import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
 import { logOwnerActivity } from '@/lib/log-client';
 import { hasPermission } from '@/lib/staff-permissions';
+import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
 import type { Order, OrderItem, OrderStatus, Restaurant, PrinterDevice, StaffSession } from '@/types';
 
 interface Props {
@@ -249,10 +250,20 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
 
       toast.success(isMergedBilling ? 'Payment recorded · tables unmerged' : `Payment recorded — ${data.payment_method.toUpperCase()}`);
 
-      if (!isMergedBilling) {
+      // Auto-print bill after payment when enabled (pay-at-counter flow).
+      // Table-side cafes leave auto_print_bill off and use the manual Print Bill button instead.
+      if (!isMergedBilling && restaurant.printer_config?.auto_print_bill) {
         const order = orders.find(o => o.id === orderIds[0]);
         if (order) {
-          try { await handlePrintBill(order); } catch { /* silent */ }
+          const billPrinterId = restaurant.printer_config.bill_printer;
+          const billPrinter = billPrinterId
+            ? restaurant.printer_config.printers.find(p => p.id === billPrinterId)
+            : null;
+          if (billPrinter && billPrinter.type !== 'browser') {
+            broadcastPrintBill(restaurant.id, order).catch(() => {});
+          } else {
+            try { await handlePrintBill(order); } catch { /* silent */ }
+          }
         }
       }
     } catch (err: unknown) {
@@ -347,6 +358,36 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
 
     const { printCustomerBill } = await import('@/lib/billing');
     printCustomerBill(order, restaurant, config!);
+  }
+
+  // ── Print Bill via broadcast (Model C) ──────────────────────────────────
+  async function handlePrintBillAction(order: Order) {
+    const printerConf = restaurant.printer_config;
+    const billPrinterId = printerConf?.bill_printer;
+    const billPrinter = billPrinterId
+      ? printerConf?.printers.find(p => p.id === billPrinterId)
+      : null;
+
+    if (!billPrinter || billPrinter.type === 'browser') {
+      await handlePrintBill(order);
+      return;
+    }
+
+    if (staffSession) {
+      const res = await fetch(`/api/staff/orders/${order.id}/print-bill`, { method: 'POST' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || 'Failed to send print request');
+        return;
+      }
+    }
+
+    try {
+      await broadcastPrintBill(restaurant.id, order);
+      toast.success('Bill sent to printer');
+    } catch {
+      toast.error('Failed to send to printer');
+    }
   }
 
   // ── Drag-to-merge ─────────────────────────────────────────────────────────
@@ -629,7 +670,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
                 onAdvance={() => advanceStatus(item.order)}
                 onCancel={() => cancelOrder(item.order)}
                 onReprint={() => openReprintDialog(item.order)}
-                onPrintBill={() => handlePrintBill(item.order)}
+                onPrintBill={() => handlePrintBillAction(item.order)}
                 onVoidItem={(orderItem) => { setVoidOrder(item.order); setVoidItem(orderItem); setVoidDialogOpen(true); }}
                 isUpdating={updating === item.order.id}
                 draggingOrderId={draggingOrderId}
@@ -654,6 +695,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
                 updatingId={updating}
                 onBill={() => setBillingOrders(item.groupOrders)}
                 onUnmerge={() => unmergeGroup(item.groupId)}
+                onPrintBill={(order) => handlePrintBillAction(order)}
               />
             ),
           )}
@@ -702,10 +744,11 @@ interface MergedOrderCardProps {
   onAdvanceOrder: (order: Order) => void;
   onBill: () => void;
   onUnmerge: () => void;
+  onPrintBill: (order: Order) => void;
 }
 
 function MergedOrderCard({
-  orders, restaurant, staffSession, isUpdating, updatingId, onAdvanceOrder, onBill, onUnmerge,
+  orders, restaurant, staffSession, isUpdating, updatingId, onAdvanceOrder, onBill, onUnmerge, onPrintBill,
 }: MergedOrderCardProps) {
   const STATUS_LABELS = getStatusLabels(restaurant.service_mode ?? 'self_service');
   const tableLabels = orders
@@ -807,22 +850,34 @@ function MergedOrderCard({
       {/* ── Combined payment footer ── */}
       {(() => {
         const canBill = !staffSession || hasPermission(staffSession.role, 'order:record_payment');
+        const canPrintBill = !staffSession || hasPermission(staffSession.role, 'order:record_payment');
         return (
           <div className="px-4 pb-4 pt-3 border-t">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-gray-500">Combined total</span>
               <span className="font-bold text-base">{formatPrice(totalAmount)}</span>
             </div>
-            {canBill && (
-              <button
-                onClick={onBill}
-                disabled={isUpdating}
-                className="w-full py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
-              >
-                <IndianRupee className="w-4 h-4" />
-                Record Payment
-              </button>
-            )}
+            <div className="flex gap-2">
+              {canPrintBill && (
+                <button
+                  onClick={() => { for (const o of orders) onPrintBill(o); }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
+                  title="Print bills for all orders in group"
+                >
+                  <ReceiptText className="w-4 h-4" />
+                </button>
+              )}
+              {canBill && (
+                <button
+                  onClick={onBill}
+                  disabled={isUpdating}
+                  className="flex-1 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <IndianRupee className="w-4 h-4" />
+                  Record Payment
+                </button>
+              )}
+            </div>
           </div>
         );
       })()}
@@ -1016,7 +1071,7 @@ function OrderCard({
               <Printer className="w-4 h-4" />
             </button>
           )}
-          {!isTerminal && (
+          {(order.items?.length ?? 0) > 0 && (!staffSession || hasPermission(staffSession.role, 'order:record_payment')) && (
             <button
               onClick={onPrintBill}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-gray-100 transition-colors"
