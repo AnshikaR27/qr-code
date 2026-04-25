@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyStaffToken } from '@/lib/staff-auth';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { logActivity } from '@/lib/activity-logger';
+import { hasPermission } from '@/lib/staff-permissions';
 import type { OrderStatus } from '@/types';
+import type { Permission } from '@/lib/staff-permissions';
 
-const ALLOWED_STATUSES: OrderStatus[] = [
-  'placed',
-  'preparing',
-  'ready',
-  'delivered',
-  'cancelled',
-];
+const STATUS_PERMISSION: Record<string, Permission> = {
+  preparing: 'order:set_preparing',
+  ready: 'order:set_ready',
+  delivered: 'order:set_delivered',
+};
+
+const ALLOWED_STATUSES: OrderStatus[] = ['preparing', 'ready', 'delivered'];
 
 export async function PATCH(
   req: NextRequest,
@@ -34,6 +36,14 @@ export async function PATCH(
     return NextResponse.json(
       { error: 'Invalid status', allowed: ALLOWED_STATUSES },
       { status: 400 },
+    );
+  }
+
+  const permission = STATUS_PERMISSION[status];
+  if (!hasPermission(session.role, permission)) {
+    return NextResponse.json(
+      { error: `Role '${session.role}' cannot set status to '${status}'` },
+      { status: 403 },
     );
   }
 

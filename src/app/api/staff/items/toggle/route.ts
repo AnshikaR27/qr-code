@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { verifyStaffToken } from '@/lib/staff-auth';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { logActivity } from '@/lib/activity-logger';
+import { hasPermission } from '@/lib/staff-permissions';
 
 export async function PATCH(req: NextRequest) {
   const token = req.cookies.get('staff_session')?.value;
@@ -10,6 +11,10 @@ export async function PATCH(req: NextRequest) {
 
   const session = await verifyStaffToken(token);
   if (!session) return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+
+  if (!hasPermission(session.role, 'menu:mark_out_of_stock')) {
+    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+  }
 
   let body: { product_id: string; is_available: boolean };
   try {

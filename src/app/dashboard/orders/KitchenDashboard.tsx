@@ -15,6 +15,7 @@ import PrintOrderDialog from '@/components/dashboard/PrintOrderDialog';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
 import { logOwnerActivity } from '@/lib/log-client';
+import { hasPermission } from '@/lib/staff-permissions';
 import type { Order, OrderItem, OrderStatus, Restaurant, PrinterDevice, StaffSession } from '@/types';
 
 interface Props {
@@ -137,13 +138,23 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
     if (!nextStatus) return;
     setUpdating(order.id);
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: nextStatus })
-        .eq('id', order.id);
-      if (error) throw error;
-      if (!staffSession) {
+      if (staffSession) {
+        const res = await fetch(`/api/staff/orders/${order.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: nextStatus }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to update order');
+        }
+      } else {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: nextStatus })
+          .eq('id', order.id);
+        if (error) throw error;
         logOwnerActivity('order.status_changed', 'order', order.id, { from: order.status, to: nextStatus, order_number: order.order_number });
       }
       if (nextStatus === 'ready') {
@@ -181,57 +192,63 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
     setBillingOrders(null);
     setUpdating(orderIds[0]);
     try {
-      const supabase = createClient();
-
-      // Check whether these orders belong to a merge group (so we can dissolve it)
       const isMergedBilling = orderIds.some(id => orders.find(o => o.id === id)?.merge_group_id);
 
-      for (const id of orderIds) {
-        const { error } = await supabase
-          .from('orders')
-          .update({
-            status: 'delivered' as OrderStatus,
+      if (staffSession) {
+        const res = await fetch('/api/staff/orders/billing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_ids: orderIds,
             payment_method: data.payment_method,
             payment_methods: data.payment_methods,
             discount_amount: data.discount_amount,
             discount_type: data.discount_type,
             discount_before_tax: data.discount_before_tax,
-            merge_group_id: null,   // dissolve merge on payment
-          })
-          .eq('id', id);
-        if (error) throw error;
-      }
-
-      // If these were a merged billing group, also clear the tables so the
-      // floor plan purple outline disappears (FloorPlanEditor picks this up
-      // via its Realtime listener on the tables table).
-      if (!staffSession) {
+          }),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || 'Failed to record payment');
+        }
+      } else {
+        const supabase = createClient();
+        for (const id of orderIds) {
+          const { error } = await supabase
+            .from('orders')
+            .update({
+              status: 'delivered' as OrderStatus,
+              payment_method: data.payment_method,
+              payment_methods: data.payment_methods,
+              discount_amount: data.discount_amount,
+              discount_type: data.discount_type,
+              discount_before_tax: data.discount_before_tax,
+              merge_group_id: null,
+            })
+            .eq('id', id);
+          if (error) throw error;
+        }
         for (const id of orderIds) {
           logOwnerActivity('order.payment_recorded', 'order', id, { payment_method: data.payment_method });
         }
-      }
-
-      if (isMergedBilling) {
-        const tableIds = Array.from(new Set(
-          orderIds.map(id => orders.find(o => o.id === id)?.table_id).filter(Boolean) as string[],
-        ));
-        if (tableIds.length > 0) {
-          await supabase
-            .from('tables')
-            .update({ merge_group_id: null, merged_with: null })
-            .in('id', tableIds);
+        if (isMergedBilling) {
+          const tableIds = Array.from(new Set(
+            orderIds.map(id => orders.find(o => o.id === id)?.table_id).filter(Boolean) as string[],
+          ));
+          if (tableIds.length > 0) {
+            await supabase
+              .from('tables')
+              .update({ merge_group_id: null, merged_with: null })
+              .in('id', tableIds);
+          }
         }
-        toast.success('Payment recorded · tables unmerged');
-      } else {
-        toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
+        for (const id of orderIds) {
+          supabase.from('push_subscriptions').delete().eq('order_id', id).then(() => {});
+        }
       }
 
-      // Clean up push subscriptions for delivered orders
-      for (const id of orderIds) {
-        supabase.from('push_subscriptions').delete().eq('order_id', id).then(() => {});
-      }
+      toast.success(isMergedBilling ? 'Payment recorded · tables unmerged' : `Payment recorded — ${data.payment_method.toUpperCase()}`);
 
-      // Auto-print bill for single-order billing only
       if (!isMergedBilling) {
         const order = orders.find(o => o.id === orderIds[0]);
         if (order) {
@@ -255,9 +272,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
         .update({ status: 'cancelled' })
         .eq('id', order.id);
       if (error) throw error;
-      if (!staffSession) {
-        logOwnerActivity('order.cancelled', 'order', order.id, { order_number: order.order_number });
-      }
+      logOwnerActivity('order.cancelled', 'order', order.id, { order_number: order.order_number });
       supabase.from('push_subscriptions').delete().eq('order_id', order.id).then(() => {});
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel order');
@@ -329,7 +344,6 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
     const targetOrder = orders.find(o => o.id === targetId);
     if (!sourceOrder || !targetOrder) return;
 
-    // Validate: both must be active and unpaid
     const bothEligible = [sourceOrder, targetOrder].every(
       o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method,
     );
@@ -338,63 +352,82 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
       return;
     }
 
-    // Reuse an existing merge group UUID if either order is already in one,
-    // so dragging a third card onto a merged group just extends it.
     const existingGroupId = sourceOrder.merge_group_id || targetOrder.merge_group_id;
     const groupId = existingGroupId ?? crypto.randomUUID();
 
-    const supabase = createClient();
-    const idsToUpdate = existingGroupId
-      ? [sourceId, targetId]
-      : [sourceId, targetId];
+    try {
+      if (staffSession) {
+        const res = await fetch('/api/staff/orders/merge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_ids: [sourceId, targetId], merge_group_id: groupId }),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || 'Failed to merge orders');
+        }
+      } else {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from('orders')
+          .update({ merge_group_id: groupId })
+          .in('id', [sourceId, targetId]);
+        if (error) throw error;
 
-    const { error } = await supabase
-      .from('orders')
-      .update({ merge_group_id: groupId })
-      .in('id', idsToUpdate);
-    if (error) {
-      console.error('[mergeTwoOrders] supabase error:', error);
-      toast.error(error.message ?? 'Failed to merge orders');
-      return;
+        const allGroupOrders = existingGroupId
+          ? orders.filter(o => o.merge_group_id === existingGroupId)
+          : [];
+        const tableIds = Array.from(new Set(
+          [...allGroupOrders, sourceOrder, targetOrder].filter(o => o.table_id).map(o => o.table_id!),
+        ));
+        if (tableIds.length > 0) {
+          await supabase.from('tables').update({ merge_group_id: groupId, merged_with: tableIds }).in('id', tableIds);
+        }
+      }
+
+      toast.success('Orders merged', {
+        action: { label: 'Undo', onClick: () => unmergeGroup(groupId) },
+        duration: 5000,
+      });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to merge orders');
     }
-
-    // Sync to tables so the floor plan purple outline appears.
-    // When extending an existing group, include ALL tables in the group.
-    const allGroupOrders = existingGroupId
-      ? orders.filter(o => o.merge_group_id === existingGroupId)
-      : [];
-    const tableIds = Array.from(new Set(
-      [...allGroupOrders, sourceOrder, targetOrder].filter(o => o.table_id).map(o => o.table_id!),
-    ));
-    if (tableIds.length > 0) {
-      await supabase.from('tables').update({ merge_group_id: groupId, merged_with: tableIds }).in('id', tableIds);
-    }
-
-    toast.success('Orders merged', {
-      action: { label: 'Undo', onClick: () => unmergeGroup(groupId) },
-      duration: 5000,
-    });
   }
 
   async function unmergeGroup(mergeGroupId: string) {
-    const grouped = orders.filter(o => o.merge_group_id === mergeGroupId);
-    const supabase = createClient();
+    try {
+      if (staffSession) {
+        const res = await fetch('/api/staff/orders/merge', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ merge_group_id: mergeGroupId }),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || 'Failed to split orders');
+        }
+      } else {
+        const grouped = orders.filter(o => o.merge_group_id === mergeGroupId);
+        const supabase = createClient();
+        const { error } = await supabase
+          .from('orders')
+          .update({ merge_group_id: null })
+          .in('id', grouped.map(o => o.id));
+        if (error) throw error;
 
-    const { error } = await supabase
-      .from('orders')
-      .update({ merge_group_id: null })
-      .in('id', grouped.map(o => o.id));
-    if (error) { toast.error('Failed to split orders'); return; }
+        const tableIds = Array.from(new Set(grouped.filter(o => o.table_id).map(o => o.table_id!)));
+        if (tableIds.length > 0) {
+          await supabase
+            .from('tables')
+            .update({ merge_group_id: null, merged_with: null })
+            .in('id', tableIds);
+        }
+      }
 
-    const tableIds = Array.from(new Set(grouped.filter(o => o.table_id).map(o => o.table_id!)));
-    if (tableIds.length > 0) {
-      await supabase
-        .from('tables')
-        .update({ merge_group_id: null, merged_with: null })
-        .in('id', tableIds);
+      toast.success('Orders split');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to split orders');
     }
-
-    toast.success('Orders split');
   }
 
   // ── Filtering & grouping ───────────────────────────────────────────────────
@@ -580,6 +613,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
                 order={item.order}
                 restaurant={restaurant}
                 allOrders={orders}
+                staffSession={staffSession}
                 onAdvance={() => advanceStatus(item.order)}
                 onCancel={() => cancelOrder(item.order)}
                 onReprint={() => openReprintDialog(item.order)}
@@ -803,6 +837,7 @@ interface OrderCardProps {
   order: Order;
   restaurant: Restaurant;
   allOrders: Order[];
+  staffSession?: StaffSession | null;
   onAdvance: () => void;
   onCancel: () => void;
   onReprint: () => void;
@@ -819,7 +854,7 @@ interface OrderCardProps {
 }
 
 function OrderCard({
-  order, restaurant, allOrders, onAdvance, onCancel, onReprint, onPrintBill, onVoidItem,
+  order, restaurant, allOrders, staffSession, onAdvance, onCancel, onReprint, onPrintBill, onVoidItem,
   isUpdating,
   draggingOrderId, dropTargetOrderId, onDragStart, onDragOver, onDragDrop, onDragCancel,
 }: OrderCardProps) {
@@ -1052,37 +1087,48 @@ function OrderCard({
       </div>
 
       {/* ── Action buttons ── */}
-      {!isTerminal && (
-        <div className="px-4 pb-4 pt-2 flex gap-2">
-          <button
-            onClick={onAdvance}
-            disabled={isUpdating}
-            className={cn(
-              'flex-1 py-2 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-50',
-              order.status === 'placed' && 'bg-green-500 hover:bg-green-600',
-              order.status === 'ready'  && 'bg-indigo-600 hover:bg-indigo-700',
+      {!isTerminal && (() => {
+        const nextStatus = order.status === 'ready' ? 'delivered' : STATUS_FLOW[order.status];
+        const permMap: Record<string, 'order:set_preparing' | 'order:set_ready' | 'order:set_delivered'> = {
+          preparing: 'order:set_preparing', ready: 'order:set_ready', delivered: 'order:set_delivered',
+        };
+        const canAdvance = !staffSession || (nextStatus && hasPermission(staffSession.role, permMap[nextStatus]));
+        const canCancel = !staffSession;
+
+        return (canAdvance || canCancel) ? (
+          <div className="px-4 pb-4 pt-2 flex gap-2">
+            {canAdvance && (
+              <button
+                onClick={onAdvance}
+                disabled={isUpdating}
+                className={cn(
+                  'flex-1 py-2 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-50',
+                  order.status === 'placed' && 'bg-green-500 hover:bg-green-600',
+                  order.status === 'ready'  && 'bg-indigo-600 hover:bg-indigo-700',
+                )}
+              >
+                {isUpdating ? '…' : (
+                  <span className="flex items-center justify-center gap-1.5">
+                    {order.status === 'placed' && <CheckCheck className="w-4 h-4" />}
+                    {order.status === 'ready'  && <IndianRupee className="w-4 h-4" />}
+                    {STATUS_LABELS[order.status]}
+                  </span>
+                )}
+              </button>
             )}
-          >
-            {isUpdating ? '…' : (
-              <span className="flex items-center justify-center gap-1.5">
-                {order.status === 'placed' && <CheckCheck className="w-4 h-4" />}
-                {order.status === 'ready'  && <IndianRupee className="w-4 h-4" />}
-                {STATUS_LABELS[order.status]}
-              </span>
+            {canCancel && order.status === 'placed' && (
+              <button
+                onClick={onCancel}
+                disabled={isUpdating}
+                className="px-3 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                title="Cancel order"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
             )}
-          </button>
-          {order.status === 'placed' && (
-            <button
-              onClick={onCancel}
-              disabled={isUpdating}
-              className="px-3 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
-              title="Cancel order"
-            >
-              <XCircle className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      )}
+          </div>
+        ) : null;
+      })()}
     </div>
   );
 }

@@ -6,10 +6,19 @@ import { Search, Leaf, UtensilsCrossed } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
 import { cn, formatPrice } from '@/lib/utils';
+import { hasPermission } from '@/lib/staff-permissions';
 import type { Category, Product } from '@/types';
 
 export default function KitchenItemsPage() {
-  const { restaurant } = useStaff();
+  const { staff, restaurant } = useStaff();
+
+  if (!hasPermission(staff.role, 'menu:mark_out_of_stock')) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">
+        <p className="text-sm">You don&apos;t have access to this page.</p>
+      </div>
+    );
+  }
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');

@@ -166,8 +166,7 @@ export default function GlobalNotifications({ restaurantId, restaurantName, prin
       prev.map((c) => c.id === callId ? { ...c, status: 'acknowledged' as const } : c)
     );
     try {
-      const supabase = createClient();
-      await supabase.from('waiter_calls').update({ status: 'acknowledged' }).eq('id', callId);
+      await fetch(`/api/staff/waiter-calls/${callId}/dismiss`, { method: 'PATCH' });
     } catch { /* best-effort */ }
   }, []);
 

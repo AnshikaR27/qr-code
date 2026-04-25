@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { ShoppingBag, LayoutGrid, ChefHat, UtensilsCrossed, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { hasPermission } from '@/lib/staff-permissions';
 import type { StaffSession, Restaurant } from '@/types';
 
 interface StaffSidebarProps {
@@ -17,13 +18,13 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const isKitchen = staff.role === 'kitchen' || staff.role === 'both';
-  const isWaiter = staff.role === 'waiter' || staff.role === 'both';
+  const canKitchen = hasPermission(staff.role, 'order:set_ready');
+  const canWaiter = hasPermission(staff.role, 'table:assign');
 
   const navItems = [
-    { href: isKitchen ? '/staff-dashboard/kitchen' : '/staff-dashboard/orders', label: 'Orders', icon: isKitchen ? ChefHat : ShoppingBag },
-    ...(isWaiter ? [{ href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid }] : []),
-    ...(isKitchen ? [{ href: '/staff-dashboard/items', label: 'Items', icon: UtensilsCrossed }] : []),
+    { href: canKitchen ? '/staff-dashboard/kitchen' : '/staff-dashboard/orders', label: 'Orders', icon: canKitchen ? ChefHat : ShoppingBag },
+    ...(canWaiter ? [{ href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid }] : []),
+    ...(canKitchen ? [{ href: '/staff-dashboard/items', label: 'Items', icon: UtensilsCrossed }] : []),
   ];
 
   async function handleLogout() {

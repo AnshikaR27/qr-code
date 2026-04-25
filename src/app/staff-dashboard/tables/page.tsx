@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
 import { useOrders } from '@/contexts/OrdersContext';
+import { hasPermission } from '@/lib/staff-permissions';
 import type {
   FloorCapacity,
   FloorPlan,
@@ -42,8 +43,16 @@ const STATUS_COLORS: Record<TableLiveStatus, { bg: string; border: string; text:
 };
 
 export default function StaffTablesPage() {
-  const { restaurant } = useStaff();
+  const { staff, restaurant } = useStaff();
   const { orders } = useOrders();
+
+  if (!hasPermission(staff.role, 'table:assign')) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">
+        <p className="text-sm">You don&apos;t have access to this page.</p>
+      </div>
+    );
+  }
   const plan: FloorPlan = restaurant.floor_plan ?? { tables: [], labels: [] };
   const [dbTableIds, setDbTableIds] = useState<Map<number, string>>(new Map());
 
