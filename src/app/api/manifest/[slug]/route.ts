@@ -16,14 +16,10 @@ export async function GET(
     .single();
 
   const name = restaurant?.name ?? 'Menu';
-  const icons: { src: string; sizes: string; type: string; purpose: string }[] = [];
-
-  if (restaurant?.logo_url) {
-    icons.push(
-      { src: `/api/cafe-icon/${slug}?size=192&v=2`, sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: `/api/cafe-icon/${slug}?size=512&v=2`, sizes: '512x512', type: 'image/png', purpose: 'any' },
-    );
-  }
+  const icons = [
+    { src: `/api/cafe-icon/${slug}?size=192&v=2`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: `/api/cafe-icon/${slug}?size=512&v=2`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+  ];
 
   const scope = isStaff ? '/' : `/${slug}`;
   const startUrl = isStaff ? `/staff/${slug}` : `/${slug}`;
@@ -39,7 +35,7 @@ export async function GET(
       display: 'standalone',
       background_color: isStaff ? '#f9fafb' : '#fdf9f0',
       theme_color: theme,
-      ...(icons.length > 0 ? { icons } : {}),
+      icons,
     },
     {
       headers: {
