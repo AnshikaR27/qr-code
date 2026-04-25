@@ -12,7 +12,19 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import type { StaffMember } from '@/types';
+import type { StaffMember, StaffRole } from '@/types';
+
+const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
+  { value: 'floor', label: 'Floor' },
+  { value: 'kitchen', label: 'Kitchen' },
+  { value: 'manager', label: 'Manager' },
+];
+
+const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
+  floor: 'Take orders, deliver food, take payment, manage tables',
+  kitchen: 'Mark orders as preparing/ready, mark items out of stock',
+  manager: 'Everything floor & kitchen can do, plus cancel orders, edit menu, view reports',
+};
 
 interface StaffFormProps {
   open: boolean;
@@ -25,13 +37,13 @@ export default function StaffForm({ open, onOpenChange, staff, onSaved }: StaffF
   const isEdit = !!staff;
   const [name, setName] = useState(staff?.name ?? '');
   const [pin, setPin] = useState('');
-  const [role, setRole] = useState<'waiter' | 'kitchen' | 'both' | 'counter'>(staff?.role ?? 'waiter');
+  const [role, setRole] = useState<'floor' | 'kitchen' | 'manager'>(staff?.role ?? 'floor');
   const [saving, setSaving] = useState(false);
 
   function resetForm() {
     setName(staff?.name ?? '');
     setPin('');
-    setRole(staff?.role ?? 'waiter');
+    setRole(staff?.role ?? 'floor');
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -109,21 +121,24 @@ export default function StaffForm({ open, onOpenChange, staff, onSaved }: StaffF
           <div className="space-y-2">
             <Label>Role</Label>
             <div className="flex gap-2">
-              {(['waiter', 'kitchen', 'both', 'counter'] as const).map((r) => (
+              {ROLE_OPTIONS.map(({ value, label }) => (
                 <button
-                  key={r}
+                  key={value}
                   type="button"
-                  onClick={() => setRole(r)}
+                  onClick={() => setRole(value)}
                   className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
-                    role === r
+                    role === value
                       ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-white text-muted-foreground border-gray-200 hover:bg-gray-50'
                   }`}
                 >
-                  {r.charAt(0).toUpperCase() + r.slice(1)}
+                  {label}
                 </button>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">
+              {ROLE_DESCRIPTIONS[role]}
+            </p>
           </div>
 
           <DialogFooter>

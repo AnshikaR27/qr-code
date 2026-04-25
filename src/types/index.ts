@@ -1,6 +1,6 @@
 // ─── Staff ────────────────────────────────────────────────────────────────────
 
-export type StaffRole = 'waiter' | 'kitchen' | 'both' | 'counter';
+export type StaffRole = 'floor' | 'kitchen' | 'manager';
 
 export interface StaffMember {
   id: string;

@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { verifyPin, createStaffToken, getStaffCookieName } from '@/lib/staff-auth';
 import { logActivity } from '@/lib/activity-logger';
 import { staffLoginSchema } from '@/lib/validators';
+import type { StaffSession } from '@/types';
 
 export const runtime = 'nodejs';
 
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     restaurant_id: restaurant.id,
     restaurant_slug: restaurant.slug,
     name: matchedStaff.name,
-    role: matchedStaff.role as 'waiter' | 'kitchen',
+    role: matchedStaff.role as StaffSession['role'],
   });
 
   logActivity({

@@ -73,14 +73,14 @@ export const staffLoginSchema = z.object({
 export const staffCreateSchema = z.object({
   name: z.string().min(1).max(100),
   pin: z.string().min(4).max(6).regex(/^\d+$/, 'PIN must be digits only'),
-  role: z.enum(['waiter', 'kitchen', 'both', 'counter']),
+  role: z.enum(['floor', 'kitchen', 'manager']),
 });
 
 export const staffUpdateSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(100).optional(),
   pin: z.string().min(4).max(6).regex(/^\d+$/, 'PIN must be digits only').optional(),
-  role: z.enum(['waiter', 'kitchen', 'both', 'counter']).optional(),
+  role: z.enum(['floor', 'kitchen', 'manager']).optional(),
   is_active: z.boolean().optional(),
 });
 

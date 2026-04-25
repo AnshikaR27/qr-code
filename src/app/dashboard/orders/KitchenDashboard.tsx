@@ -266,14 +266,26 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
     if (!confirm(`Cancel order #${order.order_number}?`)) return;
     setUpdating(order.id);
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: 'cancelled' })
-        .eq('id', order.id);
-      if (error) throw error;
-      logOwnerActivity('order.cancelled', 'order', order.id, { order_number: order.order_number });
-      supabase.from('push_subscriptions').delete().eq('order_id', order.id).then(() => {});
+      if (staffSession) {
+        const res = await fetch(`/api/staff/orders/${order.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'cancelled' }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to cancel order');
+        }
+      } else {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: 'cancelled' })
+          .eq('id', order.id);
+        if (error) throw error;
+        logOwnerActivity('order.cancelled', 'order', order.id, { order_number: order.order_number });
+        supabase.from('push_subscriptions').delete().eq('order_id', order.id).then(() => {});
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel order');
     } finally {
@@ -1103,7 +1115,7 @@ function OrderCard({
         };
         const canAdvance = !staffSession || (nextStatus && hasPermission(staffSession.role, permMap[nextStatus]));
         const canBill = order.status === 'ready' && (!staffSession || hasPermission(staffSession.role, 'order:record_payment'));
-        const canCancel = !staffSession;
+        const canCancel = !staffSession || hasPermission(staffSession.role, 'order:cancel');
 
         return (canAdvance || canBill || canCancel) ? (
           <div className="px-4 pb-4 pt-2 flex gap-2">

@@ -10,9 +10,10 @@ const STATUS_PERMISSION: Record<string, Permission> = {
   preparing: 'order:set_preparing',
   ready: 'order:set_ready',
   delivered: 'order:set_delivered',
+  cancelled: 'order:cancel',
 };
 
-const ALLOWED_STATUSES: OrderStatus[] = ['preparing', 'ready', 'delivered'];
+const ALLOWED_STATUSES: OrderStatus[] = ['preparing', 'ready', 'delivered', 'cancelled'];
 
 export async function PATCH(
   req: NextRequest,
