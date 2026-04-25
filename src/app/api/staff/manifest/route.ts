@@ -18,11 +18,13 @@ export async function GET() {
 
     if (restaurant) {
       name = restaurant.name;
-      const s = session.restaurant_slug;
-      icons = [
-        { src: `/api/cafe-icon/${s}?size=192&v=2`, sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: `/api/cafe-icon/${s}?size=512&v=2`, sizes: '512x512', type: 'image/png', purpose: 'any' },
-      ];
+      if (restaurant.logo_url) {
+        const s = session.restaurant_slug;
+        icons = [
+          { src: `/api/cafe-icon/${s}?size=192&v=2`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: `/api/cafe-icon/${s}?size=512&v=2`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        ];
+      }
     }
   }
 
@@ -35,7 +37,7 @@ export async function GET() {
       display: 'standalone',
       background_color: '#f9fafb',
       theme_color: '#09090b',
-      ...(icons.length > 0 && { icons }),
+      ...(icons.length > 0 ? { icons } : {}),
     },
     { headers: { 'Content-Type': 'application/manifest+json' } },
   );
