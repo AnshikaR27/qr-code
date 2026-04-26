@@ -250,51 +250,29 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
 
       toast.success(isMergedBilling ? 'Payment recorded · tables unmerged' : `Payment recorded — ${data.payment_method.toUpperCase()}`);
 
-      // ── DEBUG: auto-print bill diagnostics ──
-      console.log('[BillAutoprint] ── COLLECT tapped ──');
-      console.log('[BillAutoprint] isMergedBilling:', isMergedBilling);
-      console.log('[BillAutoprint] auto_print_bill:', restaurant.printer_config?.auto_print_bill);
-      console.log('[BillAutoprint] bill_printer id:', restaurant.printer_config?.bill_printer ?? '(not set)');
-      console.log('[BillAutoprint] all printer ids:', restaurant.printer_config?.printers.map(p => `${p.id} (${p.type})`));
-
-      if (isMergedBilling) {
-        console.log('[BillAutoprint] SKIPPED — merged billing, auto-print disabled for merges');
-      } else if (!restaurant.printer_config?.auto_print_bill) {
-        console.log('[BillAutoprint] SKIPPED — auto_print_bill is OFF');
-      }
-
       if (!isMergedBilling && restaurant.printer_config?.auto_print_bill) {
         const order = orders.find(o => o.id === orderIds[0]);
-        console.log('[BillAutoprint] order found in local state:', !!order, '| orderIds[0]:', orderIds[0]);
-        if (!order) {
-          console.log('[BillAutoprint] SKIPPED — order not found in orders array (may have been removed by realtime update)');
-        }
         if (order) {
           const billPrinterId = restaurant.printer_config.bill_printer;
           const billPrinter = billPrinterId
             ? restaurant.printer_config.printers.find(p => p.id === billPrinterId)
             : null;
-          console.log('[BillAutoprint] billPrinter resolved:', billPrinter ? `${billPrinter.name} (${billPrinter.type})` : '(null)');
           if (billPrinter && billPrinter.type !== 'browser') {
-            console.log('[BillAutoprint] PATH → broadcastPrintBill (non-browser printer)');
-            try {
-              await broadcastPrintBill(restaurant.id, order);
-              console.log('[BillAutoprint] broadcastPrintBill completed OK');
-            } catch (err) {
-              console.error('[BillAutoprint] broadcastPrintBill FAILED:', err);
+            const { printerService } = await import('@/lib/printer-service');
+            const locallyPaired =
+              (billPrinter.type === 'usb' && printerService.isUSBConnected(billPrinter.id)) ||
+              billPrinter.type === 'serial' ||
+              billPrinter.type === 'network';
+            if (locallyPaired) {
+              try { await handlePrintBill(order); } catch { /* silent */ }
+            } else {
+              broadcastPrintBill(restaurant.id, order).catch(() => {});
             }
           } else {
-            console.log('[BillAutoprint] PATH → handlePrintBill (browser fallback)', billPrinter ? `type=${billPrinter.type}` : 'no printer');
-            try {
-              await handlePrintBill(order);
-              console.log('[BillAutoprint] handlePrintBill completed OK');
-            } catch (err) {
-              console.error('[BillAutoprint] handlePrintBill FAILED:', err);
-            }
+            try { await handlePrintBill(order); } catch { /* silent */ }
           }
         }
       }
-      console.log('[BillAutoprint] ── done ──');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to record payment');
     } finally {

@@ -17,13 +17,15 @@ import type { StaffMember, StaffRole } from '@/types';
 const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: 'floor', label: 'Floor' },
   { value: 'kitchen', label: 'Kitchen' },
+  { value: 'counter', label: 'Counter' },
   { value: 'manager', label: 'Manager' },
 ];
 
 const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
-  floor: 'Take orders, deliver food, take payment, manage tables',
-  kitchen: 'Mark orders as preparing/ready, mark items out of stock',
-  manager: 'Everything floor & kitchen can do, plus cancel orders, edit menu, view reports',
+  floor: 'Take orders, deliver food, manage tables',
+  kitchen: 'Mark orders preparing/ready, mark items out of stock',
+  counter: 'Take payment, mark orders delivered',
+  manager: 'Everything floor + kitchen + counter can do, plus cancel orders, edit menu, view reports',
 };
 
 interface StaffFormProps {
@@ -37,7 +39,7 @@ export default function StaffForm({ open, onOpenChange, staff, onSaved }: StaffF
   const isEdit = !!staff;
   const [name, setName] = useState(staff?.name ?? '');
   const [pin, setPin] = useState('');
-  const [role, setRole] = useState<'floor' | 'kitchen' | 'manager'>(staff?.role ?? 'floor');
+  const [role, setRole] = useState<StaffRole>(staff?.role ?? 'floor');
   const [saving, setSaving] = useState(false);
 
   function resetForm() {

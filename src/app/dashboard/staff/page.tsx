@@ -82,7 +82,7 @@ export default function StaffPage() {
               <div className="flex items-center gap-3">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${
-                    s.role === 'floor' ? 'bg-blue-500' : s.role === 'manager' ? 'bg-indigo-500' : 'bg-orange-500'
+                    s.role === 'floor' ? 'bg-blue-500' : s.role === 'manager' ? 'bg-indigo-500' : s.role === 'counter' ? 'bg-green-500' : 'bg-orange-500'
                   }`}
                 >
                   {s.name.charAt(0).toUpperCase()}

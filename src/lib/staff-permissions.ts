@@ -21,7 +21,6 @@ const FLOOR: Set<Permission> = new Set([
   'order:view',
   'order:set_delivered',
   'order:merge',
-  'order:record_payment',
   'waiter_call:dismiss',
   'table:assign',
 ]);
@@ -32,6 +31,12 @@ const KITCHEN: Set<Permission> = new Set([
   'order:set_ready',
   'order:merge',
   'menu:mark_out_of_stock',
+]);
+
+const COUNTER: Set<Permission> = new Set([
+  'order:view',
+  'order:record_payment',
+  'order:set_delivered',
 ]);
 
 const MANAGER: Set<Permission> = new Set([
@@ -55,6 +60,7 @@ const MANAGER: Set<Permission> = new Set([
 const ROLE_PERMISSIONS: Record<StaffRole, Set<Permission>> = {
   floor: FLOOR,
   kitchen: KITCHEN,
+  counter: COUNTER,
   manager: MANAGER,
 };
 
