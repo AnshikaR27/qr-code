@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
+import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag, AlertTriangle, Usb } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrders } from '@/contexts/OrdersContext';
 import { useStaff } from '@/contexts/StaffContext';
@@ -9,7 +9,7 @@ import { cn, formatPrice } from '@/lib/utils';
 import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
 import { buildCombinedBillData } from '@/lib/billing';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
-import type { Order, OrderItem } from '@/types';
+import type { Order, OrderItem, PrinterDevice } from '@/types';
 
 interface TableGroup {
   key: string;
@@ -28,6 +28,21 @@ export default function CounterDashboard() {
   const { restaurant } = useStaff();
   const [billingOrders, setBillingOrders] = useState<Order[] | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
+  const [connectingUSB, setConnectingUSB] = useState<string | null>(null);
+
+  useEffect(() => {
+    const config = restaurant.printer_config;
+    if (!config) return;
+    const connectable = config.printers.filter(p => p.type === 'usb' || p.type === 'serial');
+    if (connectable.length === 0) return;
+    import('@/lib/printer-service').then(async ({ printerService }) => {
+      const results = await printerService.reconnectAll(config);
+      const failed = connectable.filter(p => results.get(p.id) !== true);
+      setDisconnectedUSB(failed);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const readyUnpaid = useMemo(
     () => orders.filter(o => o.status === 'ready' && !o.payment_method),
@@ -100,6 +115,26 @@ export default function CounterDashboard() {
     result.sort((a, b) => a.oldestReadyAt - b.oldestReadyAt);
     return result;
   }, [readyUnpaid]);
+
+  async function connectUSBPrinter(printer: PrinterDevice) {
+    setConnectingUSB(printer.id);
+    try {
+      const { printerService } = await import('@/lib/printer-service');
+      const result = printer.type === 'serial'
+        ? await printerService.connectSerial(printer.id)
+        : await printerService.connectUSB(printer.id);
+      if (result.success) {
+        setDisconnectedUSB(prev => prev.filter(p => p.id !== printer.id));
+        toast.success(`${printer.name} connected`);
+      } else if (result.error && result.error !== 'No device selected') {
+        toast.error(result.error);
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Connection failed');
+    } finally {
+      setConnectingUSB(null);
+    }
+  }
 
   async function handlePrintBill(billOrders: Order[]) {
     const config = restaurant.billing_config;
@@ -216,6 +251,24 @@ export default function CounterDashboard() {
           </div>
         )}
       </div>
+
+      {/* Disconnected printer banners */}
+      {disconnectedUSB.map(printer => (
+        <div key={printer.id} className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span><span className="font-semibold">{printer.name}</span> not connected — bill prints will fail</span>
+          </div>
+          <button
+            onClick={() => connectUSBPrinter(printer)}
+            disabled={connectingUSB === printer.id}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60"
+          >
+            <Usb className="w-3.5 h-3.5" />
+            {connectingUSB === printer.id ? 'Connecting…' : 'Connect USB'}
+          </button>
+        </div>
+      ))}
 
       {/* Table cards */}
       {tableGroups.length === 0 ? (
