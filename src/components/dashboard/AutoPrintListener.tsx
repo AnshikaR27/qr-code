@@ -139,20 +139,33 @@ export function AutoPrintListener({ restaurantId, restaurantName, restaurantPhon
     const channel = supabase
       .channel(`bill-print-${restaurantId}`)
       .on('broadcast', { event: 'print-bill' }, async ({ payload }) => {
+        console.log('[AutoPrint] ── broadcast received: print-bill ──');
         const config = printerConfigRef.current;
         const billing = billingConfigRef.current;
-        if (!config?.bill_printer || !billing) return;
+        console.log('[AutoPrint] bill_printer:', config?.bill_printer ?? '(not set)');
+        console.log('[AutoPrint] billingConfig present:', !!billing);
+        if (!config?.bill_printer || !billing) {
+          console.log('[AutoPrint] SKIPPED — missing bill_printer or billingConfig');
+          return;
+        }
 
         const printer = config.printers.find((p) => p.id === config.bill_printer);
-        if (!printer || printer.type === 'browser') return;
+        console.log('[AutoPrint] printer resolved:', printer ? `${printer.name} (${printer.type})` : '(null)');
+        if (!printer || printer.type === 'browser') {
+          console.log('[AutoPrint] SKIPPED — no printer or browser type');
+          return;
+        }
 
         try {
           const { buildBillReceipt } = await import('@/lib/escpos-bill');
           const { printerService } = await import('@/lib/printer-service');
 
           const orderData = payload as BillOrderData & { order_id: string; order_number: number };
+          console.log('[AutoPrint] order_number:', orderData.order_number, '| items:', orderData.items?.length ?? 0);
           const copies = config.copies_bill ?? 1;
           const dedupeKey = `bill:${orderData.order_id}`;
+
+          console.log('[AutoPrint] USB connected for bill printer:', printerService.isUSBConnected(printer.id));
 
           const data = buildBillReceipt(
             orderData,
@@ -162,8 +175,10 @@ export function AutoPrintListener({ restaurantId, restaurantName, restaurantPhon
             printer.paper_width,
             false,
           );
+          console.log('[AutoPrint] receipt built, bytes:', data.length);
 
           const result = await printerService.print(printer, data, dedupeKey);
+          console.log('[AutoPrint] print result:', JSON.stringify(result));
           if (result.success) {
             if (copies === 2) {
               const dup = buildBillReceipt(
@@ -177,10 +192,13 @@ export function AutoPrintListener({ restaurantId, restaurantName, restaurantPhon
               await printerService.print(printer, dup);
             }
             toast.success(`Bill #${orderData.order_number} printed`);
+          } else {
+            console.error('[AutoPrint] print FAILED:', result.error);
           }
         } catch (err) {
           console.error('[AutoPrint] Bill print failed:', err);
         }
+        console.log('[AutoPrint] ── done ──');
       })
       .subscribe((status) => {
         console.log('[AutoPrint] Bill-print subscription status:', status);
