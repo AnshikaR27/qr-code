@@ -17,6 +17,7 @@ import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
 import { logOwnerActivity } from '@/lib/log-client';
 import { hasPermission } from '@/lib/staff-permissions';
 import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
+import { buildCombinedBillData } from '@/lib/billing';
 import type { Order, OrderItem, OrderStatus, Restaurant, PrinterDevice, StaffSession } from '@/types';
 
 interface Props {
@@ -210,6 +211,10 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
         });
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
+          if (res.status === 409) {
+            toast.error('One or more orders changed since you opened this bill — please refresh and try again');
+            return;
+          }
           throw new Error(d.error || 'Failed to record payment');
         }
       } else {
@@ -251,8 +256,8 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
       toast.success(isMergedBilling ? 'Payment recorded · tables unmerged' : `Payment recorded — ${data.payment_method.toUpperCase()}`);
 
       if (!isMergedBilling && restaurant.printer_config?.auto_print_bill) {
-        const order = orders.find(o => o.id === orderIds[0]);
-        if (order) {
+        const billedOrders = orderIds.map(id => orders.find(o => o.id === id)).filter((o): o is Order => !!o);
+        if (billedOrders.length > 0) {
           const billPrinterId = restaurant.printer_config.bill_printer;
           const billPrinter = billPrinterId
             ? restaurant.printer_config.printers.find(p => p.id === billPrinterId)
@@ -264,12 +269,12 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
               billPrinter.type === 'serial' ||
               billPrinter.type === 'network';
             if (locallyPaired) {
-              try { await handlePrintBill(order); } catch { /* silent */ }
+              try { await handlePrintBill(billedOrders); } catch { /* silent */ }
             } else {
-              broadcastPrintBill(restaurant.id, order).catch(() => {});
+              broadcastPrintBill(restaurant.id, buildCombinedBillData(billedOrders)).catch(() => {});
             }
           } else {
-            try { await handlePrintBill(order); } catch { /* silent */ }
+            try { await handlePrintBill(billedOrders); } catch { /* silent */ }
           }
         }
       }
@@ -330,7 +335,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
     }
   }
 
-  async function handlePrintBill(order: Order) {
+  async function handlePrintBill(billOrders: Order[]) {
     const config = restaurant.billing_config;
     const printerConf = restaurant.printer_config;
 
@@ -339,6 +344,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
       return;
     }
 
+    const orderData = buildCombinedBillData(billOrders);
     const { buildBillReceipt } = await import('@/lib/escpos-bill');
 
     if (printerConf && printerConf.bill_printer) {
@@ -346,11 +352,11 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
       if (printer && printer.type !== 'browser') {
         const { printerService } = await import('@/lib/printer-service');
         const copies = printerConf.copies_bill ?? 1;
-        const data = buildBillReceipt(order, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width, false);
+        const data = buildBillReceipt(orderData, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width, false);
         const result = await printerService.print(printer, data);
         if (result.success) {
           if (copies === 2) {
-            const dup = buildBillReceipt(order, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width, true);
+            const dup = buildBillReceipt(orderData, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width, true);
             await printerService.print(printer, dup);
           }
           toast.success('Bill printed');
@@ -364,7 +370,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
     }
 
     const { printCustomerBill } = await import('@/lib/billing');
-    printCustomerBill(order, restaurant, config!);
+    printCustomerBill(orderData, restaurant, config!);
   }
 
   // ── Print Bill via broadcast (Model C) ──────────────────────────────────
@@ -376,7 +382,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
       : null;
 
     if (!billPrinter || billPrinter.type === 'browser') {
-      await handlePrintBill(order);
+      await handlePrintBill([order]);
       return;
     }
 

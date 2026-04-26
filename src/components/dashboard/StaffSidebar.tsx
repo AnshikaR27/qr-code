@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ShoppingBag, LayoutGrid, ChefHat, UtensilsCrossed, LogOut } from 'lucide-react';
+import { ShoppingBag, LayoutGrid, ChefHat, UtensilsCrossed, LogOut, IndianRupee } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { hasPermission } from '@/lib/staff-permissions';
@@ -20,12 +20,15 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
 
   const canKitchen = hasPermission(staff.role, 'order:set_ready');
   const canWaiter = hasPermission(staff.role, 'table:assign');
+  const isCounter = staff.role === 'counter';
 
-  const navItems = [
-    { href: canKitchen ? '/staff-dashboard/kitchen' : '/staff-dashboard/orders', label: 'Orders', icon: canKitchen ? ChefHat : ShoppingBag },
-    ...(canWaiter ? [{ href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid }] : []),
-    ...(canKitchen ? [{ href: '/staff-dashboard/items', label: 'Items', icon: UtensilsCrossed }] : []),
-  ];
+  const navItems = isCounter
+    ? [{ href: '/staff-dashboard/counter', label: 'Counter', icon: IndianRupee }]
+    : [
+        { href: canKitchen ? '/staff-dashboard/kitchen' : '/staff-dashboard/orders', label: 'Orders', icon: canKitchen ? ChefHat : ShoppingBag },
+        ...(canWaiter ? [{ href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid }] : []),
+        ...(canKitchen ? [{ href: '/staff-dashboard/items', label: 'Items', icon: UtensilsCrossed }] : []),
+      ];
 
   async function handleLogout() {
     await fetch('/api/staff/logout', { method: 'POST' });

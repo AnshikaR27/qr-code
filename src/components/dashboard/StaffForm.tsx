@@ -122,13 +122,13 @@ export default function StaffForm({ open, onOpenChange, staff, onSaved }: StaffF
 
           <div className="space-y-2">
             <Label>Role</Label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {ROLE_OPTIONS.map(({ value, label }) => (
                 <button
                   key={value}
                   type="button"
                   onClick={() => setRole(value)}
-                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
+                  className={`w-full py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
                     role === value
                       ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-white text-muted-foreground border-gray-200 hover:bg-gray-50'

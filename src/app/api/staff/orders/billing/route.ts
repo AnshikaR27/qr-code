@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   const { data: orders, error: fetchError } = await admin
     .from('orders')
-    .select('id, restaurant_id, order_number, table_id, merge_group_id')
+    .select('id, restaurant_id, order_number, table_id, merge_group_id, status')
     .in('id', body.order_ids);
 
   if (fetchError || !orders || orders.length !== body.order_ids.length) {
@@ -49,6 +49,14 @@ export async function POST(req: NextRequest) {
 
   if (orders.some(o => o.restaurant_id !== session.restaurant_id)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const notReady = orders.filter(o => o.status !== 'ready');
+  if (notReady.length > 0) {
+    return NextResponse.json({
+      error: 'One or more orders are no longer ready (may have been cancelled or already billed)',
+      conflicting_order_ids: notReady.map(o => o.id),
+    }, { status: 409 });
   }
 
   const isMergedBilling = orders.some(o => o.merge_group_id);

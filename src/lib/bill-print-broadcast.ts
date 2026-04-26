@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
-import type { Order } from '@/types';
+import type { BillOrderData } from '@/lib/escpos-bill';
 
-export async function broadcastPrintBill(restaurantId: string, order: Order) {
+export async function broadcastPrintBill(restaurantId: string, order: BillOrderData & { id: string }) {
   const supabase = createClient();
   const channel = supabase.channel(`bill-print-${restaurantId}`);
 

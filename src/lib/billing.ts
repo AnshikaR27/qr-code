@@ -1,4 +1,4 @@
-import type { BillingConfig, TaxCategory, OrderItem, SelectedAddon } from '@/types';
+import type { BillingConfig, TaxCategory, OrderItem, SelectedAddon, Order } from '@/types';
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -121,6 +121,24 @@ export function computeBill(
     total_tax,
     grand_total,
     round_off,
+  };
+}
+
+// ─── Combined bill helper ─────────────────────────────────────────────────────
+
+export function buildCombinedBillData(billOrders: Order[]) {
+  const names = [...new Set(billOrders.map(o => o.customer_name).filter((n): n is string => n !== null))];
+  const notesList = billOrders.map(o => o.notes).filter((n): n is string => n !== null);
+  const oldest = billOrders.reduce((a, b) => a.created_at < b.created_at ? a : b);
+  return {
+    id: billOrders[0].id,
+    order_number: oldest.order_number,
+    order_type: billOrders.some(o => o.order_type === 'dine_in') ? 'dine_in' : 'parcel',
+    customer_name: names.length === 1 ? names[0] : null,
+    created_at: oldest.created_at,
+    notes: notesList.length > 0 ? notesList.join(' / ') : null,
+    table: billOrders.find(o => o.table)?.table ?? null,
+    items: billOrders.flatMap(o => o.items ?? []),
   };
 }
 
