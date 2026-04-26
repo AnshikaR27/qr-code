@@ -76,6 +76,8 @@ interface DishFormProps {
   restaurantId: string;
   categories: Category[];
   editProduct?: Product | null;
+  useStaffApi?: boolean;
+  hidePriceEdit?: boolean;
 }
 
 interface FormState {
@@ -130,6 +132,8 @@ export default function DishForm({
   restaurantId,
   categories,
   editProduct,
+  useStaffApi,
+  hidePriceEdit,
 }: DishFormProps) {
   const [form, setForm] = useState<FormState>(() => getInitialState(editProduct));
   const [saving, setSaving] = useState(false);
@@ -293,15 +297,10 @@ export default function DishForm({
 
     setSaving(true);
     try {
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-
-      const payload = {
-        restaurant_id: restaurantId,
+      const payload: Record<string, unknown> = {
         name: form.name.trim(),
         name_hindi: form.name_hindi.trim() || null,
         description: form.description.trim() || null,
-        price: parseFloat(form.price),
         category_id: form.category_id || null,
         is_veg: form.is_veg,
         is_jain: form.is_jain,
@@ -311,25 +310,55 @@ export default function DishForm({
         tax_category: form.tax_category,
       };
 
-      if (editProduct) {
-        const { data, error } = await supabase
-          .from('products')
-          .update(payload)
-          .eq('id', editProduct.id)
-          .select()
-          .single();
-        if (error) throw error;
-        onSaved(data as Product);
-        toast.success('Dish updated');
+      if (useStaffApi) {
+        if (editProduct) {
+          const res = await fetch('/api/staff/menu/items', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editProduct.id, ...payload }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to update dish');
+          onSaved(data as Product);
+          toast.success('Dish updated');
+        } else {
+          payload.price = parseFloat(form.price);
+          const res = await fetch('/api/staff/menu/items', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to add dish');
+          onSaved(data as Product);
+          toast.success('Dish added');
+        }
       } else {
-        const { data, error } = await supabase
-          .from('products')
-          .insert(payload)
-          .select()
-          .single();
-        if (error) throw error;
-        onSaved(data as Product);
-        toast.success('Dish added');
+        const { createClient } = await import('@/lib/supabase/client');
+        const supabase = createClient();
+        payload.restaurant_id = restaurantId;
+        payload.price = parseFloat(form.price);
+
+        if (editProduct) {
+          const { data, error } = await supabase
+            .from('products')
+            .update(payload)
+            .eq('id', editProduct.id)
+            .select()
+            .single();
+          if (error) throw error;
+          onSaved(data as Product);
+          toast.success('Dish updated');
+        } else {
+          const { data, error } = await supabase
+            .from('products')
+            .insert(payload)
+            .select()
+            .single();
+          if (error) throw error;
+          onSaved(data as Product);
+          toast.success('Dish added');
+        }
       }
 
       onClose();
@@ -374,7 +403,7 @@ export default function DishForm({
           {/* Price + Category in a row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="dish-price">Price (₹) <span className="text-destructive">*</span></Label>
+              <Label htmlFor="dish-price">Price (₹) {!(hidePriceEdit && editProduct) && <span className="text-destructive">*</span>}</Label>
               <Input
                 id="dish-price"
                 type="number"
@@ -383,7 +412,11 @@ export default function DishForm({
                 value={form.price}
                 onChange={(e) => set('price', e.target.value)}
                 placeholder="180"
+                disabled={!!(hidePriceEdit && editProduct)}
               />
+              {hidePriceEdit && editProduct && (
+                <p className="text-xs text-muted-foreground">Only the owner can change prices</p>
+              )}
               {errors.price && <p className="text-xs text-destructive">{errors.price}</p>}
             </div>
             <div className="space-y-1">

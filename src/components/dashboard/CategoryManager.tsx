@@ -20,6 +20,7 @@ interface CategoryFormProps {
   onSaved: (category: Category) => void;
   restaurantId: string;
   editCategory?: Category | null;
+  useStaffApi?: boolean;
 }
 
 export default function CategoryManager({
@@ -28,6 +29,7 @@ export default function CategoryManager({
   onSaved,
   restaurantId,
   editCategory,
+  useStaffApi,
 }: CategoryFormProps) {
   const [name, setName] = useState(editCategory?.name ?? '');
   const [nameHindi, setNameHindi] = useState(editCategory?.name_hindi ?? '');
@@ -52,34 +54,58 @@ export default function CategoryManager({
 
     setSaving(true);
     try {
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-
-      const payload = {
-        restaurant_id: restaurantId,
-        name: name.trim(),
-        name_hindi: nameHindi.trim() || null,
-      };
-
-      if (editCategory) {
-        const { data, error: err } = await supabase
-          .from('categories')
-          .update({ name: payload.name, name_hindi: payload.name_hindi })
-          .eq('id', editCategory.id)
-          .select()
-          .single();
-        if (err) throw err;
-        onSaved(data as Category);
-        toast.success('Category updated');
+      if (useStaffApi) {
+        if (editCategory) {
+          const res = await fetch('/api/staff/menu/categories', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editCategory.id, name: name.trim(), name_hindi: nameHindi.trim() || null }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to update category');
+          onSaved(data as Category);
+          toast.success('Category updated');
+        } else {
+          const res = await fetch('/api/staff/menu/categories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name.trim(), name_hindi: nameHindi.trim() || null }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to add category');
+          onSaved(data as Category);
+          toast.success('Category added');
+        }
       } else {
-        const { data, error: err } = await supabase
-          .from('categories')
-          .insert(payload)
-          .select()
-          .single();
-        if (err) throw err;
-        onSaved(data as Category);
-        toast.success('Category added');
+        const { createClient } = await import('@/lib/supabase/client');
+        const supabase = createClient();
+
+        const payload = {
+          restaurant_id: restaurantId,
+          name: name.trim(),
+          name_hindi: nameHindi.trim() || null,
+        };
+
+        if (editCategory) {
+          const { data, error: err } = await supabase
+            .from('categories')
+            .update({ name: payload.name, name_hindi: payload.name_hindi })
+            .eq('id', editCategory.id)
+            .select()
+            .single();
+          if (err) throw err;
+          onSaved(data as Category);
+          toast.success('Category updated');
+        } else {
+          const { data, error: err } = await supabase
+            .from('categories')
+            .insert(payload)
+            .select()
+            .single();
+          if (err) throw err;
+          onSaved(data as Category);
+          toast.success('Category added');
+        }
       }
 
       onClose();

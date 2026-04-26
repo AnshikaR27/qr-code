@@ -35,8 +35,17 @@ const KITCHEN: Set<Permission> = new Set([
 
 const COUNTER: Set<Permission> = new Set([
   'order:view',
-  'order:record_payment',
+  'order:set_preparing',
+  'order:set_ready',
   'order:set_delivered',
+  'order:cancel',
+  'order:merge',
+  'order:record_payment',
+  'order:comp_refund',
+  'waiter_call:dismiss',
+  'table:assign',
+  'menu:mark_out_of_stock',
+  'settings:edit_printer',
 ]);
 
 const MANAGER: Set<Permission> = new Set([
@@ -54,7 +63,6 @@ const MANAGER: Set<Permission> = new Set([
   'menu:edit_items',
   'menu:edit_categories',
   'settings:edit_printer',
-  'reports:view',
 ]);
 
 const ROLE_PERMISSIONS: Record<StaffRole, Set<Permission>> = {

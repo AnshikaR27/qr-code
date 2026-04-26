@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ShoppingBag, LayoutGrid, ChefHat, UtensilsCrossed, LogOut, IndianRupee } from 'lucide-react';
+import { ShoppingBag, LayoutGrid, ChefHat, UtensilsCrossed, LogOut, IndianRupee, Settings, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { hasPermission } from '@/lib/staff-permissions';
@@ -19,16 +19,20 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
   const router = useRouter();
 
   const canKitchen = hasPermission(staff.role, 'order:set_ready');
-  const canWaiter = hasPermission(staff.role, 'table:assign');
-  const isCounter = staff.role === 'counter';
+  const canTables = hasPermission(staff.role, 'table:assign');
+  const canPayment = hasPermission(staff.role, 'order:record_payment');
+  const canEditMenu = hasPermission(staff.role, 'menu:edit_items');
+  const canStockToggle = hasPermission(staff.role, 'menu:mark_out_of_stock');
+  const canPrinterSettings = hasPermission(staff.role, 'settings:edit_printer');
 
-  const navItems = isCounter
-    ? [{ href: '/staff-dashboard/counter', label: 'Counter', icon: IndianRupee }]
-    : [
-        { href: canKitchen ? '/staff-dashboard/kitchen' : '/staff-dashboard/orders', label: 'Orders', icon: canKitchen ? ChefHat : ShoppingBag },
-        ...(canWaiter ? [{ href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid }] : []),
-        ...(canKitchen ? [{ href: '/staff-dashboard/items', label: 'Items', icon: UtensilsCrossed }] : []),
-      ];
+  const navItems = [
+    { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag, show: true },
+    { href: '/staff-dashboard/kitchen', label: 'Kitchen', icon: ChefHat, show: canKitchen },
+    { href: '/staff-dashboard/counter', label: 'Counter', icon: IndianRupee, show: canPayment },
+    { href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid, show: canTables },
+    { href: '/staff-dashboard/items', label: 'Items', icon: canEditMenu ? Pencil : UtensilsCrossed, show: canEditMenu || staff.role === 'kitchen' },
+    { href: '/staff-dashboard/settings', label: 'Settings', icon: Settings, show: canPrinterSettings },
+  ].filter(item => item.show);
 
   async function handleLogout() {
     await fetch('/api/staff/logout', { method: 'POST' });

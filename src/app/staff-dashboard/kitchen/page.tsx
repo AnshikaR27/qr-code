@@ -8,11 +8,20 @@ import {
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
+import { hasPermission } from '@/lib/staff-permissions';
 import { cn } from '@/lib/utils';
 import type { Order } from '@/types';
 
 export default function KitchenStaffPage() {
-  const { restaurant } = useStaff();
+  const { staff, restaurant } = useStaff();
+
+  if (!hasPermission(staff.role, 'order:set_ready')) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">
+        <p className="text-sm">You don&apos;t have access to this page.</p>
+      </div>
+    );
+  }
   const [orders, setOrders] = useState<Order[]>([]);
   const [updating, setUpdating] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
