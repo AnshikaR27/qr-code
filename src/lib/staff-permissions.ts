@@ -2,7 +2,6 @@ import type { StaffRole } from '@/types';
 
 export type Permission =
   | 'order:view'
-  | 'order:set_preparing'
   | 'order:set_ready'
   | 'order:set_delivered'
   | 'order:cancel'
@@ -27,7 +26,6 @@ const FLOOR: Set<Permission> = new Set([
 
 const KITCHEN: Set<Permission> = new Set([
   'order:view',
-  'order:set_preparing',
   'order:set_ready',
   'order:merge',
   'menu:mark_out_of_stock',
@@ -35,7 +33,6 @@ const KITCHEN: Set<Permission> = new Set([
 
 const COUNTER: Set<Permission> = new Set([
   'order:view',
-  'order:set_preparing',
   'order:set_ready',
   'order:set_delivered',
   'order:cancel',
@@ -50,7 +47,6 @@ const COUNTER: Set<Permission> = new Set([
 
 const MANAGER: Set<Permission> = new Set([
   'order:view',
-  'order:set_preparing',
   'order:set_ready',
   'order:set_delivered',
   'order:cancel',

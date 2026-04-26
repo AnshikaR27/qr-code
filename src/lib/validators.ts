@@ -62,7 +62,7 @@ export const placeOrderSchema = z.object({
 
 export const updateOrderStatusSchema = z.object({
   order_id: z.string().uuid(),
-  status: z.enum(['placed', 'preparing', 'ready', 'delivered', 'cancelled']),
+  status: z.enum(['placed', 'ready', 'delivered', 'cancelled']),
 });
 
 export const staffLoginSchema = z.object({

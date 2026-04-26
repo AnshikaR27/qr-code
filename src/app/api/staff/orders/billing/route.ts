@@ -51,11 +51,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const notReady = orders.filter(o => o.status !== 'ready');
-  if (notReady.length > 0) {
+  const notBillable = orders.filter(o => o.status !== 'placed' && o.status !== 'ready');
+  if (notBillable.length > 0) {
     return NextResponse.json({
-      error: 'One or more orders are no longer ready (may have been cancelled or already billed)',
-      conflicting_order_ids: notReady.map(o => o.id),
+      error: 'One or more orders are not billable (may have been cancelled or already billed)',
+      conflicting_order_ids: notBillable.map(o => o.id),
     }, { status: 409 });
   }
 

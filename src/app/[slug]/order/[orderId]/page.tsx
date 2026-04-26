@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatPrice } from '@/lib/utils';
 import { buildMenuTokens } from '@/lib/tokens';
 import { typeScale, spacingScale } from '@/lib/sunday-scale';
-import { startReadyChimeLoop, stopReadyChimeLoop, playPreparingChime, unlockCustomerAudio } from '@/lib/customer-chime';
+import { startReadyChimeLoop, stopReadyChimeLoop, unlockCustomerAudio } from '@/lib/customer-chime';
 import type { Order, OrderItem, OrderStatus } from '@/types';
 
 type ServiceMode = 'self_service' | 'table_service';
@@ -254,8 +254,6 @@ export default function OrderStatusPage() {
                       }
                     );
                   }
-                } else if (newStatus === 'preparing') {
-                  playPreparingChime();
                 }
               } catch { /* browser APIs may throw after tab freeze/restore */ }
             }

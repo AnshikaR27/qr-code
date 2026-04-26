@@ -114,7 +114,7 @@ export default function KitchenStaffPage() {
   }
 
   const pendingOrders = orders.filter(
-    (o) => (o.status === 'placed' || o.status === 'preparing') && !o.payment_method
+    (o) => o.status === 'placed' && !o.payment_method
   );
   const readyOrders = orders.filter(
     (o) => o.status === 'ready' && !o.payment_method
@@ -207,7 +207,7 @@ function KitchenOrderCard({
   onMarkReady: () => void;
   isUpdating: boolean;
 }) {
-  const isNew = order.status === 'placed' || order.status === 'preparing';
+  const isNew = order.status === 'placed';
   const isReady = order.status === 'ready';
   const tableLabel = order.table
     ? (order.table.display_name?.trim() || `#${order.table.table_number}`)

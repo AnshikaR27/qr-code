@@ -30,7 +30,6 @@ type FilterTab = 'active' | 'all' | 'completed';
 
 const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
   placed:    'ready',
-  preparing: null,
   ready:     'delivered',
   delivered: null,
   cancelled: null,
@@ -39,7 +38,6 @@ const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
 function getStatusLabels(serviceMode: 'self_service' | 'table_service'): Record<OrderStatus, string> {
   return {
     placed:    serviceMode === 'table_service' ? 'Send to Table' : 'Food Ready',
-    preparing: 'Preparing',
     ready:     'Record Payment',
     delivered: 'Delivered',
     cancelled: 'Cancelled',
@@ -1178,11 +1176,11 @@ function OrderCard({
       {/* ── Action buttons ── */}
       {!isTerminal && (() => {
         const nextStatus = order.status === 'ready' ? 'delivered' : STATUS_FLOW[order.status];
-        const permMap: Record<string, 'order:set_preparing' | 'order:set_ready' | 'order:set_delivered'> = {
-          preparing: 'order:set_preparing', ready: 'order:set_ready', delivered: 'order:set_delivered',
+        const permMap: Record<string, 'order:set_ready' | 'order:set_delivered'> = {
+          ready: 'order:set_ready', delivered: 'order:set_delivered',
         };
         const canAdvance = !staffSession || (nextStatus && hasPermission(staffSession.role, permMap[nextStatus]));
-        const canBill = order.status === 'ready' && (!staffSession || hasPermission(staffSession.role, 'order:record_payment'));
+        const canBill = (order.status === 'placed' || order.status === 'ready') && (!staffSession || hasPermission(staffSession.role, 'order:record_payment'));
         const canCancel = !staffSession || hasPermission(staffSession.role, 'order:cancel');
 
         return (canAdvance || canBill || canCancel) ? (

@@ -23,7 +23,7 @@ const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
 
 const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
   floor: 'Take orders, deliver food, manage tables',
-  kitchen: 'Mark orders preparing/ready, mark items out of stock',
+  kitchen: 'Mark orders ready, mark items out of stock',
   counter: 'Take payment, mark orders delivered',
   manager: 'Everything floor + kitchen + counter can do, plus cancel orders, edit menu, view reports',
 };
