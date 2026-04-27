@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag, AlertTriangle, Usb } from 'lucide-react';
+import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag, AlertTriangle, Usb, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrders } from '@/contexts/OrdersContext';
 import { useStaff } from '@/contexts/StaffContext';
@@ -28,6 +28,7 @@ export default function CounterDashboard() {
   const { restaurant } = useStaff();
   const [billingOrders, setBillingOrders] = useState<Order[] | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
   const [connectingUSB, setConnectingUSB] = useState<string | null>(null);
 
@@ -115,6 +116,15 @@ export default function CounterDashboard() {
     result.sort((a, b) => a.oldestReadyAt - b.oldestReadyAt);
     return result;
   }, [readyUnpaid]);
+
+  const filteredGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return tableGroups;
+    return tableGroups.filter(g =>
+      g.tableLabel.toLowerCase().includes(q) ||
+      g.customerNames.some(n => n.toLowerCase().includes(q))
+    );
+  }, [tableGroups, searchQuery]);
 
   async function connectUSBPrinter(printer: PrinterDevice) {
     setConnectingUSB(printer.id);
@@ -252,6 +262,28 @@ export default function CounterDashboard() {
         )}
       </div>
 
+      {/* Search */}
+      {tableGroups.length > 0 && (
+        <div className="relative w-full max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by table or customer…"
+            className="w-full pl-9 pr-8 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Disconnected printer banners */}
       {disconnectedUSB.map(printer => (
         <div key={printer.id} className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm">
@@ -271,15 +303,19 @@ export default function CounterDashboard() {
       ))}
 
       {/* Table cards */}
-      {tableGroups.length === 0 ? (
+      {filteredGroups.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <IndianRupee className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p className="font-medium">No orders waiting</p>
-          <p className="text-xs mt-1">Orders marked ready will appear here</p>
+          <p className="font-medium">
+            {searchQuery.trim() ? 'No matches found' : 'No orders waiting'}
+          </p>
+          <p className="text-xs mt-1">
+            {searchQuery.trim() ? 'Try a different search' : 'Orders marked ready will appear here'}
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {tableGroups.map(group => (
+          {filteredGroups.map(group => (
             <TableCard
               key={group.key}
               group={group}
