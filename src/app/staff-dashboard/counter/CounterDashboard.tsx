@@ -45,7 +45,7 @@ export default function CounterDashboard() {
   }, []);
 
   const readyUnpaid = useMemo(
-    () => orders.filter(o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method),
+    () => orders.filter(o => (o.status === 'ready' || o.status === 'delivered') && !o.payment_method),
     [orders],
   );
 

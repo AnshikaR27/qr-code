@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  ChefHat, CheckCheck, Clock, Flame, Volume2, VolumeX,
+  ChefHat, CheckCheck, Clock, Flame, Volume2, VolumeX, Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
 import { hasPermission } from '@/lib/staff-permissions';
-import { cn } from '@/lib/utils';
-import type { Order } from '@/types';
+import { cn, formatPrice } from '@/lib/utils';
+import type { Order, Category, Product } from '@/types';
 
 export default function KitchenStaffPage() {
   const { staff, restaurant } = useStaff();
@@ -22,6 +22,321 @@ export default function KitchenStaffPage() {
       </div>
     );
   }
+
+  if (staff.role === 'counter') {
+    return <CounterKitchenView restaurantId={restaurant.id} />;
+  }
+
+  return <DefaultKitchenView />;
+}
+
+// ─── Counter role: Item Availability Panel ──────────────────────────────────
+
+function CounterKitchenView({ restaurantId }: { restaurantId: string }) {
+  const { staff } = useStaff();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [search, setSearch] = useState('');
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [todayCounts, setTodayCounts] = useState<Map<string, number>>(new Map());
+
+  const prevOrderIdsRef = useRef<Set<string>>(new Set());
+  const initialLoadDone = useRef(false);
+
+  const fetchData = useCallback(async () => {
+    const supabase = createClient();
+    const [catRes, prodRes] = await Promise.all([
+      supabase
+        .from('categories')
+        .select('*')
+        .eq('restaurant_id', restaurantId)
+        .order('sort_order'),
+      supabase
+        .from('products')
+        .select('*')
+        .eq('restaurant_id', restaurantId)
+        .order('sort_order'),
+    ]);
+    if (catRes.data) setCategories(catRes.data as Category[]);
+    if (prodRes.data) setProducts(prodRes.data as Product[]);
+  }, [restaurantId]);
+
+  const fetchTodayCounts = useCallback(async () => {
+    const supabase = createClient();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from('order_items')
+      .select('product_id, quantity, order:orders!inner(restaurant_id, created_at, status)')
+      .eq('order.restaurant_id', restaurantId)
+      .gte('order.created_at', today.toISOString())
+      .neq('order.status', 'cancelled')
+      .neq('status', 'voided');
+    if (data) {
+      const counts = new Map<string, number>();
+      for (const item of data) {
+        if (item.product_id) {
+          counts.set(item.product_id, (counts.get(item.product_id) ?? 0) + (item.quantity ?? 1));
+        }
+      }
+      setTodayCounts(counts);
+    }
+  }, [restaurantId]);
+
+  // Listen for new orders (sound alerts)
+  const listenForNewOrders = useCallback(async () => {
+    const supabase = createClient();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from('orders')
+      .select('id, status')
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', today.toISOString());
+    if (data) {
+      const newIds = new Set(data.map((o: { id: string }) => o.id));
+      if (initialLoadDone.current && soundEnabled) {
+        const hasNew = data.some(
+          (o: { id: string; status: string }) => o.status === 'placed' && !prevOrderIdsRef.current.has(o.id)
+        );
+        if (hasNew) {
+          import('@/lib/sounds').then(({ playOrderAlert }) => playOrderAlert());
+        }
+      }
+      prevOrderIdsRef.current = newIds;
+      initialLoadDone.current = true;
+    }
+  }, [restaurantId, soundEnabled]);
+
+  useEffect(() => {
+    fetchData();
+    fetchTodayCounts();
+    listenForNewOrders();
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel('counter-kitchen-orders')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
+        () => { fetchTodayCounts(); listenForNewOrders(); },
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'order_items' },
+        () => fetchTodayCounts(),
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [restaurantId, fetchData, fetchTodayCounts, listenForNewOrders]);
+
+  async function enableSound() {
+    const { unlockAudio } = await import('@/lib/sounds');
+    await unlockAudio();
+    setSoundEnabled(true);
+  }
+
+  async function toggleAvailability(product: Product) {
+    const next = !product.is_available;
+    setToggling(product.id);
+    setProducts((prev) =>
+      prev.map((p) => (p.id === product.id ? { ...p, is_available: next } : p))
+    );
+
+    try {
+      const res = await fetch('/api/staff/items/toggle', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: product.id, is_available: next }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(next ? `${product.name} is now available` : `${product.name} marked unavailable`);
+    } catch {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === product.id ? { ...p, is_available: !next } : p))
+      );
+      toast.error('Failed to update availability');
+    } finally {
+      setToggling(null);
+    }
+  }
+
+  const filtered = search.trim()
+    ? products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
+    : products;
+
+  const unavailableCount = products.filter((p) => !p.is_available).length;
+
+  const grouped = categories
+    .map((cat) => ({
+      category: cat,
+      items: filtered.filter((p) => p.category_id === cat.id),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  const uncategorized = filtered.filter((p) => !p.category_id);
+
+  return (
+    <div className="p-4 sm:p-6 pb-24 max-w-3xl mx-auto space-y-4">
+      {/* Header */}
+      <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <ChefHat className="w-6 h-6" /> Kitchen
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Item availability
+            {unavailableCount > 0 && (
+              <span className="ml-2 text-red-600 font-medium">
+                · {unavailableCount} unavailable
+              </span>
+            )}
+          </p>
+        </div>
+        <button
+          onClick={() => soundEnabled ? setSoundEnabled(false) : enableSound()}
+          className={cn(
+            'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors',
+            soundEnabled
+              ? 'bg-green-50 border-green-200 text-green-700'
+              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100',
+          )}
+        >
+          {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          {soundEnabled ? 'Sound ON' : 'Sound OFF'}
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          type="text"
+          placeholder="Search items..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500"
+        />
+      </div>
+
+      {/* Items grouped by category */}
+      {grouped.map(({ category, items }) => (
+        <div key={category.id}>
+          <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+            {category.name}
+          </h2>
+          <div className="bg-white rounded-xl border divide-y">
+            {items.map((product) => (
+              <AvailabilityRow
+                key={product.id}
+                product={product}
+                isToggling={toggling === product.id}
+                onToggle={() => toggleAvailability(product)}
+                todayCount={todayCounts.get(product.id) ?? 0}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {uncategorized.length > 0 && (
+        <div>
+          <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+            Other
+          </h2>
+          <div className="bg-white rounded-xl border divide-y">
+            {uncategorized.map((product) => (
+              <AvailabilityRow
+                key={product.id}
+                product={product}
+                isToggling={toggling === product.id}
+                onToggle={() => toggleAvailability(product)}
+                todayCount={todayCounts.get(product.id) ?? 0}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {filtered.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <ChefHat className="w-10 h-10 mx-auto mb-3 opacity-20" />
+          <p className="font-medium">No items found</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AvailabilityRow({
+  product,
+  isToggling,
+  onToggle,
+  todayCount,
+}: {
+  product: Product;
+  isToggling: boolean;
+  onToggle: () => void;
+  todayCount: number;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between px-4 py-3 gap-3',
+        !product.is_available && 'bg-red-50/50',
+      )}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div
+          className={cn(
+            'w-3 h-3 rounded-full border-2 flex-shrink-0',
+            product.is_veg
+              ? 'border-green-600 bg-green-600'
+              : 'border-red-600 bg-red-600',
+          )}
+        />
+        <div className="min-w-0">
+          <p className={cn(
+            'text-sm font-medium truncate',
+            !product.is_available && 'line-through text-muted-foreground',
+          )}>
+            {product.name}
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{formatPrice(product.price)}</span>
+            {todayCount > 0 && (
+              <span className="text-xs text-blue-600 font-medium">
+                {todayCount} ordered today
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={onToggle}
+        disabled={isToggling}
+        className={cn(
+          'relative flex-shrink-0 w-12 h-7 rounded-full transition-colors duration-200',
+          product.is_available ? 'bg-green-500' : 'bg-gray-300',
+          isToggling && 'opacity-50',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200',
+            product.is_available && 'translate-x-5',
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
+// ─── Default Kitchen View (for kitchen, manager, floor roles) ───────────────
+
+function DefaultKitchenView() {
+  const { staff, restaurant } = useStaff();
   const [orders, setOrders] = useState<Order[]>([]);
   const [updating, setUpdating] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
