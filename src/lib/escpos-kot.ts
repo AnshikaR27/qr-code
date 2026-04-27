@@ -87,8 +87,11 @@ export function buildKOTTicket(
     .bold(true)
     .text(tableInfo.slice(0, lineWidth))
     .newLine()
-    .bold(false)
-    .text(formatDateTime(order.created_at).slice(0, lineWidth))
+    .bold(false);
+  if (order.customer_name && order.order_type === 'dine_in') {
+    p.text(`Customer: ${order.customer_name}`.slice(0, lineWidth)).newLine();
+  }
+  p.text(formatDateTime(order.created_at).slice(0, lineWidth))
     .newLine();
 
   p.dashLine(lineWidth);
