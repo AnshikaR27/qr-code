@@ -84,7 +84,7 @@ export default function StaffTablesPage() {
       <div className="p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Tables</h1>
-          <p className="text-sm text-muted-foreground mt-1">Tap a table to place an order</p>
+          <p className="text-sm text-muted-foreground mt-1">Tap a table to view or place an order</p>
         </div>
         <div className="text-center py-12 text-muted-foreground">
           No tables found. Ask the owner to set up tables in the floor plan.
@@ -102,7 +102,7 @@ export default function StaffTablesPage() {
     <div className="p-4 sm:p-6 pb-20 md:pb-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Tables</h1>
-        <p className="text-sm text-muted-foreground mt-1">Tap a table to place an order</p>
+        <p className="text-sm text-muted-foreground mt-1">Tap a table to view or place an order</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
