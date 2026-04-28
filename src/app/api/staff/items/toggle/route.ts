@@ -41,7 +41,10 @@ export async function PATCH(req: NextRequest) {
 
   const { error } = await admin
     .from('products')
-    .update({ is_available: body.is_available })
+    .update({
+      is_available: body.is_available,
+      unavailable_since: body.is_available ? null : new Date().toISOString(),
+    })
     .eq('id', body.product_id);
 
   if (error) {

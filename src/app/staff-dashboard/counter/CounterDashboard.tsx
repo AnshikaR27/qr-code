@@ -240,6 +240,27 @@ export default function CounterDashboard() {
     }
   }
 
+  async function handleDismiss(group: TableGroup) {
+    const orderIds = group.orders.map(o => o.id);
+    setUpdating(orderIds[0]);
+    try {
+      const res = await fetch('/api/staff/orders/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ids: orderIds, payment_method: 'cash' }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to dismiss');
+      }
+      toast.success(`${group.tableLabel} dismissed — marked as settled`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to dismiss');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
   return (
     <div className="p-4 sm:p-6 pb-24 max-w-4xl mx-auto space-y-4">
       {/* Header */}
@@ -320,6 +341,7 @@ export default function CounterDashboard() {
               key={group.key}
               group={group}
               onCollect={() => setBillingOrders(group.orders)}
+              onDismiss={() => handleDismiss(group)}
               isUpdating={group.orders.some(o => updating === o.id)}
             />
           ))}
@@ -341,10 +363,12 @@ export default function CounterDashboard() {
 function TableCard({
   group,
   onCollect,
+  onDismiss,
   isUpdating,
 }: {
   group: TableGroup;
   onCollect: () => void;
+  onDismiss: () => void;
   isUpdating: boolean;
 }) {
   const [expanded, setExpanded] = useState(group.items.length <= 5);
@@ -411,8 +435,8 @@ function TableCard({
         )}
       </div>
 
-      {/* Collect button */}
-      <div className="px-4 pb-4 pt-1">
+      {/* Collect button + dismiss link */}
+      <div className="px-4 pb-4 pt-1 space-y-2">
         <button
           onClick={onCollect}
           disabled={isUpdating}
@@ -426,6 +450,13 @@ function TableCard({
               Collect {formatPrice(group.total)}
             </>
           )}
+        </button>
+        <button
+          onClick={onDismiss}
+          disabled={isUpdating}
+          className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        >
+          Already settled
         </button>
       </div>
     </div>

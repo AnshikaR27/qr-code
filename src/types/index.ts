@@ -183,6 +183,7 @@ export interface Product {
   allergens: string[];
   dietary_tags: string | null;
   is_available: boolean;
+  unavailable_since: string | null;
   sort_order: number;
   order_count: number;
   tax_category: TaxCategory;

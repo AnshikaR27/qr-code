@@ -3,15 +3,19 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  X, Clock, CheckCheck, PlusCircle,
+  X, Clock, CheckCheck, PlusCircle, ChefHat, IndianRupee, ReceiptText, Loader2,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
 import { useOrders } from '@/contexts/OrdersContext';
 import { hasPermission } from '@/lib/staff-permissions';
 import { cn, formatPrice } from '@/lib/utils';
+import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
+import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
+import { buildCombinedBillData } from '@/lib/billing';
 import type {
   FloorCapacity,
   FloorPlan,
@@ -41,11 +45,12 @@ function shortName(full: string): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
-type TableLiveStatus = 'available' | 'occupied' | 'needs_attention';
+type TableLiveStatus = 'available' | 'occupied' | 'ready_to_bill' | 'needs_attention';
 
 const STATUS_COLORS: Record<TableLiveStatus, { bg: string; border: string; text: string; sub: string }> = {
   available:       { bg: 'rgba(34,197,94,0.12)',  border: '#22c55e', text: '#15803d', sub: '#16a34a' },
   occupied:        { bg: 'rgba(245,158,11,0.15)', border: '#f59e0b', text: '#b45309', sub: '#d97706' },
+  ready_to_bill:   { bg: 'rgba(139,92,246,0.12)', border: '#8b5cf6', text: '#6d28d9', sub: '#7c3aed' },
   needs_attention: { bg: 'rgba(239,68,68,0.15)',  border: '#ef4444', text: '#b91c1c', sub: '#dc2626' },
 };
 
@@ -90,6 +95,8 @@ export default function StaffTablesPage() {
   function getTableStatus(tableNumber: number): { status: TableLiveStatus; orders: Order[] } {
     const tableOrders = activeOrders.filter((o) => o.table?.table_number === tableNumber);
     if (tableOrders.length === 0) return { status: 'available', orders: [] };
+    const allReady = tableOrders.every((o) => o.status === 'ready');
+    if (allReady) return { status: 'ready_to_bill', orders: tableOrders };
     return { status: 'occupied', orders: tableOrders };
   }
 
@@ -132,7 +139,7 @@ export default function StaffTablesPage() {
 
   const statusCounts = plan.tables.reduce(
     (acc, t) => { acc[getTableStatus(t.table_number).status]++; return acc; },
-    { available: 0, occupied: 0, needs_attention: 0 } as Record<TableLiveStatus, number>,
+    { available: 0, occupied: 0, ready_to_bill: 0, needs_attention: 0 } as Record<TableLiveStatus, number>,
   );
 
   return (
@@ -149,6 +156,7 @@ export default function StaffTablesPage() {
         {([
           { key: 'available' as const, color: 'bg-green-500', textColor: 'text-green-700', label: 'available' },
           { key: 'occupied' as const, color: 'bg-amber-500', textColor: 'text-amber-700', label: 'occupied' },
+          { key: 'ready_to_bill' as const, color: 'bg-violet-500', textColor: 'text-violet-700', label: 'ready to bill' },
         ]).map(({ key, color, textColor, label }) => (
           <span key={key} className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${color}`} />
@@ -170,6 +178,7 @@ export default function StaffTablesPage() {
       {selectedTable && (
         <TableOrdersModal
           table={selectedTable}
+          restaurant={restaurant}
           onClose={() => setSelectedTable(null)}
         />
       )}
@@ -371,58 +380,222 @@ function StaffTableElement({
 
 function TableOrdersModal({
   table,
+  restaurant,
   onClose,
 }: {
   table: SelectedTable;
+  restaurant: import('@/types').Restaurant;
   onClose: () => void;
 }) {
   const router = useRouter();
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [billingOrders, setBillingOrders] = useState<Order[] | null>(null);
+
   const totalAmount = table.orders.reduce((sum, o) => sum + o.total, 0);
   const totalItems = table.orders.reduce(
     (sum, o) => sum + (o.items ?? []).filter(i => i.status !== 'voided').reduce((s, i) => s + i.quantity, 0),
     0,
   );
 
+  async function handleMarkReady(order: Order) {
+    setUpdating(order.id);
+    try {
+      const res = await fetch(`/api/staff/orders/${order.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ready' }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to update status');
+      }
+      toast.success(`Order #${order.order_number} marked ready`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function handlePrintBill() {
+    const config = restaurant.billing_config;
+    const printerConf = restaurant.printer_config;
+    if (!config?.gstin && !config?.legal_name) {
+      toast.error('Set up Tax & Billing in Settings first');
+      return;
+    }
+    const orderData = buildCombinedBillData(table.orders);
+    const billPrinterId = printerConf?.bill_printer;
+    const billPrinter = billPrinterId ? printerConf?.printers.find(p => p.id === billPrinterId) : null;
+    if (billPrinter && billPrinter.type !== 'browser') {
+      try {
+        await broadcastPrintBill(restaurant.id, orderData);
+        toast.success('Bill sent to printer');
+        return;
+      } catch { /* fall through to browser */ }
+    }
+    const { printCustomerBill } = await import('@/lib/billing');
+    printCustomerBill(orderData, restaurant, config!);
+  }
+
+  async function handleBillingConfirm(orderIds: string[], data: BillingConfirmData) {
+    setBillingOrders(null);
+    setUpdating(orderIds[0]);
+    try {
+      const res = await fetch('/api/staff/orders/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_ids: orderIds,
+          payment_method: data.payment_method,
+          payment_methods: data.payment_methods,
+          discount_amount: data.discount_amount,
+          discount_type: data.discount_type,
+          discount_before_tax: data.discount_before_tax,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to record payment');
+      }
+      toast.success('Payment collected');
+      const billedOrders = orderIds.map(id => table.orders.find(o => o.id === id)).filter(Boolean) as Order[];
+      if (billedOrders.length > 0) {
+        const printerConf = restaurant.printer_config;
+        const billPrinterId = printerConf?.bill_printer;
+        const billPrinter = billPrinterId ? printerConf?.printers.find(p => p.id === billPrinterId) : null;
+        if (billPrinter && billPrinter.type !== 'browser') {
+          broadcastPrintBill(restaurant.id, buildCombinedBillData(billedOrders)).catch(() => {});
+        } else {
+          try {
+            const config = restaurant.billing_config;
+            if (config) {
+              const { printCustomerBill } = await import('@/lib/billing');
+              printCustomerBill(buildCombinedBillData(billedOrders), restaurant, config);
+            }
+          } catch { /* silent */ }
+        }
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to record payment');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function handleCloseTable() {
+    const orderIds = table.orders.map(o => o.id);
+    setUpdating(orderIds[0]);
+    try {
+      const res = await fetch('/api/staff/orders/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ids: orderIds, payment_method: 'cash' }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to close table');
+      }
+      toast.success(`Table ${table.label} closed`);
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to close table');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <div>
-            <h2 className="font-bold text-lg">Table {table.label}</h2>
-            <p className="text-sm text-muted-foreground">
-              {table.orders.length} order{table.orders.length !== 1 ? 's' : ''} · {totalItems} item{totalItems !== 1 ? 's' : ''} · {formatPrice(totalAmount)}
-            </p>
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <div>
+              <h2 className="font-bold text-lg">Table {table.label}</h2>
+              <p className="text-sm text-muted-foreground">
+                {table.orders.length} order{table.orders.length !== 1 ? 's' : ''} · {totalItems} item{totalItems !== 1 ? 's' : ''} · {formatPrice(totalAmount)}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handlePrintBill}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                title="Print Bill"
+              >
+                <ReceiptText className="w-5 h-5 text-muted-foreground" />
+              </button>
+              <button onClick={onClose} className="p-2 -mr-2 rounded-lg hover:bg-gray-100 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
-          <button onClick={onClose} className="p-2 -mr-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Order cards */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-          {table.orders.map((order) => (
-            <ModalOrderCard key={order.id} order={order} />
-          ))}
-        </div>
+          {/* Order cards */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+            {table.orders.map((order) => (
+              <ModalOrderCard
+                key={order.id}
+                order={order}
+                onMarkReady={() => handleMarkReady(order)}
+                onCollect={() => setBillingOrders([order])}
+                isUpdating={updating === order.id}
+              />
+            ))}
+          </div>
 
-        {/* Add items button */}
-        <div className="px-6 py-4 border-t">
-          <button
-            onClick={() => { onClose(); router.push(`/staff-dashboard/tables/${table.dbId}/new-order`); }}
-            className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-          >
-            <PlusCircle className="w-5 h-5" />
-            Add items to this table
-          </button>
+          {/* Footer actions */}
+          <div className="px-6 py-4 border-t space-y-2">
+            {table.orders.every(o => o.status === 'ready') && (
+              <button
+                onClick={() => setBillingOrders(table.orders)}
+                disabled={!!updating}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <IndianRupee className="w-5 h-5" />
+                Collect Payment
+              </button>
+            )}
+            <button
+              onClick={() => { onClose(); router.push(`/staff-dashboard/tables/${table.dbId}/new-order`); }}
+              className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+            >
+              <PlusCircle className="w-5 h-5" />
+              Add items to this table
+            </button>
+            <button
+              onClick={handleCloseTable}
+              disabled={!!updating}
+              className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 py-1"
+            >
+              Already settled — close table
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      <BillingSheet
+        orders={billingOrders}
+        restaurant={restaurant}
+        onConfirm={handleBillingConfirm}
+        onClose={() => setBillingOrders(null)}
+      />
+    </>
   );
 }
 
-function ModalOrderCard({ order }: { order: Order }) {
+function ModalOrderCard({
+  order,
+  onMarkReady,
+  onCollect,
+  isUpdating,
+}: {
+  order: Order;
+  onMarkReady: () => void;
+  onCollect: () => void;
+  isUpdating: boolean;
+}) {
   const activeItems = (order.items ?? []).filter((i) => i.status !== 'voided');
   const isReady = order.status === 'ready';
 
@@ -488,10 +661,32 @@ function ModalOrderCard({ order }: { order: Order }) {
         })}
       </div>
 
-      {/* Footer */}
-      <div className="px-4 py-2 border-t bg-gray-50 flex justify-between items-center">
-        <span className="text-xs text-muted-foreground">{activeItems.length} item{activeItems.length !== 1 ? 's' : ''}</span>
-        <span className="font-bold text-sm">{formatPrice(order.total)}</span>
+      {/* Footer with action */}
+      <div className="px-4 py-2.5 border-t bg-gray-50 flex justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{activeItems.length} item{activeItems.length !== 1 ? 's' : ''}</span>
+          <span className="font-bold text-sm">{formatPrice(order.total)}</span>
+        </div>
+        {order.status === 'placed' && (
+          <button
+            onClick={onMarkReady}
+            disabled={isUpdating}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+          >
+            {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChefHat className="w-3 h-3" />}
+            Mark Ready
+          </button>
+        )}
+        {order.status === 'ready' && (
+          <button
+            onClick={onCollect}
+            disabled={isUpdating}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+          >
+            {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <IndianRupee className="w-3 h-3" />}
+            Collect
+          </button>
+        )}
       </div>
     </div>
   );

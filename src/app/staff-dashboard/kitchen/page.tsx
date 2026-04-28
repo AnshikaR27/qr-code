@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import {
   ChefHat, CheckCheck, Clock, Flame, Volume2, VolumeX, Search,
 } from 'lucide-react';
@@ -279,14 +279,16 @@ function AvailabilityRow({
   onToggle: () => void;
   todayCount: number;
 }) {
+  const unavailable = !product.is_available;
+
   return (
     <div
       className={cn(
         'flex items-center justify-between px-4 py-3 gap-3',
-        !product.is_available && 'bg-red-50/50',
+        unavailable && 'bg-red-50/60',
       )}
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className={cn('flex items-center gap-3 min-w-0', unavailable && 'opacity-50')}>
         <div
           className={cn(
             'w-3 h-3 rounded-full border-2 flex-shrink-0',
@@ -298,15 +300,22 @@ function AvailabilityRow({
         <div className="min-w-0">
           <p className={cn(
             'text-sm font-medium truncate',
-            !product.is_available && 'line-through text-muted-foreground',
+            unavailable && 'line-through text-gray-400',
           )}>
             {product.name}
           </p>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{formatPrice(product.price)}</span>
-            {todayCount > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn('text-xs', unavailable ? 'text-gray-400' : 'text-muted-foreground')}>
+              {formatPrice(product.price)}
+            </span>
+            {!unavailable && todayCount > 0 && (
               <span className="text-xs text-blue-600 font-medium">
                 {todayCount} ordered today
+              </span>
+            )}
+            {unavailable && product.unavailable_since && (
+              <span className="text-xs text-red-500 font-medium">
+                Off since {format(new Date(product.unavailable_since), 'h:mm a')}
               </span>
             )}
           </div>
@@ -318,7 +327,7 @@ function AvailabilityRow({
         disabled={isToggling}
         className={cn(
           'relative flex-shrink-0 w-12 h-7 rounded-full transition-colors duration-200',
-          product.is_available ? 'bg-green-500' : 'bg-gray-300',
+          product.is_available ? 'bg-green-500' : 'bg-red-400',
           isToggling && 'opacity-50',
         )}
       >
