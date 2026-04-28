@@ -2,22 +2,29 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { formatDistanceToNow } from 'date-fns';
+import {
+  X, Clock, CheckCheck, PlusCircle,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
 import { useOrders } from '@/contexts/OrdersContext';
 import { hasPermission } from '@/lib/staff-permissions';
+import { cn, formatPrice } from '@/lib/utils';
 import type {
   FloorCapacity,
   FloorPlan,
   FloorTable,
   Order,
+  OrderItem,
 } from '@/types';
 
 const GRID = 20;
 const CANVAS_W = 1400;
 const CANVAS_H = 900;
 
-function tableLabel(t: { table_number: number; display_name?: string | null }): string {
+function tableLabelText(t: { table_number: number; display_name?: string | null }): string {
   return t.display_name?.trim() || `#${t.table_number}`;
 }
 
@@ -42,9 +49,16 @@ const STATUS_COLORS: Record<TableLiveStatus, { bg: string; border: string; text:
   needs_attention: { bg: 'rgba(239,68,68,0.15)',  border: '#ef4444', text: '#b91c1c', sub: '#dc2626' },
 };
 
+interface SelectedTable {
+  dbId: string;
+  label: string;
+  orders: Order[];
+}
+
 export default function StaffTablesPage() {
   const { staff, restaurant } = useStaff();
   const { orders } = useOrders();
+  const [selectedTable, setSelectedTable] = useState<SelectedTable | null>(null);
 
   if (!hasPermission(staff.role, 'table:assign')) {
     return (
@@ -78,6 +92,29 @@ export default function StaffTablesPage() {
     if (tableOrders.length === 0) return { status: 'available', orders: [] };
     return { status: 'occupied', orders: tableOrders };
   }
+
+  function handleTableClick(table: FloorTable, dbId: string, info: { status: TableLiveStatus; orders: Order[] }) {
+    if (info.status === 'available') return; // available tables use Link navigation
+    setSelectedTable({
+      dbId,
+      label: tableLabelText(table),
+      orders: info.orders,
+    });
+  }
+
+  // Keep modal orders in sync with live order updates
+  useEffect(() => {
+    if (!selectedTable) return;
+    const freshOrders = activeOrders.filter(
+      (o) => selectedTable.orders.some(so => o.table_id === so.table_id)
+    );
+    if (freshOrders.length === 0) {
+      setSelectedTable(null);
+    } else if (JSON.stringify(freshOrders.map(o => o.id).sort()) !== JSON.stringify(selectedTable.orders.map(o => o.id).sort())) {
+      setSelectedTable(prev => prev ? { ...prev, orders: freshOrders } : null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders]);
 
   if (plan.tables.length === 0) {
     return (
@@ -126,20 +163,32 @@ export default function StaffTablesPage() {
           plan={plan}
           getTableStatus={getTableStatus}
           dbTableIds={dbTableIds}
+          onOccupiedTableClick={handleTableClick}
         />
       </div>
+
+      {selectedTable && (
+        <TableOrdersSheet
+          table={selectedTable}
+          onClose={() => setSelectedTable(null)}
+        />
+      )}
     </div>
   );
 }
+
+// ─── Floor Canvas ───────────────────────────────────────────────────────────
 
 function StaffFloorCanvas({
   plan,
   getTableStatus,
   dbTableIds,
+  onOccupiedTableClick,
 }: {
   plan: FloorPlan;
   getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[] };
   dbTableIds: Map<number, string>;
+  onOccupiedTableClick: (table: FloorTable, dbId: string, info: { status: TableLiveStatus; orders: Order[] }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -201,13 +250,15 @@ function StaffFloorCanvas({
 
       {plan.tables.map((table) => {
         const info = getTableStatus(table.table_number);
+        const dbId = dbTableIds.get(table.table_number) ?? table.id;
         return (
           <StaffTableElement
             key={table.id}
             table={table}
             status={info.status}
             orders={info.orders}
-            dbId={dbTableIds.get(table.table_number) ?? table.id}
+            dbId={dbId}
+            onOccupiedClick={() => onOccupiedTableClick(table, dbId, info)}
           />
         );
       })}
@@ -216,16 +267,20 @@ function StaffFloorCanvas({
   );
 }
 
+// ─── Table Element ──────────────────────────────────────────────────────────
+
 function StaffTableElement({
   table,
   status,
   orders: tableOrders,
   dbId,
+  onOccupiedClick,
 }: {
   table: FloorTable;
   status: TableLiveStatus;
   orders: Order[];
   dbId: string;
+  onOccupiedClick: () => void;
 }) {
   const { w, h } = tableSize(table.capacity);
   const isRound = table.shape === 'round';
@@ -235,71 +290,219 @@ function StaffTableElement({
   const showName = customerName && !inMergeGroup;
   const orderCount = tableOrders.length;
 
-  return (
-    <Link
-      href={`/staff-dashboard/tables/${dbId}/new-order`}
+  const inner = (
+    <div
       style={{
-        position: 'absolute',
-        left: table.x,
-        top: table.y,
-        width: w,
-        height: h,
-        cursor: 'pointer',
-        zIndex: 2,
-        display: 'block',
-        textDecoration: 'none',
+        width: '100%',
+        height: '100%',
+        borderRadius: isRound ? '50%' : 10,
+        background: colors.bg,
+        border: `2px solid ${colors.border}`,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+        transition: 'box-shadow 0.15s, transform 0.15s',
+        padding: '0 4px',
       }}
+      className="hover:shadow-lg hover:scale-105"
     >
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          borderRadius: isRound ? '50%' : 10,
-          background: colors.bg,
-          border: `2px solid ${colors.border}`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-          transition: 'box-shadow 0.15s, transform 0.15s',
-          padding: '0 4px',
-        }}
-        className="hover:shadow-lg hover:scale-105"
-      >
-        <span style={{ fontWeight: 700, fontSize: 13, color: colors.text, lineHeight: 1 }}>
-          {tableLabel(table)}
+      <span style={{ fontWeight: 700, fontSize: 13, color: colors.text, lineHeight: 1 }}>
+        {tableLabelText(table)}
+      </span>
+      {showName ? (
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: colors.text,
+            marginTop: 3,
+            lineHeight: 1.1,
+            maxWidth: 'calc(100% - 8px)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            textAlign: 'center',
+          }}
+        >
+          {shortName(customerName)}
         </span>
-        {showName ? (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: colors.text,
-              marginTop: 3,
-              lineHeight: 1.1,
-              maxWidth: 'calc(100% - 8px)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              textAlign: 'center',
-            }}
-          >
-            {shortName(customerName)}
-          </span>
-        ) : orderCount > 0 ? (
-          <span style={{ fontSize: 10, fontWeight: 600, color: colors.text, marginTop: 3 }}>
-            {orderCount} order{orderCount !== 1 ? 's' : ''}
-          </span>
-        ) : (
-          <span style={{ fontSize: 11, color: colors.sub, marginTop: 3 }}>
-            {table.capacity}p
-          </span>
-        )}
-      </div>
-    </Link>
+      ) : orderCount > 0 ? (
+        <span style={{ fontSize: 10, fontWeight: 600, color: colors.text, marginTop: 3 }}>
+          {orderCount} order{orderCount !== 1 ? 's' : ''}
+        </span>
+      ) : (
+        <span style={{ fontSize: 11, color: colors.sub, marginTop: 3 }}>
+          {table.capacity}p
+        </span>
+      )}
+    </div>
+  );
+
+  const positionStyle = {
+    position: 'absolute' as const,
+    left: table.x,
+    top: table.y,
+    width: w,
+    height: h,
+    cursor: 'pointer',
+    zIndex: 2,
+    display: 'block',
+    textDecoration: 'none',
+  };
+
+  if (status === 'available') {
+    return (
+      <Link href={`/staff-dashboard/tables/${dbId}/new-order`} style={positionStyle}>
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onOccupiedClick} style={positionStyle}>
+      {inner}
+    </button>
   );
 }
+
+// ─── Table Orders Sheet (modal) ─────────────────────────────────────────────
+
+function TableOrdersSheet({
+  table,
+  onClose,
+}: {
+  table: SelectedTable;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const totalAmount = table.orders.reduce((sum, o) => sum + o.total, 0);
+  const totalItems = table.orders.reduce(
+    (sum, o) => sum + (o.items ?? []).filter(i => i.status !== 'voided').reduce((s, i) => s + i.quantity, 0),
+    0,
+  );
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] bg-white rounded-t-2xl flex flex-col animate-in slide-in-from-bottom duration-200">
+        {/* Handle bar */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-300" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pb-3 border-b">
+          <div>
+            <h2 className="font-bold text-lg">Table {table.label}</h2>
+            <p className="text-xs text-muted-foreground">
+              {table.orders.length} order{table.orders.length !== 1 ? 's' : ''} · {totalItems} item{totalItems !== 1 ? 's' : ''} · {formatPrice(totalAmount)}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Order cards */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {table.orders.map((order) => (
+            <SheetOrderCard key={order.id} order={order} />
+          ))}
+        </div>
+
+        {/* Add items button */}
+        <div className="px-5 py-4 border-t bg-white pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button
+            onClick={() => { onClose(); router.push(`/staff-dashboard/tables/${table.dbId}/new-order`); }}
+            className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+          >
+            <PlusCircle className="w-5 h-5" />
+            Add items to this table
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SheetOrderCard({ order }: { order: Order }) {
+  const activeItems = (order.items ?? []).filter((i) => i.status !== 'voided');
+  const isReady = order.status === 'ready';
+
+  return (
+    <div className={cn(
+      'rounded-xl border-2 overflow-hidden',
+      isReady ? 'border-green-300' : 'border-amber-200',
+    )}>
+      {/* Header */}
+      <div className={cn(
+        'flex items-center justify-between px-4 py-2.5',
+        isReady ? 'bg-green-50' : 'bg-amber-50',
+      )}>
+        <div className="flex items-center gap-2">
+          <span className="font-bold">#{order.order_number}</span>
+          {order.customer_name && (
+            <span className="text-xs text-muted-foreground">· {order.customer_name}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            'text-[10px] font-bold px-2 py-0.5 rounded-full',
+            isReady ? 'bg-green-200 text-green-800' : 'bg-amber-200 text-amber-800',
+          )}>
+            {isReady ? (
+              <span className="flex items-center gap-0.5"><CheckCheck className="w-3 h-3" /> READY</span>
+            ) : 'PREPARING'}
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Clock className="w-3 h-3" />
+            {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+          </span>
+        </div>
+      </div>
+
+      {/* Items */}
+      <div className="px-4 py-2.5 space-y-1.5">
+        {activeItems.map((item) => {
+          const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
+          return (
+            <div key={item.id}>
+              <div className="flex justify-between gap-2">
+                <span className="text-sm">
+                  <span className="font-semibold">{item.quantity}×</span> {item.name}
+                </span>
+                <span className="text-xs text-muted-foreground flex-shrink-0">
+                  {formatPrice((item.price + addonTotal) * item.quantity)}
+                </span>
+              </div>
+              {(item.selected_addons ?? []).map((addon, ai) => (
+                <div key={ai} className="flex justify-between gap-2 pl-5">
+                  <span className="text-xs text-muted-foreground">+ {addon.name}</span>
+                  {addon.price > 0 && (
+                    <span className="text-xs text-muted-foreground flex-shrink-0">+{formatPrice(addon.price)}</span>
+                  )}
+                </div>
+              ))}
+              {item.notes && (
+                <p className="text-xs text-red-600 font-medium mt-0.5 italic pl-5">&ldquo;{item.notes}&rdquo;</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-2 border-t bg-gray-50 flex justify-between items-center">
+        <span className="text-xs text-muted-foreground">{activeItems.length} item{activeItems.length !== 1 ? 's' : ''}</span>
+        <span className="font-bold text-sm">{formatPrice(order.total)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Merge Group Backgrounds ────────────────────────────────────────────────
 
 function MergeGroupBackgrounds({
   tables,
