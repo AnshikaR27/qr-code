@@ -168,7 +168,7 @@ export default function StaffTablesPage() {
       </div>
 
       {selectedTable && (
-        <TableOrdersSheet
+        <TableOrdersModal
           table={selectedTable}
           onClose={() => setSelectedTable(null)}
         />
@@ -367,9 +367,9 @@ function StaffTableElement({
   );
 }
 
-// ─── Table Orders Sheet (modal) ─────────────────────────────────────────────
+// ─── Table Orders Modal ─────────────────────────────────────────────────────
 
-function TableOrdersSheet({
+function TableOrdersModal({
   table,
   onClose,
 }: {
@@ -384,39 +384,34 @@ function TableOrdersSheet({
   );
 
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] bg-white rounded-t-2xl flex flex-col animate-in slide-in-from-bottom duration-200">
-        {/* Handle bar */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-300" />
-        </div>
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pb-3 border-b">
+        <div className="flex items-center justify-between px-6 py-4 border-b">
           <div>
             <h2 className="font-bold text-lg">Table {table.label}</h2>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {table.orders.length} order{table.orders.length !== 1 ? 's' : ''} · {totalItems} item{totalItems !== 1 ? 's' : ''} · {formatPrice(totalAmount)}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+          <button onClick={onClose} className="p-2 -mr-2 rounded-lg hover:bg-gray-100 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Order cards */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
           {table.orders.map((order) => (
-            <SheetOrderCard key={order.id} order={order} />
+            <ModalOrderCard key={order.id} order={order} />
           ))}
         </div>
 
         {/* Add items button */}
-        <div className="px-5 py-4 border-t bg-white pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="px-6 py-4 border-t">
           <button
             onClick={() => { onClose(); router.push(`/staff-dashboard/tables/${table.dbId}/new-order`); }}
-            className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
           >
             <PlusCircle className="w-5 h-5" />
             Add items to this table
@@ -427,7 +422,7 @@ function TableOrdersSheet({
   );
 }
 
-function SheetOrderCard({ order }: { order: Order }) {
+function ModalOrderCard({ order }: { order: Order }) {
   const activeItems = (order.items ?? []).filter((i) => i.status !== 'voided');
   const isReady = order.status === 'ready';
 
