@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  X, Clock, CheckCheck, PlusCircle, ChefHat, IndianRupee, ReceiptText, Loader2,
+  X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
@@ -14,14 +14,12 @@ import { useOrders } from '@/contexts/OrdersContext';
 import { hasPermission } from '@/lib/staff-permissions';
 import { cn, formatPrice } from '@/lib/utils';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
-import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
 import { buildCombinedBillData } from '@/lib/billing';
 import type {
   FloorCapacity,
   FloorPlan,
   FloorTable,
   Order,
-  OrderItem,
 } from '@/types';
 
 const GRID = 20;
@@ -397,19 +395,27 @@ function TableOrdersModal({
     0,
   );
 
-  async function handleMarkReady(order: Order) {
-    setUpdating(order.id);
+  const allReady = table.orders.every(o => o.status === 'ready');
+  const somePrepping = table.orders.some(o => o.status === 'placed');
+  const preppingOrders = table.orders.filter(o => o.status === 'placed');
+
+  const sortedOrders = [...table.orders].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+
+  async function handleMarkAllReady() {
+    setUpdating('all');
     try {
-      const res = await fetch(`/api/staff/orders/${order.id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'ready' }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || 'Failed to update status');
-      }
-      toast.success(`Order #${order.order_number} marked ready`);
+      await Promise.all(
+        preppingOrders.map(order =>
+          fetch(`/api/staff/orders/${order.id}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'ready' }),
+          }),
+        ),
+      );
+      toast.success('All items marked ready');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
     } finally {
@@ -417,23 +423,35 @@ function TableOrdersModal({
     }
   }
 
-  async function handlePrintBill() {
+  async function handlePrintBill(billOrders: Order[]) {
     const config = restaurant.billing_config;
     const printerConf = restaurant.printer_config;
     if (!config?.gstin && !config?.legal_name) {
       toast.error('Set up Tax & Billing in Settings first');
       return;
     }
-    const orderData = buildCombinedBillData(table.orders);
-    const billPrinterId = printerConf?.bill_printer;
-    const billPrinter = billPrinterId ? printerConf?.printers.find(p => p.id === billPrinterId) : null;
-    if (billPrinter && billPrinter.type !== 'browser') {
-      try {
-        await broadcastPrintBill(restaurant.id, orderData);
-        toast.success('Bill sent to printer');
-        return;
-      } catch { /* fall through to browser */ }
+
+    const orderData = buildCombinedBillData(billOrders);
+
+    if (printerConf?.bill_printer) {
+      const printer = printerConf.printers.find(p => p.id === printerConf.bill_printer);
+      if (printer && printer.type !== 'browser') {
+        const { printerService } = await import('@/lib/printer-service');
+        const { buildBillReceipt } = await import('@/lib/escpos-bill');
+        const copies = printerConf.copies_bill ?? 1;
+        const data = buildBillReceipt(orderData, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width, false);
+        const result = await printerService.print(printer, data);
+        if (result.success) {
+          if (copies === 2) {
+            const dup = buildBillReceipt(orderData, restaurant.name, restaurant.phone ?? null, config!, printer.paper_width, true);
+            await printerService.print(printer, dup);
+          }
+          return;
+        }
+        if (result.error !== 'Use browser fallback') return;
+      }
     }
+
     const { printCustomerBill } = await import('@/lib/billing');
     printCustomerBill(orderData, restaurant, config!);
   }
@@ -458,23 +476,11 @@ function TableOrdersModal({
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || 'Failed to record payment');
       }
-      toast.success('Payment collected');
+      toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
+
       const billedOrders = orderIds.map(id => table.orders.find(o => o.id === id)).filter(Boolean) as Order[];
-      if (billedOrders.length > 0) {
-        const printerConf = restaurant.printer_config;
-        const billPrinterId = printerConf?.bill_printer;
-        const billPrinter = billPrinterId ? printerConf?.printers.find(p => p.id === billPrinterId) : null;
-        if (billPrinter && billPrinter.type !== 'browser') {
-          broadcastPrintBill(restaurant.id, buildCombinedBillData(billedOrders)).catch(() => {});
-        } else {
-          try {
-            const config = restaurant.billing_config;
-            if (config) {
-              const { printCustomerBill } = await import('@/lib/billing');
-              printCustomerBill(buildCombinedBillData(billedOrders), restaurant, config);
-            }
-          } catch { /* silent */ }
-        }
+      if (billedOrders.length > 0 && restaurant.printer_config?.auto_print_bill) {
+        try { await handlePrintBill(billedOrders); } catch { /* silent */ }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to record payment');
@@ -515,12 +521,12 @@ function TableOrdersModal({
             <div>
               <h2 className="font-bold text-lg">Table {table.label}</h2>
               <p className="text-sm text-muted-foreground">
-                {table.orders.length} order{table.orders.length !== 1 ? 's' : ''} · {totalItems} item{totalItems !== 1 ? 's' : ''} · {formatPrice(totalAmount)}
+                {totalItems} item{totalItems !== 1 ? 's' : ''} · {formatPrice(totalAmount)}
               </p>
             </div>
             <div className="flex items-center gap-1">
               <button
-                onClick={handlePrintBill}
+                onClick={() => handlePrintBill(table.orders)}
                 className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
                 title="Print Bill"
               >
@@ -532,37 +538,103 @@ function TableOrdersModal({
             </div>
           </div>
 
-          {/* Order cards */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-            {table.orders.map((order) => (
-              <ModalOrderCard
-                key={order.id}
-                order={order}
-                onMarkReady={() => handleMarkReady(order)}
-                onCollect={() => setBillingOrders([order])}
-                isUpdating={updating === order.id}
-              />
-            ))}
+          {/* Unified item list grouped by round */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            {sortedOrders.map((order, idx) => {
+              const activeItems = (order.items ?? []).filter(i => i.status !== 'voided');
+              if (activeItems.length === 0) return null;
+              const isReady = order.status === 'ready';
+              const roundNum = idx + 1;
+              const names = [order.customer_name].filter(Boolean);
+
+              return (
+                <div key={order.id}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      Round {roundNum}
+                    </span>
+                    {names.length > 0 && (
+                      <span className="text-xs text-muted-foreground">· {names.join(', ')}</span>
+                    )}
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      · <Clock className="w-3 h-3" />
+                      {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+                    </span>
+                    <span className={cn(
+                      'text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-auto',
+                      isReady ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700',
+                    )}>
+                      {isReady ? 'READY' : 'PREP'}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {activeItems.map((item) => {
+                      const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
+                      return (
+                        <div key={item.id}>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-sm">
+                              <span className="font-semibold">{item.quantity}×</span> {item.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground flex-shrink-0">
+                              {formatPrice((item.price + addonTotal) * item.quantity)}
+                            </span>
+                          </div>
+                          {(item.selected_addons ?? []).map((addon, ai) => (
+                            <div key={ai} className="flex justify-between gap-2 pl-5">
+                              <span className="text-xs text-muted-foreground">+ {addon.name}</span>
+                              {addon.price > 0 && (
+                                <span className="text-xs text-muted-foreground flex-shrink-0">+{formatPrice(addon.price)}</span>
+                              )}
+                            </div>
+                          ))}
+                          {item.notes && (
+                            <p className="text-xs text-red-600 font-medium mt-0.5 italic pl-5">&ldquo;{item.notes}&rdquo;</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Footer actions */}
           <div className="px-6 py-4 border-t space-y-2">
-            {table.orders.every(o => o.status === 'ready') && (
+            {somePrepping && (
               <button
-                onClick={() => setBillingOrders(table.orders)}
+                onClick={handleMarkAllReady}
                 disabled={!!updating}
-                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-green-500 hover:bg-green-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <IndianRupee className="w-5 h-5" />
-                Collect Payment
+                {updating === 'all' ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <CheckCheck className="w-5 h-5" />
+                )}
+                Mark All Ready
               </button>
             )}
+            <button
+              onClick={() => setBillingOrders(table.orders)}
+              disabled={!!updating || !allReady}
+              className={cn(
+                'w-full py-3 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50',
+                allReady
+                  ? 'text-white bg-violet-600 hover:bg-violet-700'
+                  : 'text-violet-400 bg-violet-50 border border-violet-200 cursor-not-allowed',
+              )}
+            >
+              <IndianRupee className="w-5 h-5" />
+              Collect {formatPrice(totalAmount)}
+            </button>
             <button
               onClick={() => { onClose(); router.push(`/staff-dashboard/tables/${table.dbId}/new-order?round=${table.orders.length + 1}`); }}
               className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
             >
               <PlusCircle className="w-5 h-5" />
-              {table.orders.length > 0 ? `Add items · Round ${table.orders.length + 1}` : 'Add items to this table'}
+              Add items · Round {table.orders.length + 1}
             </button>
             <button
               onClick={handleCloseTable}
@@ -582,113 +654,6 @@ function TableOrdersModal({
         onClose={() => setBillingOrders(null)}
       />
     </>
-  );
-}
-
-function ModalOrderCard({
-  order,
-  onMarkReady,
-  onCollect,
-  isUpdating,
-}: {
-  order: Order;
-  onMarkReady: () => void;
-  onCollect: () => void;
-  isUpdating: boolean;
-}) {
-  const activeItems = (order.items ?? []).filter((i) => i.status !== 'voided');
-  const isReady = order.status === 'ready';
-
-  return (
-    <div className={cn(
-      'rounded-xl border-2 overflow-hidden',
-      isReady ? 'border-green-300' : 'border-amber-200',
-    )}>
-      {/* Header */}
-      <div className={cn(
-        'flex items-center justify-between px-4 py-2.5',
-        isReady ? 'bg-green-50' : 'bg-amber-50',
-      )}>
-        <div className="flex items-center gap-2">
-          <span className="font-bold">#{order.order_number}</span>
-          {order.customer_name && (
-            <span className="text-xs text-muted-foreground">· {order.customer_name}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={cn(
-            'text-[10px] font-bold px-2 py-0.5 rounded-full',
-            isReady ? 'bg-green-200 text-green-800' : 'bg-amber-200 text-amber-800',
-          )}>
-            {isReady ? (
-              <span className="flex items-center gap-0.5"><CheckCheck className="w-3 h-3" /> READY</span>
-            ) : 'PREPARING'}
-          </span>
-          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <Clock className="w-3 h-3" />
-            {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
-          </span>
-        </div>
-      </div>
-
-      {/* Items */}
-      <div className="px-4 py-2.5 space-y-1.5">
-        {activeItems.map((item) => {
-          const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
-          return (
-            <div key={item.id}>
-              <div className="flex justify-between gap-2">
-                <span className="text-sm">
-                  <span className="font-semibold">{item.quantity}×</span> {item.name}
-                </span>
-                <span className="text-xs text-muted-foreground flex-shrink-0">
-                  {formatPrice((item.price + addonTotal) * item.quantity)}
-                </span>
-              </div>
-              {(item.selected_addons ?? []).map((addon, ai) => (
-                <div key={ai} className="flex justify-between gap-2 pl-5">
-                  <span className="text-xs text-muted-foreground">+ {addon.name}</span>
-                  {addon.price > 0 && (
-                    <span className="text-xs text-muted-foreground flex-shrink-0">+{formatPrice(addon.price)}</span>
-                  )}
-                </div>
-              ))}
-              {item.notes && (
-                <p className="text-xs text-red-600 font-medium mt-0.5 italic pl-5">&ldquo;{item.notes}&rdquo;</p>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Footer with action */}
-      <div className="px-4 py-2.5 border-t bg-gray-50 flex justify-between items-center gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{activeItems.length} item{activeItems.length !== 1 ? 's' : ''}</span>
-          <span className="font-bold text-sm">{formatPrice(order.total)}</span>
-        </div>
-        {order.status === 'placed' && (
-          <button
-            onClick={onMarkReady}
-            disabled={isUpdating}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
-          >
-            {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChefHat className="w-3 h-3" />}
-            Mark Ready
-          </button>
-        )}
-        {order.status === 'ready' && (
-          <button
-            onClick={onCollect}
-            disabled={isUpdating}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
-          >
-            {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <IndianRupee className="w-3 h-3" />}
-            Collect
-          </button>
-        )}
-      </div>
-    </div>
   );
 }
 
