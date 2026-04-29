@@ -52,7 +52,6 @@ export async function printKOT(
         .is('payment_method', null)
         .neq('id', order.id)
         .neq('status', 'cancelled')
-        .gte('created_at', todayStart.toISOString())
         .order('created_at', { ascending: true });
 
       if (priorOrders && priorOrders.length > 0) {
