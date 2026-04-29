@@ -558,11 +558,11 @@ function TableOrdersModal({
               </button>
             )}
             <button
-              onClick={() => { onClose(); router.push(`/staff-dashboard/tables/${table.dbId}/new-order`); }}
+              onClick={() => { onClose(); router.push(`/staff-dashboard/tables/${table.dbId}/new-order?round=${table.orders.length + 1}`); }}
               className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
             >
               <PlusCircle className="w-5 h-5" />
-              Add items to this table
+              {table.orders.length > 0 ? `Add items · Round ${table.orders.length + 1}` : 'Add items to this table'}
             </button>
             <button
               onClick={handleCloseTable}

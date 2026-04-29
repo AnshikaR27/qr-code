@@ -1,5 +1,6 @@
 import { ESCPOSBuilder, formatDateTime } from './escpos';
 import type { OrderItem, SelectedAddon } from '@/types';
+import type { AddOnInfo } from './kot-print';
 
 export interface KOTData {
   order_number: number;
@@ -17,7 +18,8 @@ export function buildKOTTicket(
   kotNumber: number,
   selectedCategories: string[],
   paperWidth: '80mm' | '58mm' = '80mm',
-  totalCategoriesInOrder?: number, // when routing splits across printers, pass the full order cat count
+  totalCategoriesInOrder?: number,
+  addOnInfo?: AddOnInfo,
 ): Uint8Array {
   const lineWidth = paperWidth === '58mm' ? 32 : 42;
   const allItems = order.items ?? [];
@@ -47,6 +49,30 @@ export function buildKOTTicket(
 
   const p = new ESCPOSBuilder();
   p.initialize();
+
+  // Add-on banner for multi-round orders
+  if (addOnInfo?.isAddOn) {
+    p.alignCenter()
+      .text('='.repeat(lineWidth))
+      .newLine()
+      .bold(true)
+      .doubleSize(true)
+      .text(`*** ADD-ON ***`)
+      .doubleSize(false)
+      .newLine()
+      .text(`ROUND ${addOnInfo.roundNumber}`)
+      .newLine()
+      .bold(false);
+    if (tableDisplay) {
+      p.text(`TABLE ${tableDisplay}`.slice(0, lineWidth)).newLine();
+    }
+    if (addOnInfo.firstOrderNumber) {
+      p.text(`Adds to Order #${addOnInfo.firstOrderNumber}`).newLine();
+    }
+    p.text(formatDateTime(order.created_at).slice(0, lineWidth)).newLine()
+      .text('='.repeat(lineWidth))
+      .newLine();
+  }
 
   // Header
   p.alignCenter()

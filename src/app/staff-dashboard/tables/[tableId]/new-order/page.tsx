@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -23,8 +23,10 @@ interface CartItem {
 export default function StaffNewOrderPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { staff, restaurant } = useStaff();
   const tableId = params.tableId as string;
+  const round = searchParams.get('round');
 
   const [tableInfo, setTableInfo] = useState<Table | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -162,7 +164,9 @@ export default function StaffNewOrderPage() {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>
-          <h1 className="font-bold">Add Items</h1>
+          <h1 className="font-bold">
+            {round && Number(round) > 1 ? `Adding Round ${round}` : 'Add Items'}
+          </h1>
           <p className="text-xs text-muted-foreground">
             Table {tableLabel} &middot; by {staff.name}
           </p>

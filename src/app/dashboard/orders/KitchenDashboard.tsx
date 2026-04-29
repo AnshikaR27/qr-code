@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
 import {
   BellRing, ChefHat, CheckCheck, IndianRupee, XCircle, Printer, ReceiptText,
-  Usb, AlertTriangle, GitMerge, Unlink2, Search, X, ShoppingBag, Clock,
+  Usb, AlertTriangle, GitMerge, Unlink2, Search, X, ShoppingBag, Clock, EllipsisVertical,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
@@ -16,6 +16,12 @@ import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/Bi
 import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
 import { logOwnerActivity } from '@/lib/log-client';
 import { hasPermission } from '@/lib/staff-permissions';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
 import { buildCombinedBillData } from '@/lib/billing';
 import { computeBill } from '@/lib/billing';
@@ -572,11 +578,17 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
 
   return (
     <div className="p-6 pb-24 max-w-5xl mx-auto space-y-3">
-      {/* ── Auto-print info banner ── */}
-      {restaurant.printer_config?.kot_print_trigger === 'on_order' && (
+      {/* REMOVED: Always-visible "Auto-print is ON" banner — replaced by header icon indicator and actionable OFF-state warning */}
+      {/* {restaurant.printer_config?.kot_print_trigger === 'on_order' && (
         <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
           <Printer className="w-4 h-4 flex-shrink-0 text-green-600" />
           <span>Auto-print is <span className="font-semibold">ON</span> — orders are accepted and printed automatically</span>
+        </div>
+      )} */}
+      {restaurant.printer_config?.kot_print_trigger !== 'on_order' && orders.some(o => o.status === 'placed' && !o.payment_method) && (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600" />
+          <span>Auto-print is <span className="font-semibold">OFF</span> — {orders.filter(o => o.status === 'placed' && !o.payment_method).length} order{orders.filter(o => o.status === 'placed' && !o.payment_method).length !== 1 ? 's' : ''} may need manual printing</span>
         </div>
       )}
 
@@ -611,6 +623,12 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {restaurant.printer_config?.kot_print_trigger === 'on_order' && (
+            <div className="relative p-2 rounded-lg bg-green-50 border border-green-200" title="Auto-print is ON — orders print automatically">
+              <Printer className="w-4 h-4 text-green-600" />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" />
+            </div>
+          )}
           {activeCount > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
               <BellRing className="w-4 h-4 text-orange-500" />
@@ -1241,14 +1259,25 @@ function OrderCard({
               </button>
             )}
             {canCancel && order.status === 'placed' && (
-              <button
-                onClick={onCancel}
-                disabled={isUpdating}
-                className="px-3 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
-                title="Cancel order"
-              >
-                <XCircle className="w-4 h-4" />
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    disabled={isUpdating}
+                    className="px-2 py-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    <EllipsisVertical className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={onCancel}
+                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Cancel order
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         ) : null;

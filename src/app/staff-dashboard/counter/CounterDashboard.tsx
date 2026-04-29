@@ -45,10 +45,16 @@ export default function CounterDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const readyUnpaid = useMemo(
-    () => orders.filter(o => (o.status === 'ready' || o.status === 'delivered') && !o.payment_method),
-    [orders],
-  );
+  const readyUnpaid = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayMs = todayStart.getTime();
+    return orders.filter(
+      o => (o.status === 'ready' || o.status === 'delivered') &&
+        !o.payment_method &&
+        new Date(o.created_at).getTime() >= todayMs,
+    );
+  }, [orders]);
 
   // Re-render every minute to keep "X min" labels fresh
   const [, setTick] = useState(0);

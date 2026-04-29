@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { placeOrderSchema } from '@/lib/validators';
+import { resolveMergeGroupId } from '@/lib/order-helpers';
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -104,6 +105,9 @@ export async function POST(req: NextRequest) {
     return sum + (p.price + addonTotal) * item.quantity;
   }, 0);
 
+  // Auto-merge with existing unpaid orders on the same table
+  const mergeGroupId = await resolveMergeGroupId(getSupabaseAdmin(), restaurant_id, table_id);
+
   // Insert order
   const { data: order, error: orderErr } = await getSupabaseAdmin()
     .from('orders')
@@ -114,6 +118,7 @@ export async function POST(req: NextRequest) {
       customer_name: customer_name ?? null,
       customer_phone: customer_phone ?? null,
       notes: notes ?? null,
+      merge_group_id: mergeGroupId,
       total,
       status: 'placed',
     })

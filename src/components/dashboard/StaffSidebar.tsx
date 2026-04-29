@@ -25,9 +25,11 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
   const canStockToggle = hasPermission(staff.role, 'menu:mark_out_of_stock');
   const canPrinterSettings = hasPermission(staff.role, 'settings:edit_printer');
 
+  const isCounter = staff.role === 'counter';
+
   const navItems = [
-    { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag, show: true },
-    { href: '/staff-dashboard/kitchen', label: 'Kitchen', icon: ChefHat, show: canKitchen },
+    { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag, show: !isCounter },
+    { href: '/staff-dashboard/kitchen', label: 'Kitchen', icon: ChefHat, show: canKitchen && !isCounter },
     { href: '/staff-dashboard/counter', label: 'Counter', icon: IndianRupee, show: canPayment },
     { href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid, show: canTables },
     { href: '/staff-dashboard/items', label: 'Items', icon: canEditMenu ? Pencil : UtensilsCrossed, show: canEditMenu || staff.role === 'kitchen' },

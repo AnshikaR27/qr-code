@@ -1,4 +1,5 @@
 import type { Order } from '@/types';
+import type { AddOnInfo } from './kot-print';
 
 // ─── Ticket HTML builder ──────────────────────────────────────────────────────
 
@@ -7,6 +8,7 @@ function buildTicketHtml(
   kotNumber: number,
   restaurantName: string,
   selectedCategories: string[],
+  addOnInfo?: AddOnInfo,
 ): string {
   const allItems  = order.items ?? [];
   const filtered  = allItems.filter((i) =>
@@ -79,8 +81,20 @@ function buildTicketHtml(
        <div style="font-size:11px;margin:3px 0;"><strong>NOTE:</strong> ${order.notes}</div>`
     : '';
 
+  const addOnBanner = addOnInfo?.isAddOn
+    ? `<div style="border:2px solid #000;padding:4px;margin-bottom:4px;text-align:center;">
+        <div style="font-size:16px;font-weight:bold;letter-spacing:1px;">*** ADD-ON ***</div>
+        <div style="font-size:13px;font-weight:bold;">ROUND ${addOnInfo.roundNumber}</div>
+        ${tableDisplay ? `<div style="font-size:11px;">TABLE ${tableDisplay}</div>` : ''}
+        ${addOnInfo.firstOrderNumber ? `<div style="font-size:11px;">Adds to Order #${addOnInfo.firstOrderNumber}</div>` : ''}
+        <div style="font-size:10px;">${date} &middot; ${time}</div>
+      </div>`
+    : '';
+
   return `
 <div style="font-family:'Courier New',Courier,monospace;font-size:12px;width:72mm;color:#000;background:#fff;padding:3mm 4mm;">
+
+  ${addOnBanner}
 
   <div style="text-align:center;font-size:13px;font-weight:bold;margin-bottom:1px;">
     ${restaurantName.toUpperCase()}
@@ -133,8 +147,9 @@ export function printKitchenTicket(
   kotNumber: number,
   restaurantName: string,
   selectedCategories: string[],
+  addOnInfo?: AddOnInfo,
 ): void {
-  const html = buildTicketHtml(order, kotNumber, restaurantName, selectedCategories);
+  const html = buildTicketHtml(order, kotNumber, restaurantName, selectedCategories, addOnInfo);
 
   // Remove any leftover containers from a previous print
   document.getElementById(PRINT_DIV_ID)?.remove();

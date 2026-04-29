@@ -8,6 +8,12 @@
 import { createClient } from '@/lib/supabase/client';
 import type { Order, PrinterConfig } from '@/types';
 
+export interface AddOnInfo {
+  isAddOn: boolean;
+  roundNumber: number;
+  firstOrderNumber?: number;
+}
+
 export async function printKOT(
   order: Order,
   restaurantId: string,
@@ -22,6 +28,9 @@ export async function printKOT(
   // Derive KOT number: count of today's orders for this restaurant + 1.
   // Uses a plain select so no database function is required.
   let kot = 1;
+  let isAddOn = false;
+  let roundNumber = 1;
+  let firstOrderNumber: number | undefined;
   try {
     const supabase = createClient();
     const todayStart = new Date();
@@ -32,7 +41,28 @@ export async function printKOT(
       .eq('restaurant_id', restaurantId)
       .gte('created_at', todayStart.toISOString());
     kot = (count ?? 0) + 1;
+
+    // Detect add-on round for dine-in orders (skip parcel/walk-in)
+    if (order.table_id) {
+      const { data: priorOrders } = await supabase
+        .from('orders')
+        .select('id, order_number, created_at')
+        .eq('restaurant_id', restaurantId)
+        .eq('table_id', order.table_id)
+        .is('payment_method', null)
+        .neq('id', order.id)
+        .neq('status', 'cancelled')
+        .order('created_at', { ascending: true });
+
+      if (priorOrders && priorOrders.length > 0) {
+        isAddOn = true;
+        roundNumber = priorOrders.length + 1;
+        firstOrderNumber = priorOrders[0].order_number;
+      }
+    }
   } catch { /* fallback to 1 */ }
+
+  const addOnInfo: AddOnInfo = { isAddOn, roundNumber, firstOrderNumber };
 
   if (printerConfig && printerConfig.printers.length > 0) {
     const { printerService } = await import('@/lib/printer-service');
@@ -45,9 +75,9 @@ export async function printKOT(
         printerConfig.printers.find((p) => p.id === pid) ?? printerConfig.printers[0];
       if (printer.type === 'browser') {
         const { printKitchenTicket } = await import('@/lib/printTicket');
-        printKitchenTicket(order, kot, restaurantName, categoriesInOrder);
+        printKitchenTicket(order, kot, restaurantName, categoriesInOrder, addOnInfo);
       } else {
-        const data = buildKOTTicket(order, restaurantName, kot, categoriesInOrder, printer.paper_width);
+        const data = buildKOTTicket(order, restaurantName, kot, categoriesInOrder, printer.paper_width, undefined, addOnInfo);
         for (let i = 0; i < copies; i++) await printerService.print(printer, data);
       }
     } else {
@@ -65,7 +95,7 @@ export async function printKOT(
           if (!printer) return;
           if (printer.type === 'browser') {
             const { printKitchenTicket } = await import('@/lib/printTicket');
-            printKitchenTicket(order, kot, restaurantName, cats);
+            printKitchenTicket(order, kot, restaurantName, cats, addOnInfo);
             return;
           }
           const data = buildKOTTicket(
@@ -75,6 +105,7 @@ export async function printKOT(
             cats,
             printer.paper_width,
             categoriesInOrder.length,
+            addOnInfo,
           );
           for (let i = 0; i < copies; i++) await printerService.print(printer, data);
         }),
@@ -83,6 +114,6 @@ export async function printKOT(
   } else {
     // No printer config — fall back to browser print
     const { printKitchenTicket } = await import('@/lib/printTicket');
-    printKitchenTicket(order, kot, restaurantName, categoriesInOrder);
+    printKitchenTicket(order, kot, restaurantName, categoriesInOrder, addOnInfo);
   }
 }

@@ -1,5 +1,39 @@
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
+/**
+ * Resolve (or create) a merge_group_id for a table that already has unpaid orders.
+ * Parcel/walk-in orders (table_id = null) always return null — no merging.
+ */
+export async function resolveMergeGroupId(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  restaurantId: string,
+  tableId: string | null | undefined,
+): Promise<string | null> {
+  if (!tableId) return null;
+
+  const { data: existing } = await supabase
+    .from('orders')
+    .select('id, merge_group_id')
+    .eq('restaurant_id', restaurantId)
+    .eq('table_id', tableId)
+    .is('payment_method', null)
+    .neq('status', 'cancelled');
+
+  if (!existing || existing.length === 0) return null;
+
+  const existingGroupId = existing.find(o => o.merge_group_id)?.merge_group_id;
+  if (existingGroupId) return existingGroupId;
+
+  const newGroupId = crypto.randomUUID();
+  const idsToUpdate = existing.map(o => o.id);
+  await supabase
+    .from('orders')
+    .update({ merge_group_id: newGroupId })
+    .in('id', idsToUpdate);
+
+  return newGroupId;
+}
+
 interface OrderInput {
   restaurant_id: string;
   table_id?: string | null;
@@ -78,6 +112,8 @@ export async function createOrder(input: OrderInput): Promise<OrderResult> {
     return sum + (p.price + addonTotal) * item.quantity;
   }, 0);
 
+  const mergeGroupId = await resolveMergeGroupId(admin, input.restaurant_id, input.table_id);
+
   const { data: order, error: orderErr } = await admin
     .from('orders')
     .insert({
@@ -88,6 +124,7 @@ export async function createOrder(input: OrderInput): Promise<OrderResult> {
       customer_phone: input.customer_phone ?? null,
       notes: input.notes ?? null,
       placed_by_staff_id: input.placed_by_staff_id ?? null,
+      merge_group_id: mergeGroupId,
       total,
       status: 'placed',
     })
