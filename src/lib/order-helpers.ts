@@ -11,13 +11,17 @@ export async function resolveMergeGroupId(
 ): Promise<string | null> {
   if (!tableId) return null;
 
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
   const { data: existing } = await supabase
     .from('orders')
     .select('id, merge_group_id')
     .eq('restaurant_id', restaurantId)
     .eq('table_id', tableId)
     .is('payment_method', null)
-    .neq('status', 'cancelled');
+    .neq('status', 'cancelled')
+    .gte('created_at', todayStart.toISOString());
 
   if (!existing || existing.length === 0) return null;
 
