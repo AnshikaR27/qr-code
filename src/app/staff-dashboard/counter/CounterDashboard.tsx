@@ -209,14 +209,10 @@ export default function CounterDashboard() {
         throw new Error(d.error || 'Failed to record payment');
       }
 
-      toast.success(
-        isMergedBilling
-          ? 'Payment recorded · tables unmerged'
-          : `Payment recorded — ${data.payment_method.toUpperCase()}`,
-      );
+      toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
 
       // Auto-print bill (local-first with broadcast fallback)
-      if (!isMergedBilling && restaurant.printer_config?.auto_print_bill) {
+      if (restaurant.printer_config?.auto_print_bill) {
         const billedOrders = orderIds.map(id => orders.find(o => o.id === id)).filter((o): o is Order => !!o);
         if (billedOrders.length > 0) {
           const billPrinterId = restaurant.printer_config.bill_printer;
