@@ -130,6 +130,29 @@ export function buildCombinedBillData(billOrders: Order[]) {
   const names = [...new Set(billOrders.map(o => o.customer_name).filter((n): n is string => n !== null))];
   const notesList = billOrders.map(o => o.notes).filter((n): n is string => n !== null);
   const oldest = billOrders.reduce((a, b) => a.created_at < b.created_at ? a : b);
+
+  const allItems = billOrders.flatMap(o => o.items ?? []);
+  const merged: typeof allItems = [];
+  for (const item of allItems) {
+    const addonsKey = JSON.stringify(
+      (item.selected_addons ?? []).map(a => ({ name: a.name, price: a.price })).sort((a, b) => a.name.localeCompare(b.name))
+    );
+    const match = merged.find(
+      m => m.product_id && m.product_id === item.product_id &&
+        m.price === item.price &&
+        m.status === item.status &&
+        (m.notes ?? '') === (item.notes ?? '') &&
+        JSON.stringify(
+          (m.selected_addons ?? []).map(a => ({ name: a.name, price: a.price })).sort((a, b) => a.name.localeCompare(b.name))
+        ) === addonsKey,
+    );
+    if (match) {
+      match.quantity += item.quantity;
+    } else {
+      merged.push({ ...item });
+    }
+  }
+
   return {
     id: billOrders[0].id,
     order_number: oldest.order_number,
@@ -138,7 +161,7 @@ export function buildCombinedBillData(billOrders: Order[]) {
     created_at: oldest.created_at,
     notes: notesList.length > 0 ? notesList.join(' / ') : null,
     table: billOrders.find(o => o.table)?.table ?? null,
-    items: billOrders.flatMap(o => o.items ?? []),
+    items: merged,
   };
 }
 

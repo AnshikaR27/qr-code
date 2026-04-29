@@ -115,7 +115,7 @@ export default function StaffTablesPage() {
     );
     if (freshOrders.length === 0) {
       setSelectedTable(null);
-    } else if (JSON.stringify(freshOrders.map(o => o.id).sort()) !== JSON.stringify(selectedTable.orders.map(o => o.id).sort())) {
+    } else {
       setSelectedTable(prev => prev ? { ...prev, orders: freshOrders } : null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
