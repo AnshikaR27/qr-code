@@ -2,12 +2,14 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { X, ChevronUp, RotateCcw } from 'lucide-react';
+import Link from 'next/link';
+import { X, ChevronUp, RotateCcw, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatPrice, cdnImg } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
+import { getActiveOrder, clearActiveOrder } from '@/lib/active-order';
 import WelcomeScreenV2 from '@/components/menu/WelcomeScreenV2';
 import MenuNavbarV2 from '@/components/menu/MenuNavbarV2';
 import CategoryTabsV2 from '@/components/menu/CategoryTabsV2';
@@ -150,6 +152,29 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
   // Repeat last order
   const [repeatOrder, setRepeatOrder] = useState<{ items: Omit<CartItem, 'name_hindi'>[]; total: number } | null>(null);
   const [showRepeat, setShowRepeat] = useState(false);
+
+  // Active order tracking
+  const [activeOrder, setActiveOrderState] = useState<{ orderId: string; orderNumber: number } | null>(null);
+
+  useEffect(() => {
+    if (!tableId) return;
+    const stored = getActiveOrder(tableId);
+    if (!stored) return;
+    let cancelled = false;
+    fetch(`/api/orders/${stored.orderId}/status`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (cancelled) return;
+        if (!data || data.payment_method || data.status === 'cancelled') {
+          clearActiveOrder(tableId);
+          setActiveOrderState(null);
+        } else {
+          setActiveOrderState(stored);
+        }
+      })
+      .catch(() => { if (!cancelled) setActiveOrderState(stored); });
+    return () => { cancelled = true; };
+  }, [tableId]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -436,6 +461,40 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
 
               {/* Scrolling content */}
               <div style={{ paddingBottom: `calc(${sizeScale.cartBarH} + env(safe-area-inset-bottom, 0px) + 24px)` }}>
+                {/* Active order banner */}
+                {activeOrder && (
+                  <Link
+                    href={`/${restaurant.slug}/order/${activeOrder.orderId}`}
+                    className="mt-3 flex items-center gap-2.5 no-underline"
+                    style={{
+                      marginLeft: spacingScale.px,
+                      marginRight: spacingScale.px,
+                      padding: spacingScale.cardPad,
+                      borderRadius: 'var(--sunday-radius, 12px)',
+                      backgroundColor: 'color-mix(in srgb, var(--sunday-accent, #b12d00) 8%, var(--sunday-card-bg, #FFFFFF))',
+                      border: '1px solid color-mix(in srgb, var(--sunday-accent, #b12d00) 25%, transparent)',
+                      boxShadow: 'var(--sunday-shadow-sm)',
+                    }}
+                  >
+                    <span className="text-xl shrink-0">🍳</span>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="font-bold m-0"
+                        style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
+                      >
+                        Order #{activeOrder.orderNumber} in progress
+                      </p>
+                      <p
+                        className="mt-0.5 m-0"
+                        style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
+                      >
+                        Kitchen is on it · Tap to track
+                      </p>
+                    </div>
+                    <ChevronRight size={18} className="shrink-0" style={{ color: 'var(--sunday-text-muted, #7A6040)' }} />
+                  </Link>
+                )}
+
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
@@ -644,6 +703,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
         itemCount={itemCount}
         total={total}
         onOpen={() => { setView('menu'); setCartOpen(true); }}
+        activeOrderNumber={activeOrder?.orderNumber}
       />
 
       {/* Long press image zoom overlay */}

@@ -9,6 +9,7 @@ import { formatPrice } from '@/lib/utils';
 import { buildMenuTokens } from '@/lib/tokens';
 import { typeScale, spacingScale } from '@/lib/sunday-scale';
 import { startReadyChimeLoop, stopReadyChimeLoop, unlockCustomerAudio } from '@/lib/customer-chime';
+import { clearActiveOrder } from '@/lib/active-order';
 import type { Order, OrderItem, OrderStatus } from '@/types';
 
 type ServiceMode = 'self_service' | 'table_service';
@@ -224,8 +225,13 @@ export default function OrderStatusPage() {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
         (payload) => {
-          const newStatus = (payload.new as Partial<Order>).status;
-          setOrder((prev) => prev ? { ...prev, ...(payload.new as Partial<Order>) } : prev);
+          const updated = payload.new as Partial<Order>;
+          const newStatus = updated.status;
+          setOrder((prev) => prev ? { ...prev, ...updated } : prev);
+          const tableId = orderRef.current?.table_id;
+          if (tableId && (updated.payment_method || newStatus === 'cancelled')) {
+            clearActiveOrder(tableId);
+          }
           setPrevStatus((prev) => {
             if (newStatus === 'delivered' && prev !== 'delivered') {
               setShowCelebration(true);

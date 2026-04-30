@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { formatPrice } from '@/lib/utils';
 import { buildMenuTokens } from '@/lib/tokens';
 import { typeScale, spacingScale } from '@/lib/sunday-scale';
+import { useCart } from '@/hooks/useCart';
+import { getActiveOrder, setActiveOrder } from '@/lib/active-order';
 
 interface PendingItem {
   product_id: string;
@@ -104,6 +106,16 @@ export default function OrderReviewPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to place order');
       sessionStorage.removeItem('pendingOrder');
+      useCart.getState().clearCart();
+
+      const isAddOn = order.table_id ? !!getActiveOrder(order.table_id) : false;
+      if (order.table_id && !isAddOn) {
+        setActiveOrder(order.table_id, data.orderId, data.orderNumber);
+      }
+      if (isAddOn) {
+        toast.success('Added to your order!');
+      }
+
       router.replace(`/${slug}/order/${data.orderId}`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong');

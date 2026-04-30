@@ -1,14 +1,17 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
-import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag, AlertTriangle, Usb, Search, X } from 'lucide-react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag, AlertTriangle, Usb, Search, X, ChefHat, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrders } from '@/contexts/OrdersContext';
 import { useStaff } from '@/contexts/StaffContext';
 import { cn, formatPrice } from '@/lib/utils';
+import { hasPermission } from '@/lib/staff-permissions';
+import { createClient } from '@/lib/supabase/client';
 import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
 import { buildCombinedBillData } from '@/lib/billing';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
+import ItemAvailabilityModal from '@/components/dashboard/ItemAvailabilityModal';
 import type { Order, OrderItem, PrinterDevice } from '@/types';
 
 interface TableGroup {
@@ -21,16 +24,20 @@ interface TableGroup {
   items: OrderItem[];
   isTable: boolean;
   orderNumbers: number[];
+  readyToBill: boolean;
 }
 
 export default function CounterDashboard() {
   const { orders } = useOrders();
-  const { restaurant } = useStaff();
+  const { staff, restaurant } = useStaff();
   const [billingOrders, setBillingOrders] = useState<Order[] | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
   const [connectingUSB, setConnectingUSB] = useState<string | null>(null);
+  const [show86List, setShow86List] = useState(false);
+  const [unavailableCount, setUnavailableCount] = useState(0);
+  const can86 = hasPermission(staff.role, 'menu:mark_out_of_stock');
 
   useEffect(() => {
     const config = restaurant.printer_config;
@@ -45,12 +52,35 @@ export default function CounterDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const readyUnpaid = useMemo(() => {
+  useEffect(() => {
+    if (!can86) return;
+    const supabase = createClient();
+    const fetchCount = async () => {
+      const { count } = await supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('restaurant_id', restaurant.id)
+        .eq('is_available', false);
+      setUnavailableCount(count ?? 0);
+    };
+    fetchCount();
+    const channel = supabase
+      .channel('counter-product-avail')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'products', filter: `restaurant_id=eq.${restaurant.id}` },
+        () => fetchCount(),
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [can86, restaurant.id]);
+
+  const activeOrders = useMemo(() => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayMs = todayStart.getTime();
     return orders.filter(
-      o => (o.status === 'ready' || o.status === 'delivered') &&
+      o => (o.status === 'placed' || o.status === 'ready' || o.status === 'delivered') &&
         !o.payment_method &&
         new Date(o.created_at).getTime() >= todayMs,
     );
@@ -59,16 +89,16 @@ export default function CounterDashboard() {
   // Re-render every minute to keep "X min" labels fresh
   const [, setTick] = useState(0);
   useEffect(() => {
-    if (readyUnpaid.length === 0) return;
+    if (activeOrders.length === 0) return;
     const interval = setInterval(() => setTick(t => t + 1), 60_000);
     return () => clearInterval(interval);
-  }, [readyUnpaid.length]);
+  }, [activeOrders.length]);
 
   // Group by merge_group_id > table_id > individual (no-table)
   const tableGroups = useMemo<TableGroup[]>(() => {
     const groups = new Map<string, Order[]>();
 
-    for (const order of readyUnpaid) {
+    for (const order of activeOrders) {
       let key: string;
       if (order.merge_group_id) {
         key = `merge:${order.merge_group_id}`;
@@ -106,6 +136,8 @@ export default function CounterDashboard() {
         ...groupOrders.map(o => new Date(o.updated_at ?? o.created_at).getTime())
       );
 
+      const readyToBill = groupOrders.every(o => o.status === 'ready' || o.status === 'delivered');
+
       result.push({
         key,
         tableLabel,
@@ -116,12 +148,16 @@ export default function CounterDashboard() {
         items,
         isTable: hasTable,
         orderNumbers: groupOrders.map(o => o.order_number),
+        readyToBill,
       });
     }
 
-    result.sort((a, b) => a.oldestReadyAt - b.oldestReadyAt);
+    result.sort((a, b) => {
+      if (a.readyToBill !== b.readyToBill) return a.readyToBill ? -1 : 1;
+      return a.oldestReadyAt - b.oldestReadyAt;
+    });
     return result;
-  }, [readyUnpaid]);
+  }, [activeOrders]);
 
   const filteredGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -242,6 +278,34 @@ export default function CounterDashboard() {
     }
   }
 
+  const handleMarkReady = useCallback(async (group: TableGroup) => {
+    const pending = group.orders.filter(o => o.status === 'placed');
+    if (pending.length === 0) return;
+    setUpdating(pending[0].id);
+    try {
+      await Promise.all(
+        pending.map(o =>
+          fetch(`/api/staff/orders/${o.id}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'ready' }),
+          }).then(res => {
+            if (!res.ok) throw new Error(`Failed for order #${o.order_number}`);
+          })
+        )
+      );
+      toast.success(
+        pending.length === 1
+          ? `Order #${pending[0].order_number} marked ready`
+          : 'Orders marked ready'
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to mark ready');
+    } finally {
+      setUpdating(null);
+    }
+  }, []);
+
   async function handleDismiss(group: TableGroup) {
     const orderIds = group.orders.map(o => o.id);
     setUpdating(orderIds[0]);
@@ -272,17 +336,33 @@ export default function CounterDashboard() {
             <IndianRupee className="w-6 h-6" /> Counter
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Collect payment for ready orders
+            Mark orders ready &amp; collect payment
           </p>
         </div>
-        {tableGroups.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-            <Clock className="w-4 h-4 text-amber-500" />
-            <span className="text-sm font-semibold text-amber-700">
-              {tableGroups.length} waiting
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {can86 && (
+            <button
+              onClick={() => setShow86List(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors"
+            >
+              <UtensilsCrossed className="w-4 h-4 text-gray-600" />
+              <span className="text-sm font-semibold text-gray-700">86 List</span>
+              {unavailableCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded-full leading-none">
+                  {unavailableCount}
+                </span>
+              )}
+            </button>
+          )}
+          {activeOrders.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <Clock className="w-4 h-4 text-amber-500" />
+              <span className="text-sm font-semibold text-amber-700">
+                {activeOrders.length} active
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -343,6 +423,7 @@ export default function CounterDashboard() {
               key={group.key}
               group={group}
               onCollect={() => setBillingOrders(group.orders)}
+              onMarkReady={() => handleMarkReady(group)}
               onDismiss={() => handleDismiss(group)}
               isUpdating={group.orders.some(o => updating === o.id)}
             />
@@ -356,6 +437,14 @@ export default function CounterDashboard() {
         onConfirm={handleBillingConfirm}
         onClose={() => setBillingOrders(null)}
       />
+
+      {can86 && (
+        <ItemAvailabilityModal
+          open={show86List}
+          onOpenChange={setShow86List}
+          restaurantId={restaurant.id}
+        />
+      )}
     </div>
   );
 }
@@ -365,11 +454,13 @@ export default function CounterDashboard() {
 function TableCard({
   group,
   onCollect,
+  onMarkReady,
   onDismiss,
   isUpdating,
 }: {
   group: TableGroup;
   onCollect: () => void;
+  onMarkReady: () => void;
   onDismiss: () => void;
   isUpdating: boolean;
 }) {
@@ -384,11 +475,17 @@ function TableCard({
         : `${group.customerNames.slice(0, 2).join(', ')} +${group.customerNames.length - 2} more`;
 
   return (
-    <div className="bg-white rounded-xl border-2 border-green-300 shadow-sm flex flex-col overflow-hidden">
+    <div className={cn(
+      'bg-white rounded-xl border-2 shadow-sm flex flex-col overflow-hidden',
+      group.readyToBill ? 'border-green-300' : 'border-amber-300',
+    )}>
       {/* Header */}
-      <div className="px-4 py-3 bg-green-50 flex items-center justify-between">
+      <div className={cn(
+        'px-4 py-3 flex items-center justify-between',
+        group.readyToBill ? 'bg-green-50' : 'bg-amber-50',
+      )}>
         <div>
-          <p className="font-bold text-xl">
+          <p className="font-bold text-xl flex items-center gap-2">
             {group.isTable ? (
               `Table ${group.tableLabel}`
             ) : (
@@ -397,6 +494,14 @@ function TableCard({
                 {group.tableLabel} #{group.orderNumbers[0]}
               </span>
             )}
+            <span className={cn(
+              'text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
+              group.readyToBill
+                ? 'bg-green-100 text-green-700'
+                : 'bg-amber-100 text-amber-700',
+            )}>
+              {group.readyToBill ? 'Ready' : 'Preparing'}
+            </span>
           </p>
           {nameDisplay && (
             <p className="text-sm text-muted-foreground mt-0.5">{nameDisplay}</p>
@@ -437,29 +542,48 @@ function TableCard({
         )}
       </div>
 
-      {/* Collect button + dismiss link */}
+      {/* Action buttons */}
       <div className="px-4 pb-4 pt-1 space-y-2">
-        <button
-          onClick={onCollect}
-          disabled={isUpdating}
-          className="w-full py-3.5 rounded-xl text-base font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-        >
-          {isUpdating ? (
-            '...'
-          ) : (
-            <>
-              <IndianRupee className="w-5 h-5" />
-              Collect {formatPrice(group.total)}
-            </>
-          )}
-        </button>
-        <button
-          onClick={onDismiss}
-          disabled={isUpdating}
-          className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-        >
-          Already settled
-        </button>
+        {group.readyToBill ? (
+          <>
+            <button
+              onClick={onCollect}
+              disabled={isUpdating}
+              className="w-full py-3.5 rounded-xl text-base font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {isUpdating ? (
+                '...'
+              ) : (
+                <>
+                  <IndianRupee className="w-5 h-5" />
+                  Collect {formatPrice(group.total)}
+                </>
+              )}
+            </button>
+            <button
+              onClick={onDismiss}
+              disabled={isUpdating}
+              className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              Already settled
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={onMarkReady}
+            disabled={isUpdating}
+            className="w-full py-3.5 rounded-xl text-base font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+          >
+            {isUpdating ? (
+              '...'
+            ) : (
+              <>
+                <ChefHat className="w-5 h-5" />
+                Mark All Ready
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

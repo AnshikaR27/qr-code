@@ -7,9 +7,10 @@ interface Props {
   itemCount: number;
   total: number;
   onOpen: () => void;
+  activeOrderNumber?: number | null;
 }
 
-export default function CartBarV2({ itemCount, total, onOpen }: Props) {
+export default function CartBarV2({ itemCount, total, onOpen, activeOrderNumber }: Props) {
   const hasItems = itemCount > 0;
 
   return (
@@ -44,7 +45,7 @@ export default function CartBarV2({ itemCount, total, onOpen }: Props) {
             className="font-semibold text-white"
             style={{ fontSize: typeScale.md, fontFamily: 'var(--sunday-font-body)' }}
           >
-            Your basket
+            {activeOrderNumber ? `Add to Order #${activeOrderNumber}` : 'Your basket'}
           </span>
           {hasItems && (
             <span
