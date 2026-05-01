@@ -321,6 +321,7 @@ export default function OrderStatusPage() {
   const isCancelled = order.status === 'cancelled';
   const isReady     = order.status === 'ready';
   const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const menuHref = order.table_id ? `/${slug}?table=${order.table_id}` : `/${slug}`;
 
   const cardStyle: React.CSSProperties = {
     borderRadius: 'var(--sunday-radius, 12px)',
@@ -695,7 +696,7 @@ export default function OrderStatusPage() {
         </div>
 
         <Link
-          href={`/${slug}`}
+          href={menuHref}
           className="text-center underline underline-offset-2"
           style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
         >

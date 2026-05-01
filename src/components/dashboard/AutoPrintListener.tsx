@@ -101,6 +101,9 @@ export function AutoPrintListener({ restaurantId, restaurantName, restaurantPhon
           // 'on_accept' printing is handled by GlobalNotifications acceptOrder.
           if (!isAutoMode) return;
 
+          // order_items are inserted right after the order row;
+          // wait so the joined fetch includes them.
+          await new Promise(r => setTimeout(r, 600));
           const { data } = await supabase
             .from('orders')
             .select('*, items:order_items(*), table:tables(*)')
