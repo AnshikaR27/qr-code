@@ -52,6 +52,9 @@ export function OrdersProvider({ restaurantId, initialOrders, children }: Props)
         async (payload) => {
           if (payload.eventType === 'INSERT') {
             if (isFirstRender.current) return;
+            // order_items are inserted right after the order row in the API;
+            // delay so the joined fetch includes them.
+            await new Promise(r => setTimeout(r, 600));
             const { data } = await supabase
               .from('orders')
               .select('*, items:order_items(*), table:tables(*)')
@@ -59,7 +62,12 @@ export function OrdersProvider({ restaurantId, initialOrders, children }: Props)
               .single();
             if (data) {
               const newOrder = data as Order;
-              setOrders((prev) => [newOrder, ...prev]);
+              setOrders((prev) => {
+                if (prev.some(o => o.id === newOrder.id)) {
+                  return prev.map(o => o.id === newOrder.id ? newOrder : o);
+                }
+                return [newOrder, ...prev];
+              });
             }
           } else if (payload.eventType === 'UPDATE') {
             if ('merge_group_id' in payload.new) {
