@@ -116,9 +116,48 @@ export interface FloorLabel {
   y: number;
 }
 
+export interface FloorWall {
+  id: string;
+  points: { x: number; y: number }[];
+}
+
+export interface FloorCounter {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
+export interface FloorDoor {
+  id: string;
+  x: number;
+  y: number;
+  rotation: number;
+}
+
+export type ZoneColor = 'blue' | 'green' | 'orange' | 'purple' | 'pink';
+
+export interface FloorZone {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: ZoneColor;
+}
+
+export type FloorStyle = 'dots' | 'wood' | 'tile' | 'white' | 'grey';
+
 export interface FloorPlan {
   tables: FloorTable[];
   labels: FloorLabel[];
+  walls?: FloorWall[];
+  counter?: FloorCounter | null;
+  doors?: FloorDoor[];
+  zones?: FloorZone[];
+  floorStyle?: FloorStyle;
 }
 
 // ─── Domain types ─────────────────────────────────────────────────────────────

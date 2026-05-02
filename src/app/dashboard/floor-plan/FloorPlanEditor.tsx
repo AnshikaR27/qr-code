@@ -22,6 +22,14 @@ import {
   Merge,
   Check,
   Search,
+  MousePointer2,
+  PenTool,
+  Store,
+  DoorOpen,
+  RectangleHorizontal,
+  LayoutTemplate,
+  Palette,
+  Edit3,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -47,15 +55,21 @@ import { Label } from '@/components/ui/label';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import type {
   FloorCapacity,
+  FloorCounter,
+  FloorDoor,
   FloorLabel,
   FloorPlan,
   FloorShape,
+  FloorStyle,
   FloorTable,
+  FloorWall,
+  FloorZone,
   Order,
   OrderNote,
   OrderStatus,
   Restaurant,
   WaiterCall,
+  ZoneColor,
 } from '@/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -86,6 +100,76 @@ function shortName(full: string): string {
   const parts = full.trim().split(/\s+/);
   if (parts.length <= 1) return parts[0] ?? '';
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
+// ─── Room builder constants ──────────────────────────────────────────────────
+
+const ZONE_COLORS_MAP: Record<ZoneColor, { bg: string; border: string; text: string }> = {
+  blue:   { bg: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.30)', text: '#3b82f6' },
+  green:  { bg: 'rgba(34,197,94,0.10)',   border: 'rgba(34,197,94,0.30)',  text: '#22c55e' },
+  orange: { bg: 'rgba(249,115,22,0.10)',  border: 'rgba(249,115,22,0.30)', text: '#f97316' },
+  purple: { bg: 'rgba(168,85,247,0.10)',  border: 'rgba(168,85,247,0.30)', text: '#a855f7' },
+  pink:   { bg: 'rgba(236,72,153,0.10)',  border: 'rgba(236,72,153,0.30)', text: '#ec4899' },
+};
+
+function getFloorBackground(style?: FloorStyle): React.CSSProperties {
+  switch (style) {
+    case 'wood':
+      return {
+        backgroundColor: '#f5e6d3',
+        backgroundImage: [
+          'repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(139,90,43,0.04) 20px, rgba(139,90,43,0.04) 21px)',
+          'repeating-linear-gradient(0deg, transparent, transparent 4px, rgba(139,90,43,0.03) 4px, rgba(139,90,43,0.03) 5px)',
+        ].join(', '),
+      };
+    case 'tile':
+      return {
+        backgroundColor: '#f8f8f8',
+        backgroundImage: 'linear-gradient(#e5e5e5 1px, transparent 1px), linear-gradient(90deg, #e5e5e5 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+      };
+    case 'white':
+      return { backgroundColor: '#ffffff' };
+    case 'grey':
+      return { backgroundColor: '#f3f4f6' };
+    case 'dots':
+    default:
+      return {
+        backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)',
+        backgroundSize: `${GRID}px ${GRID}px`,
+      };
+  }
+}
+
+const ROOM_TEMPLATES: { name: string; label: string; desc: string; points: { x: number; y: number }[] }[] = [
+  {
+    name: 'rectangle', label: 'Rectangle', desc: 'Standard room',
+    points: [{ x: 100, y: 100 }, { x: 1100, y: 100 }, { x: 1100, y: 700 }, { x: 100, y: 700 }],
+  },
+  {
+    name: 'l-shape', label: 'L-Shape', desc: 'L-shaped room',
+    points: [{ x: 100, y: 100 }, { x: 700, y: 100 }, { x: 700, y: 400 }, { x: 1100, y: 400 }, { x: 1100, y: 700 }, { x: 100, y: 700 }],
+  },
+  {
+    name: 'narrow', label: 'Narrow', desc: 'Long thin space',
+    points: [{ x: 100, y: 250 }, { x: 1200, y: 250 }, { x: 1200, y: 600 }, { x: 100, y: 600 }],
+  },
+];
+
+const FLOOR_STYLE_OPTIONS: { value: FloorStyle; label: string }[] = [
+  { value: 'dots', label: 'Dot Grid' },
+  { value: 'wood', label: 'Light Wood' },
+  { value: 'tile', label: 'Tile' },
+  { value: 'white', label: 'Plain White' },
+  { value: 'grey', label: 'Light Grey' },
+];
+
+function distToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
 // ─── Live status ──────────────────────────────────────────────────────────────
@@ -123,7 +207,7 @@ const STATUS_LABELS: Record<TableLiveStatus, string> = {
 // ─── Editor types ─────────────────────────────────────────────────────────────
 
 type SaveStatus = 'saved' | 'saving' | 'unsaved';
-type EditorMode = 'select' | 'addTable' | 'addLabel';
+type EditorMode = 'select' | 'addTable' | 'addLabel' | 'drawWalls' | 'addCounter' | 'addDoor' | 'addZone';
 
 interface LabelEditForm {
   id: string;
@@ -166,7 +250,24 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
   // Context menu (right-click)
   const [ctxMenu, setCtxMenu] = useState<{
-    id: string; type: 'table' | 'label'; screenX: number; screenY: number;
+    id: string; type: 'table' | 'label' | 'wall' | 'counter' | 'door' | 'zone'; screenX: number; screenY: number;
+  } | null>(null);
+
+  // ── Room builder state ────────────────────────────────────────────────────
+  const [wallDrawingPoints, setWallDrawingPoints] = useState<{ x: number; y: number }[]>([]);
+  const [wallPreviewPoint, setWallPreviewPoint]   = useState<{ x: number; y: number } | null>(null);
+  const [selectedWallId, setSelectedWallId]       = useState<string | null>(null);
+  const [draggingWallPoint, setDraggingWallPoint] = useState<{ wallId: string; pointIndex: number } | null>(null);
+  const [zoneDrawStart, setZoneDrawStart]         = useState<{ x: number; y: number } | null>(null);
+  const [zoneDrawCurrent, setZoneDrawCurrent]     = useState<{ x: number; y: number } | null>(null);
+  const [selectedElement, setSelectedElement]      = useState<{ type: 'counter' | 'door' | 'zone'; id: string } | null>(null);
+  const [zoneEditForm, setZoneEditForm]           = useState<{ id: string; name: string; color: ZoneColor } | null>(null);
+  const [showTemplates, setShowTemplates]         = useState(false);
+  const [showFloorStyles, setShowFloorStyles]     = useState(false);
+  const [resizing, setResizing] = useState<{
+    type: 'counter' | 'zone'; id: string;
+    handle: 'nw' | 'ne' | 'sw' | 'se';
+    origRect: { x: number; y: number; width: number; height: number };
   } | null>(null);
 
   // ── Live status state ──────────────────────────────────────────────────────
@@ -208,21 +309,38 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Ignore when focus is inside an input / textarea
       const tag = (e.target as HTMLElement)?.tagName;
       const isTyping = tag === 'INPUT' || tag === 'TEXTAREA';
 
       if (e.key === 'Escape') {
         setCtxMenu(null);
-        setMode('select');
-        setEditSelectedId(null);
+        if (mode === 'drawWalls' && wallDrawingPoints.length > 0) {
+          cancelWallDrawing();
+        } else {
+          setMode('select');
+        }
+        deselectAll();
         return;
       }
 
-      if (!isTyping && (e.key === 'Delete' || e.key === 'Backspace') && editSelectedId) {
-        e.preventDefault();
-        removeTable(editSelectedId);
-        setEditSelectedId(null);
+      if (!isTyping && (e.key === 'Delete' || e.key === 'Backspace')) {
+        if (editSelectedId) {
+          e.preventDefault();
+          removeTable(editSelectedId);
+          setEditSelectedId(null);
+        } else if (selectedWallId) {
+          e.preventDefault();
+          deleteWall(selectedWallId);
+        } else if (selectedElement?.type === 'counter') {
+          e.preventDefault();
+          deleteCounter();
+        } else if (selectedElement?.type === 'door') {
+          e.preventDefault();
+          deleteDoor(selectedElement.id);
+        } else if (selectedElement?.type === 'zone') {
+          e.preventDefault();
+          deleteZone(selectedElement.id);
+        }
         return;
       }
 
@@ -234,7 +352,13 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editSelectedId]);
+  }, [editSelectedId, selectedWallId, selectedElement, mode, wallDrawingPoints.length]);
+
+  // ── Mode cleanup ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (mode !== 'drawWalls') { setWallDrawingPoints([]); setWallPreviewPoint(null); }
+    if (mode !== 'addZone') { setZoneDrawStart(null); setZoneDrawCurrent(null); }
+  }, [mode]);
 
   // ── Sync merge state from the `tables` DB table into local plan ─────────
   async function syncMergeState() {
@@ -600,17 +724,67 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target !== canvasRef.current) return;
 
-    // Deselect on empty canvas click
-    setEditSelectedId(null);
+    deselectAll();
 
     const rect = canvasRef.current!.getBoundingClientRect();
     const x    = snap(Math.max(0, e.clientX - rect.left));
     const y    = snap(Math.max(0, e.clientY - rect.top));
 
     if (mode === 'addTable') {
-      placeTable(x, y); // placeTable already calls setMode('select')
+      placeTable(x, y);
     } else if (mode === 'addLabel') {
       placeLabel(x, y);
+      setMode('select');
+    } else if (mode === 'drawWalls') {
+      addWallPoint(x, y);
+    } else if (mode === 'addDoor') {
+      placeDoor(x, y);
+      setMode('select');
+    } else if (mode === 'addCounter') {
+      placeCounter(x, y);
+    } else if (mode === 'select') {
+      const raw = e.clientX - rect.left;
+      const rawY = e.clientY - rect.top;
+      const wallId = findWallAt(raw, rawY);
+      if (wallId) setSelectedWallId(wallId);
+    }
+  }
+
+  function handleCanvasDoubleClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (mode === 'drawWalls' && wallDrawingPoints.length >= 3) {
+      e.preventDefault();
+      closeWallShape();
+      setMode('select');
+    }
+  }
+
+  function handleCanvasPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.target !== canvasRef.current) return;
+    if (mode === 'addZone') {
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const x = snap(e.clientX - rect.left);
+      const y = snap(e.clientY - rect.top);
+      setZoneDrawStart({ x, y });
+      setZoneDrawCurrent({ x, y });
+    }
+  }
+
+  function handleCanvasPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (mode === 'drawWalls' && wallDrawingPoints.length > 0 && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      setWallPreviewPoint({ x: snap(e.clientX - rect.left), y: snap(e.clientY - rect.top) });
+    }
+    if (mode === 'addZone' && zoneDrawStart && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      setZoneDrawCurrent({ x: snap(e.clientX - rect.left), y: snap(e.clientY - rect.top) });
+    }
+  }
+
+  function handleCanvasPointerUp() {
+    if (mode === 'addZone' && zoneDrawStart && zoneDrawCurrent) {
+      createZone(zoneDrawStart.x, zoneDrawStart.y, zoneDrawCurrent.x - zoneDrawStart.x, zoneDrawCurrent.y - zoneDrawStart.y);
+      setZoneDrawStart(null);
+      setZoneDrawCurrent(null);
       setMode('select');
     }
   }
@@ -747,19 +921,21 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const y    = snap(Math.max(0, Math.min(CANVAS_H - elemH, rawY)));
 
     setPlan(prev => ({
+      ...prev,
       tables: prev.tables.map(t => t.id === id ? { ...t, x, y } : t),
       labels: prev.labels.map(l => l.id === id ? { ...l, x, y } : l),
+      doors: (prev.doors ?? []).map(d => d.id === id ? { ...d, x, y } : d),
+      zones: (prev.zones ?? []).map(z => z.id === id ? { ...z, x, y } : z),
+      counter: prev.counter && id === 'counter' ? { ...prev.counter, x, y } : prev.counter,
     }));
   }
 
-  function handlePointerUp(e: React.PointerEvent, id: string, isTable: boolean) {
+  function handlePointerUp(e: React.PointerEvent, id: string, onTap?: () => void) {
     if (draggingId !== id) return;
     setDraggingId(null);
     if (!dragMoved.current) {
-      // tap — select the table (or ignore for labels)
-      if (isTable) setEditSelectedId(id);
+      onTap?.();
     } else {
-      // drag ended — just save the new position
       setPlan(prev => {
         previousPlan.current = prev;
         scheduleSave(prev);
@@ -861,11 +1037,199 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   function handleContextMenu(
     e: React.MouseEvent,
     id: string,
-    type: 'table' | 'label',
+    type: 'table' | 'label' | 'wall' | 'counter' | 'door' | 'zone',
   ) {
     e.preventDefault();
     e.stopPropagation();
     setCtxMenu({ id, type, screenX: e.clientX, screenY: e.clientY });
+  }
+
+  // ── Room builder handlers ─────────────────────────────────────────────────
+
+  // Wall drawing
+  function addWallPoint(x: number, y: number) {
+    setWallDrawingPoints(prev => [...prev, { x, y }]);
+  }
+
+  function closeWallShape() {
+    if (wallDrawingPoints.length < 3) {
+      toast.error('A wall needs at least 3 corner points');
+      return;
+    }
+    const wall: FloorWall = { id: crypto.randomUUID(), points: [...wallDrawingPoints] };
+    updatePlan(prev => ({ ...prev, walls: [...(prev.walls ?? []), wall] }));
+    setWallDrawingPoints([]);
+    setWallPreviewPoint(null);
+  }
+
+  function cancelWallDrawing() {
+    setWallDrawingPoints([]);
+    setWallPreviewPoint(null);
+  }
+
+  function deleteWall(wallId: string) {
+    updatePlan(prev => ({ ...prev, walls: (prev.walls ?? []).filter(w => w.id !== wallId) }));
+    if (selectedWallId === wallId) setSelectedWallId(null);
+  }
+
+  function moveWallPoint(wallId: string, pointIndex: number, x: number, y: number) {
+    setPlan(prev => ({
+      ...prev,
+      walls: (prev.walls ?? []).map(w =>
+        w.id === wallId
+          ? { ...w, points: w.points.map((p, i) => i === pointIndex ? { x, y } : p) }
+          : w,
+      ),
+    }));
+  }
+
+  function startWallPointDrag(e: React.PointerEvent, wallId: string, pointIndex: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setDraggingWallPoint({ wallId, pointIndex });
+  }
+
+  function handleWallPointMove(e: React.PointerEvent) {
+    if (!draggingWallPoint) return;
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const x = snap(Math.max(0, Math.min(CANVAS_W, e.clientX - rect.left)));
+    const y = snap(Math.max(0, Math.min(CANVAS_H, e.clientY - rect.top)));
+    moveWallPoint(draggingWallPoint.wallId, draggingWallPoint.pointIndex, x, y);
+  }
+
+  function handleWallPointUp() {
+    if (!draggingWallPoint) return;
+    setPlan(prev => { previousPlan.current = prev; scheduleSave(prev); return prev; });
+    setDraggingWallPoint(null);
+  }
+
+  function findWallAt(x: number, y: number): string | null {
+    for (const wall of (plan.walls ?? [])) {
+      const pts = wall.points;
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        if (distToSegment(x, y, a.x, a.y, b.x, b.y) < 12) return wall.id;
+      }
+    }
+    return null;
+  }
+
+  // Counter
+  function placeCounter(x: number, y: number) {
+    if (plan.counter) {
+      toast.error('Only one counter is allowed. Delete the existing one first.');
+      setMode('select');
+      return;
+    }
+    const counter: FloorCounter = { x, y, width: 200, height: 80, rotation: 0 };
+    updatePlan(prev => ({ ...prev, counter }));
+    setMode('select');
+  }
+
+  function deleteCounter() {
+    updatePlan(prev => ({ ...prev, counter: null }));
+    setSelectedElement(null);
+  }
+
+  // Doors
+  function placeDoor(x: number, y: number) {
+    const door: FloorDoor = { id: crypto.randomUUID(), x, y, rotation: 0 };
+    updatePlan(prev => ({ ...prev, doors: [...(prev.doors ?? []), door] }));
+  }
+
+  function deleteDoor(doorId: string) {
+    updatePlan(prev => ({ ...prev, doors: (prev.doors ?? []).filter(d => d.id !== doorId) }));
+    setSelectedElement(null);
+  }
+
+  // Zones
+  function createZone(x: number, y: number, w: number, h: number) {
+    const zone: FloorZone = {
+      id: crypto.randomUUID(), name: 'Section',
+      x: Math.min(x, x + w), y: Math.min(y, y + h),
+      width: Math.abs(w), height: Math.abs(h), color: 'blue',
+    };
+    if (zone.width < 40 || zone.height < 40) return;
+    updatePlan(prev => ({ ...prev, zones: [...(prev.zones ?? []), zone] }));
+    setZoneEditForm({ id: zone.id, name: zone.name, color: zone.color });
+  }
+
+  function deleteZone(zoneId: string) {
+    updatePlan(prev => ({ ...prev, zones: (prev.zones ?? []).filter(z => z.id !== zoneId) }));
+    setSelectedElement(null);
+  }
+
+  function commitZoneEdit() {
+    if (!zoneEditForm) return;
+    updatePlan(prev => ({
+      ...prev,
+      zones: (prev.zones ?? []).map(z =>
+        z.id === zoneEditForm.id ? { ...z, name: zoneEditForm.name, color: zoneEditForm.color } : z,
+      ),
+    }));
+    setZoneEditForm(null);
+  }
+
+  // Room templates
+  function applyTemplate(template: typeof ROOM_TEMPLATES[number]) {
+    const wall: FloorWall = { id: crypto.randomUUID(), points: [...template.points] };
+    updatePlan(prev => ({ ...prev, walls: [...(prev.walls ?? []), wall] }));
+    setShowTemplates(false);
+    toast.success(`${template.label} template added`);
+  }
+
+  // Floor style
+  function changeFloorStyle(style: FloorStyle) {
+    updatePlan(prev => ({ ...prev, floorStyle: style }));
+    setShowFloorStyles(false);
+  }
+
+  // Resize handlers for counter/zones
+  function startResize(
+    e: React.PointerEvent,
+    type: 'counter' | 'zone',
+    id: string,
+    handle: 'nw' | 'ne' | 'sw' | 'se',
+    rect: { x: number; y: number; width: number; height: number },
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setResizing({ type, id, handle, origRect: { ...rect } });
+  }
+
+  function handleResizeMove(e: React.PointerEvent) {
+    if (!resizing) return;
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const mx = snap(e.clientX - rect.left);
+    const my = snap(e.clientY - rect.top);
+    const o = resizing.origRect;
+    let nx = o.x, ny = o.y, nw = o.width, nh = o.height;
+    if (resizing.handle.includes('w')) { nx = Math.min(mx, o.x + o.width - 40); nw = o.x + o.width - nx; }
+    if (resizing.handle.includes('e')) { nw = Math.max(40, mx - o.x); }
+    if (resizing.handle.includes('n')) { ny = Math.min(my, o.y + o.height - 40); nh = o.y + o.height - ny; }
+    if (resizing.handle.includes('s')) { nh = Math.max(40, my - o.y); }
+
+    if (resizing.type === 'counter') {
+      setPlan(prev => ({ ...prev, counter: prev.counter ? { ...prev.counter, x: nx, y: ny, width: nw, height: nh } : null }));
+    } else {
+      setPlan(prev => ({ ...prev, zones: (prev.zones ?? []).map(z => z.id === resizing.id ? { ...z, x: nx, y: ny, width: nw, height: nh } : z) }));
+    }
+  }
+
+  function handleResizeUp() {
+    if (!resizing) return;
+    setPlan(prev => { previousPlan.current = prev; scheduleSave(prev); return prev; });
+    setResizing(null);
+  }
+
+  // Deselect all room builder elements
+  function deselectAll() {
+    setEditSelectedId(null);
+    setSelectedWallId(null);
+    setSelectedElement(null);
   }
 
   // ── Label edit dialog ─────────────────────────────────────────────────────
@@ -948,65 +1312,36 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     <div className="flex flex-col h-screen overflow-hidden">
 
       {/* ── Toolbar ── */}
-      <div className="flex items-center gap-2 px-5 py-3 border-b bg-white flex-shrink-0">
+      <div className="flex items-center gap-2 px-5 py-2.5 border-b bg-white flex-shrink-0">
         <h1 className="text-base font-semibold mr-1">Floor Plan</h1>
-        <div className="h-5 w-px bg-border mx-1" />
-
-        <Button
-          size="sm"
-          variant={mode === 'addTable' ? 'default' : 'outline'}
-          onClick={() => { setMode(m => m === 'addTable' ? 'select' : 'addTable'); setEditSelectedId(null); setPendingDisplayName(''); }}
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          Add Table
-        </Button>
-
-        <Button
-          size="sm"
-          variant={mode === 'addLabel' ? 'default' : 'outline'}
-          onClick={() => { setMode(m => m === 'addLabel' ? 'select' : 'addLabel'); setEditSelectedId(null); }}
-        >
-          <Type className="w-4 h-4 mr-1.5" />
-          Add Label
-        </Button>
 
         {mode !== 'select' && (
           <button
             onClick={() => setMode('select')}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ml-1"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ml-2"
           >
             <X className="w-3.5 h-3.5" /> Cancel
           </button>
         )}
 
-        {/* Undo button */}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleUndo}
-          disabled={!previousPlan.current}
-          className="ml-1"
-          title="Undo last action (Ctrl+Z)"
-        >
+        {mode === 'drawWalls' && wallDrawingPoints.length >= 3 && (
+          <Button size="sm" variant="outline" onClick={() => { closeWallShape(); setMode('select'); }} className="ml-2">
+            Close Shape ({wallDrawingPoints.length} pts)
+          </Button>
+        )}
+
+        <Button size="sm" variant="ghost" onClick={handleUndo} disabled={!previousPlan.current} className="ml-1" title="Undo (Ctrl+Z)">
           <Undo2 className="w-4 h-4" />
         </Button>
 
         <div className="ml-auto flex items-center gap-4">
-          {/* Realtime indicator */}
           <div className="flex items-center gap-1.5 text-xs">
             {realtimeConnected ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="font-medium text-green-700">Live</span>
-              </>
+              <><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /><span className="font-medium text-green-700">Live</span></>
             ) : (
-              <>
-                <WifiOff className="w-3.5 h-3.5 text-amber-500" />
-                <span className="text-amber-600">Reconnecting…</span>
-              </>
+              <><WifiOff className="w-3.5 h-3.5 text-amber-500" /><span className="text-amber-600">Reconnecting…</span></>
             )}
           </div>
-          {/* Save status */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             {saveStatus === 'saving'  && <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>}
             {saveStatus === 'saved'   && <><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Saved</>}
@@ -1052,29 +1387,18 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         </div>
       </div>
 
-      {/* ── Add-table config bar ── */}
+      {/* ── Mode info bars ── */}
       {mode === 'addTable' && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5 bg-blue-50 border-b flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xs text-blue-700 font-medium">Name:</span>
-            <input
-              type="text"
-              value={pendingDisplayName}
-              onChange={e => setPendingDisplayName(e.target.value)}
-              placeholder="e.g. L1, VIP, P3"
-              maxLength={12}
-              className="w-28 text-xs border border-blue-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-blue-400"
-            />
+            <input type="text" value={pendingDisplayName} onChange={e => setPendingDisplayName(e.target.value)} placeholder="e.g. L1, VIP, P3" maxLength={12} className="w-28 text-xs border border-blue-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-blue-400" />
           </div>
           <div className="h-4 w-px bg-blue-200" />
           <div className="flex items-center gap-2">
             <span className="text-xs text-blue-700 font-medium">Shape:</span>
             {(['round', 'square'] as FloorShape[]).map(s => (
-              <button key={s} type="button" onClick={() => setPendingShape(s)}
-                className={cn(
-                  'px-2.5 py-1 text-xs rounded-md border transition-colors',
-                  pendingShape === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50',
-                )}>
+              <button key={s} type="button" onClick={() => setPendingShape(s)} className={cn('px-2.5 py-1 text-xs rounded-md border transition-colors', pendingShape === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50')}>
                 {s === 'round' ? '⭕ Round' : '⬛ Square'}
               </button>
             ))}
@@ -1083,104 +1407,334 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           <div className="flex items-center gap-2">
             <span className="text-xs text-blue-700 font-medium">Seats:</span>
             {([2, 4, 6, 8] as FloorCapacity[]).map(c => (
-              <button key={c} type="button" onClick={() => setPendingCapacity(c)}
-                className={cn(
-                  'w-8 h-7 text-xs rounded-md border transition-colors',
-                  pendingCapacity === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50',
-                )}>
-                {c}
-              </button>
+              <button key={c} type="button" onClick={() => setPendingCapacity(c)} className={cn('w-8 h-7 text-xs rounded-md border transition-colors', pendingCapacity === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50')}>{c}</button>
             ))}
           </div>
-          <div className="h-4 w-px bg-blue-200" />
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-blue-700 font-medium">Preview:</span>
-            <div style={{
-              width:  Math.round(tableSize(pendingCapacity).w * 0.35),
-              height: Math.round(tableSize(pendingCapacity).h * 0.35),
-              borderRadius: pendingShape === 'round' ? '50%' : 4,
-              background: 'rgba(59,130,246,0.15)',
-              border: '1.5px solid #3b82f6',
-              flexShrink: 0,
-            }} />
-          </div>
-          <span className="text-xs text-blue-600 ml-auto">
-            🖱 Click on the canvas to place
-          </span>
+          <span className="text-xs text-blue-600 ml-auto">Click on the canvas to place</span>
         </div>
       )}
-
       {mode === 'addLabel' && (
-        <div className="px-5 py-2 bg-blue-50 border-b text-xs text-blue-700 flex-shrink-0">
-          🖱 Click anywhere on the floor to place a section label
-        </div>
+        <div className="px-5 py-2 bg-blue-50 border-b text-xs text-blue-700 flex-shrink-0">Click anywhere on the floor to place a section label</div>
+      )}
+      {mode === 'drawWalls' && (
+        <div className="px-5 py-2 bg-blue-50 border-b text-xs text-blue-700 flex-shrink-0">Click to place corner points. Double-click to close the shape. {wallDrawingPoints.length > 0 && `(${wallDrawingPoints.length} point${wallDrawingPoints.length !== 1 ? 's' : ''} placed)`}</div>
+      )}
+      {mode === 'addCounter' && (
+        <div className="px-5 py-2 bg-blue-50 border-b text-xs text-blue-700 flex-shrink-0">Click on the canvas to place the counter block</div>
+      )}
+      {mode === 'addDoor' && (
+        <div className="px-5 py-2 bg-blue-50 border-b text-xs text-blue-700 flex-shrink-0">Click on the canvas to place a door/entrance marker</div>
+      )}
+      {mode === 'addZone' && (
+        <div className="px-5 py-2 bg-blue-50 border-b text-xs text-blue-700 flex-shrink-0">Click and drag on the canvas to draw a zone rectangle</div>
       )}
 
-      {/* ── Canvas scroll area ── */}
-      <div className="flex-1 overflow-auto p-4 bg-gray-100">
-        <div
-          ref={canvasRef}
-          onClick={handleCanvasClick}
-          style={{
-            width: CANVAS_W,
-            height: CANVAS_H,
-            position: 'relative',
-            backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)',
-            backgroundSize: `${GRID}px ${GRID}px`,
-            cursor: mode !== 'select' ? 'crosshair' : 'default',
-            userSelect: 'none',
-          }}
-          className="rounded-xl border bg-white shadow-sm"
-        >
-          {plan.labels.map(label => (
-            <LabelElement
-              key={label.id}
-              label={label}
-              isDragging={draggingId === label.id}
-              onPointerDown={e => handlePointerDown(e, label.id, label.x, label.y)}
-              onPointerMove={e => handlePointerMove(e, label.id, 120, 32)}
-              onPointerUp={e => handlePointerUp(e, label.id, false)}
-              onContextMenu={e => handleContextMenu(e, label.id, 'label')}
-            />
+      {/* ── Main area: sidebar + canvas ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ── Tool palette sidebar ── */}
+        <div className="w-14 border-r bg-white flex-shrink-0 flex flex-col items-center py-3 gap-1 relative">
+          {([
+            { m: 'select' as EditorMode, icon: MousePointer2, label: 'Select / Move' },
+            { m: 'drawWalls' as EditorMode, icon: PenTool, label: 'Draw Walls' },
+            { m: 'addCounter' as EditorMode, icon: Store, label: 'Add Counter' },
+            { m: 'addDoor' as EditorMode, icon: DoorOpen, label: 'Add Door' },
+            { m: 'addZone' as EditorMode, icon: RectangleHorizontal, label: 'Add Zone' },
+            { m: 'addTable' as EditorMode, icon: Plus, label: 'Add Table' },
+            { m: 'addLabel' as EditorMode, icon: Type, label: 'Add Label' },
+          ] as const).map(tool => (
+            <button
+              key={tool.m}
+              onClick={() => {
+                if (mode === 'drawWalls' && tool.m !== 'drawWalls') cancelWallDrawing();
+                if (tool.m === 'addTable') setPendingDisplayName('');
+                deselectAll();
+                setMode(m => m === tool.m ? 'select' : tool.m);
+              }}
+              className={cn(
+                'w-10 h-10 rounded-lg flex items-center justify-center transition-colors',
+                mode === tool.m ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700',
+              )}
+              title={tool.label}
+            >
+              <tool.icon className="w-5 h-5" />
+            </button>
           ))}
 
-          {/* Merge group backgrounds — rendered behind tables */}
-          <MergeGroupBackgrounds tables={plan.tables} tableStatusMap={tableStatusMap} />
+          <div className="h-px w-8 bg-gray-200 my-1" />
 
-          {plan.tables.map(table => {
-            const { w, h } = tableSize(table.capacity);
-            const sInfo = tableStatusMap.get(table.table_number);
-            const tableCustomerName = sInfo?.orders.find(o => o.customer_name)?.customer_name ?? null;
-            const isSearchMatch = searchQuery.trim()
-              ? !!tableCustomerName?.toLowerCase().includes(searchQuery.trim().toLowerCase())
-              : false;
-            return (
-              <TableElement
-                key={table.id}
-                table={table}
-                statusInfo={sInfo}
-                isDragging={draggingId === table.id}
-                isSelected={editSelectedId === table.id}
-                isSearchMatch={isSearchMatch}
-                onPointerDown={e => handlePointerDown(e, table.id, table.x, table.y)}
-                onPointerMove={e => handlePointerMove(e, table.id, w, h)}
-                onPointerUp={e => handlePointerUp(e, table.id, true)}
-                onContextMenu={e => handleContextMenu(e, table.id, 'table')}
-              />
-            );
-          })}
+          {/* Room Templates */}
+          <button
+            onClick={() => { setShowTemplates(v => !v); setShowFloorStyles(false); }}
+            className={cn('w-10 h-10 rounded-lg flex items-center justify-center transition-colors', showTemplates ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700')}
+            title="Room Templates"
+          >
+            <LayoutTemplate className="w-5 h-5" />
+          </button>
 
-          {/* Floating edit toolbar — renders inside canvas so it stays in flow */}
-          {editSelectedTable && (
-            <FloatingToolbar
-              table={editSelectedTable}
-              onCapacityChange={c => changeCapacity(editSelectedTable.id, c)}
-              onShapeChange={s => changeShape(editSelectedTable.id, s)}
-              onDisplayNameCommit={(name) => commitDisplayName(editSelectedTable.id, name)}
-              onDelete={() => { removeTable(editSelectedTable.id); setEditSelectedId(null); }}
-              onViewStatus={() => setSheetTableId(editSelectedTable.id)}
-            />
+          {/* Floor Style */}
+          <button
+            onClick={() => { setShowFloorStyles(v => !v); setShowTemplates(false); }}
+            className={cn('w-10 h-10 rounded-lg flex items-center justify-center transition-colors', showFloorStyles ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700')}
+            title="Floor Texture"
+          >
+            <Palette className="w-5 h-5" />
+          </button>
+
+          {/* Templates popup */}
+          {showTemplates && (
+            <div className="absolute left-[60px] top-[280px] z-50 w-52 bg-white border rounded-xl shadow-xl p-3" onClick={e => e.stopPropagation()}>
+              <p className="text-[10px] font-semibold text-gray-400 mb-2 uppercase tracking-wider">Room Templates</p>
+              {ROOM_TEMPLATES.map(t => (
+                <button key={t.name} onClick={() => applyTemplate(t)} className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 transition-colors">
+                  <span className="font-medium">{t.label}</span>
+                  <span className="text-xs text-muted-foreground ml-2">{t.desc}</span>
+                </button>
+              ))}
+            </div>
           )}
+
+          {/* Floor styles popup */}
+          {showFloorStyles && (
+            <div className="absolute left-[60px] top-[320px] z-50 w-48 bg-white border rounded-xl shadow-xl p-3" onClick={e => e.stopPropagation()}>
+              <p className="text-[10px] font-semibold text-gray-400 mb-2 uppercase tracking-wider">Floor Texture</p>
+              {FLOOR_STYLE_OPTIONS.map(s => (
+                <button
+                  key={s.value}
+                  onClick={() => changeFloorStyle(s.value)}
+                  className={cn('w-full text-left px-3 py-2 text-sm rounded-lg transition-colors', (plan.floorStyle ?? 'dots') === s.value ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50')}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Canvas scroll area ── */}
+        <div className="flex-1 overflow-auto p-4 bg-gray-100">
+          <div
+            ref={canvasRef}
+            onClick={handleCanvasClick}
+            onDoubleClick={handleCanvasDoubleClick}
+            onPointerDown={handleCanvasPointerDown}
+            onPointerMove={handleCanvasPointerMove}
+            onPointerUp={handleCanvasPointerUp}
+            style={{
+              width: CANVAS_W,
+              height: CANVAS_H,
+              position: 'relative',
+              ...getFloorBackground(plan.floorStyle),
+              cursor: mode !== 'select' ? 'crosshair' : 'default',
+              userSelect: 'none',
+            }}
+            className="rounded-xl border bg-white shadow-sm"
+          >
+            {/* Layer 1: Zones */}
+            {(plan.zones ?? []).map(zone => {
+              const zc = ZONE_COLORS_MAP[zone.color];
+              const isSel = selectedElement?.type === 'zone' && selectedElement.id === zone.id;
+              return (
+                <div
+                  key={zone.id}
+                  style={{
+                    position: 'absolute', left: zone.x, top: zone.y, width: zone.width, height: zone.height,
+                    background: zc.bg, border: `1.5px ${isSel ? 'solid' : 'dashed'} ${zc.border}`, borderRadius: 8,
+                    zIndex: 0, cursor: mode === 'select' ? (draggingId === zone.id ? 'grabbing' : 'grab') : 'default',
+                    touchAction: 'none',
+                  }}
+                  onPointerDown={e => handlePointerDown(e, zone.id, zone.x, zone.y)}
+                  onPointerMove={e => handlePointerMove(e, zone.id, zone.width, zone.height)}
+                  onPointerUp={e => handlePointerUp(e, zone.id, () => { deselectAll(); setSelectedElement({ type: 'zone', id: zone.id }); })}
+                  onContextMenu={e => handleContextMenu(e, zone.id, 'zone')}
+                >
+                  <span style={{ position: 'absolute', top: 6, left: 10, fontSize: 11, fontWeight: 600, color: zc.text, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{zone.name}</span>
+                  {isSel && (['nw','ne','sw','se'] as const).map(h => (
+                    <div
+                      key={h}
+                      style={{
+                        position: 'absolute', width: 10, height: 10, background: 'white', border: '2px solid #2563eb', borderRadius: 2, cursor: `${h}-resize`, zIndex: 60,
+                        ...(h.includes('n') ? { top: -5 } : { bottom: -5 }),
+                        ...(h.includes('w') ? { left: -5 } : { right: -5 }),
+                      }}
+                      onPointerDown={e => startResize(e, 'zone', zone.id, h, { x: zone.x, y: zone.y, width: zone.width, height: zone.height })}
+                      onPointerMove={handleResizeMove}
+                      onPointerUp={handleResizeUp}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+
+            {/* Zone draw preview */}
+            {mode === 'addZone' && zoneDrawStart && zoneDrawCurrent && (
+              <div style={{
+                position: 'absolute',
+                left: Math.min(zoneDrawStart.x, zoneDrawCurrent.x),
+                top: Math.min(zoneDrawStart.y, zoneDrawCurrent.y),
+                width: Math.abs(zoneDrawCurrent.x - zoneDrawStart.x),
+                height: Math.abs(zoneDrawCurrent.y - zoneDrawStart.y),
+                background: 'rgba(59,130,246,0.08)', border: '2px dashed rgba(59,130,246,0.4)', borderRadius: 8,
+                zIndex: 0, pointerEvents: 'none',
+              }} />
+            )}
+
+            {/* Layer 2: Walls (SVG) */}
+            <svg width={CANVAS_W} height={CANVAS_H} style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, pointerEvents: 'none' }}>
+              {(plan.walls ?? []).map(wall => (
+                <polygon
+                  key={wall.id}
+                  points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
+                  fill="none"
+                  stroke={selectedWallId === wall.id ? '#2563eb' : '#1f2937'}
+                  strokeWidth={selectedWallId === wall.id ? 8 : 7}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              ))}
+              {/* Wall drawing preview */}
+              {mode === 'drawWalls' && wallDrawingPoints.length > 0 && (
+                <polyline
+                  points={[...wallDrawingPoints, ...(wallPreviewPoint ? [wallPreviewPoint] : [])].map(p => `${p.x},${p.y}`).join(' ')}
+                  fill="none" stroke="#1f2937" strokeWidth={7} strokeDasharray="8 4" strokeLinejoin="round" strokeLinecap="round"
+                />
+              )}
+              {/* Drawing point markers */}
+              {mode === 'drawWalls' && wallDrawingPoints.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r={5} fill="#2563eb" stroke="white" strokeWidth={2} />
+              ))}
+            </svg>
+
+            {/* Wall corner handles (when selected) */}
+            {selectedWallId && (plan.walls ?? []).filter(w => w.id === selectedWallId).map(wall =>
+              wall.points.map((p, i) => (
+                <div
+                  key={`wh-${wall.id}-${i}`}
+                  style={{
+                    position: 'absolute', left: p.x - 7, top: p.y - 7, width: 14, height: 14,
+                    background: 'white', border: '2px solid #2563eb', borderRadius: '50%',
+                    cursor: 'grab', zIndex: 60, touchAction: 'none',
+                  }}
+                  onPointerDown={e => startWallPointDrag(e, wall.id, i)}
+                  onPointerMove={handleWallPointMove}
+                  onPointerUp={handleWallPointUp}
+                />
+              ))
+            )}
+
+            {/* Layer 3: Counter */}
+            {plan.counter && (() => {
+              const c = plan.counter!;
+              const isSel = selectedElement?.type === 'counter';
+              return (
+                <div
+                  style={{
+                    position: 'absolute', left: c.x, top: c.y, width: c.width, height: c.height,
+                    background: 'repeating-linear-gradient(45deg, #6b7280, #6b7280 2px, #9ca3af 2px, #9ca3af 6px)',
+                    borderRadius: 6, border: isSel ? '2px solid #2563eb' : '2px solid #4b5563',
+                    zIndex: 1, cursor: mode === 'select' ? (draggingId === 'counter' ? 'grabbing' : 'grab') : 'default',
+                    touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: isSel ? '0 0 0 3px rgba(37,99,235,0.2)' : '0 2px 6px rgba(0,0,0,0.1)',
+                  }}
+                  onPointerDown={e => handlePointerDown(e, 'counter', c.x, c.y)}
+                  onPointerMove={e => handlePointerMove(e, 'counter', c.width, c.height)}
+                  onPointerUp={e => handlePointerUp(e, 'counter', () => { deselectAll(); setSelectedElement({ type: 'counter', id: 'counter' }); })}
+                  onContextMenu={e => handleContextMenu(e, 'counter', 'counter')}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.4)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Counter</span>
+                  {isSel && (['nw','ne','sw','se'] as const).map(h => (
+                    <div
+                      key={h}
+                      style={{
+                        position: 'absolute', width: 10, height: 10, background: 'white', border: '2px solid #2563eb', borderRadius: 2, cursor: `${h}-resize`, zIndex: 60,
+                        ...(h.includes('n') ? { top: -5 } : { bottom: -5 }),
+                        ...(h.includes('w') ? { left: -5 } : { right: -5 }),
+                      }}
+                      onPointerDown={e => startResize(e, 'counter', 'counter', h, { x: c.x, y: c.y, width: c.width, height: c.height })}
+                      onPointerMove={handleResizeMove}
+                      onPointerUp={handleResizeUp}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Layer 4: Doors */}
+            {(plan.doors ?? []).map(door => {
+              const isSel = selectedElement?.type === 'door' && selectedElement.id === door.id;
+              return (
+                <div
+                  key={door.id}
+                  style={{
+                    position: 'absolute', left: door.x - 18, top: door.y - 18, width: 36, height: 36,
+                    background: isSel ? 'rgba(37,99,235,0.1)' : 'rgba(255,255,255,0.9)',
+                    border: isSel ? '2px solid #2563eb' : '1.5px solid #6b7280', borderRadius: 8,
+                    zIndex: 1, cursor: mode === 'select' ? (draggingId === door.id ? 'grabbing' : 'grab') : 'default',
+                    touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: isSel ? '0 0 0 3px rgba(37,99,235,0.2)' : '0 1px 4px rgba(0,0,0,0.1)',
+                  }}
+                  onPointerDown={e => handlePointerDown(e, door.id, door.x - 18, door.y - 18)}
+                  onPointerMove={e => handlePointerMove(e, door.id, 36, 36)}
+                  onPointerUp={e => handlePointerUp(e, door.id, () => { deselectAll(); setSelectedElement({ type: 'door', id: door.id }); })}
+                  onContextMenu={e => handleContextMenu(e, door.id, 'door')}
+                >
+                  <DoorOpen className="w-5 h-5 text-gray-600" />
+                </div>
+              );
+            })}
+
+            {/* Layer 5: Labels */}
+            {plan.labels.map(label => (
+              <LabelElement
+                key={label.id}
+                label={label}
+                isDragging={draggingId === label.id}
+                onPointerDown={e => handlePointerDown(e, label.id, label.x, label.y)}
+                onPointerMove={e => handlePointerMove(e, label.id, 120, 32)}
+                onPointerUp={e => handlePointerUp(e, label.id)}
+                onContextMenu={e => handleContextMenu(e, label.id, 'label')}
+              />
+            ))}
+
+            {/* Layer 6: Merge group backgrounds */}
+            <MergeGroupBackgrounds tables={plan.tables} tableStatusMap={tableStatusMap} />
+
+            {/* Layer 7: Tables */}
+            {plan.tables.map(table => {
+              const { w, h } = tableSize(table.capacity);
+              const sInfo = tableStatusMap.get(table.table_number);
+              const tableCustomerName = sInfo?.orders.find(o => o.customer_name)?.customer_name ?? null;
+              const isSearchMatch = searchQuery.trim()
+                ? !!tableCustomerName?.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                : false;
+              return (
+                <TableElement
+                  key={table.id}
+                  table={table}
+                  statusInfo={sInfo}
+                  isDragging={draggingId === table.id}
+                  isSelected={editSelectedId === table.id}
+                  isSearchMatch={isSearchMatch}
+                  onPointerDown={e => handlePointerDown(e, table.id, table.x, table.y)}
+                  onPointerMove={e => handlePointerMove(e, table.id, w, h)}
+                  onPointerUp={e => handlePointerUp(e, table.id, () => setEditSelectedId(table.id))}
+                  onContextMenu={e => handleContextMenu(e, table.id, 'table')}
+                />
+              );
+            })}
+
+            {/* Floating edit toolbar */}
+            {editSelectedTable && (
+              <FloatingToolbar
+                table={editSelectedTable}
+                onCapacityChange={c => changeCapacity(editSelectedTable.id, c)}
+                onShapeChange={s => changeShape(editSelectedTable.id, s)}
+                onDisplayNameCommit={(name) => commitDisplayName(editSelectedTable.id, name)}
+                onDelete={() => { removeTable(editSelectedTable.id); setEditSelectedId(null); }}
+                onViewStatus={() => setSheetTableId(editSelectedTable.id)}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -1212,16 +1766,32 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 ✏️ Edit table
               </button>
             )}
+            {ctxMenu.type === 'zone' && (
+              <button
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+                onClick={() => {
+                  const z = (plan.zones ?? []).find(z => z.id === ctxMenu.id);
+                  if (z) setZoneEditForm({ id: z.id, name: z.name, color: z.color });
+                  setCtxMenu(null);
+                }}
+              >
+                ✏️ Edit zone
+              </button>
+            )}
             <button
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
               onClick={() => {
                 if (ctxMenu.type === 'table') { removeTable(ctxMenu.id); if (editSelectedId === ctxMenu.id) setEditSelectedId(null); }
+                else if (ctxMenu.type === 'wall') deleteWall(ctxMenu.id);
+                else if (ctxMenu.type === 'counter') deleteCounter();
+                else if (ctxMenu.type === 'door') deleteDoor(ctxMenu.id);
+                else if (ctxMenu.type === 'zone') deleteZone(ctxMenu.id);
                 else removeLabel(ctxMenu.id);
                 setCtxMenu(null);
               }}
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {ctxMenu.type === 'table' ? 'Delete table' : 'Delete label'}
+              Delete {ctxMenu.type}
             </button>
           </div>
         </>
@@ -1247,6 +1817,49 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setLabelEditForm(null)}>Cancel</Button>
             <Button onClick={commitLabelEdit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Zone edit dialog ── */}
+      <Dialog open={!!zoneEditForm} onOpenChange={() => setZoneEditForm(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Zone</DialogTitle>
+          </DialogHeader>
+          <div className="py-1 space-y-3">
+            <div>
+              <Label htmlFor="zname">Zone Name</Label>
+              <Input
+                id="zname"
+                value={zoneEditForm?.name ?? ''}
+                onChange={e => setZoneEditForm(f => f ? { ...f, name: e.target.value } : f)}
+                placeholder="e.g. Indoor, Outdoor, AC Section"
+                className="mt-1.5"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label>Color</Label>
+              <div className="flex gap-2 mt-1.5">
+                {(['blue', 'green', 'orange', 'purple', 'pink'] as ZoneColor[]).map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setZoneEditForm(f => f ? { ...f, color: c } : f)}
+                    className={cn(
+                      'w-8 h-8 rounded-lg border-2 transition-all',
+                      zoneEditForm?.color === c ? 'border-gray-900 scale-110' : 'border-transparent',
+                    )}
+                    style={{ background: ZONE_COLORS_MAP[c].bg, borderColor: zoneEditForm?.color === c ? ZONE_COLORS_MAP[c].text : undefined }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setZoneEditForm(null)}>Cancel</Button>
+            <Button onClick={commitZoneEdit}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1842,13 +2455,85 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
     <div
       style={{
         width: CANVAS_W, height: CANVAS_H, position: 'relative',
-        backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)',
-        backgroundSize: `${GRID}px ${GRID}px`,
+        ...getFloorBackground(plan.floorStyle),
       }}
       className="bg-white"
     >
+      {/* Zones */}
+      {(plan.zones ?? []).map(zone => {
+        const zc = ZONE_COLORS_MAP[zone.color];
+        return (
+          <div
+            key={zone.id}
+            style={{
+              position: 'absolute', left: zone.x, top: zone.y, width: zone.width, height: zone.height,
+              background: zc.bg, border: `1.5px dashed ${zc.border}`, borderRadius: 8,
+              zIndex: 0, pointerEvents: 'none',
+            }}
+          >
+            <span style={{ position: 'absolute', top: 6, left: 10, fontSize: 11, fontWeight: 600, color: zc.text, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{zone.name}</span>
+          </div>
+        );
+      })}
+
+      {/* Walls */}
+      {(plan.walls ?? []).length > 0 && (
+        <svg width={CANVAS_W} height={CANVAS_H} style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, pointerEvents: 'none' }}>
+          {(plan.walls ?? []).map(wall => (
+            <polygon
+              key={wall.id}
+              points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
+              fill="none"
+              stroke="#1f2937"
+              strokeWidth={7}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          ))}
+        </svg>
+      )}
+
+      {/* Counter */}
+      {plan.counter && (
+        <div
+          style={{
+            position: 'absolute', left: plan.counter.x, top: plan.counter.y,
+            width: plan.counter.width, height: plan.counter.height,
+            background: 'repeating-linear-gradient(45deg, #6b7280, #6b7280 2px, #9ca3af 2px, #9ca3af 6px)',
+            borderRadius: 6, border: '2px solid #4b5563',
+            zIndex: 1, pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+          }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.4)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Counter</span>
+        </div>
+      )}
+
+      {/* Doors */}
+      {(plan.doors ?? []).map(door => (
+        <div
+          key={door.id}
+          style={{
+            position: 'absolute', left: door.x - 18, top: door.y - 18, width: 36, height: 36,
+            background: 'rgba(255,255,255,0.9)',
+            border: '1.5px solid #6b7280', borderRadius: 8,
+            zIndex: 1, pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+          }}
+        >
+          <DoorOpen className="w-5 h-5 text-gray-600" />
+        </div>
+      ))}
+
+      {/* Labels */}
       {plan.labels.map(l => <LabelElement key={l.id} label={l} viewOnly />)}
+
+      {/* Merge group backgrounds */}
       <MergeGroupBackgrounds tables={plan.tables} tableStatusMap={tableStatusMap} />
+
+      {/* Tables */}
       {plan.tables.map(t => (
         <TableElement
           key={t.id}

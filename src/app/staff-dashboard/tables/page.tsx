@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2,
+  X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2, DoorOpen,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
@@ -18,8 +18,10 @@ import { buildCombinedBillData } from '@/lib/billing';
 import type {
   FloorCapacity,
   FloorPlan,
+  FloorStyle,
   FloorTable,
   Order,
+  ZoneColor,
 } from '@/types';
 
 const GRID = 20;
@@ -51,6 +53,43 @@ const STATUS_COLORS: Record<TableLiveStatus, { bg: string; border: string; text:
   ready_to_bill:   { bg: 'rgba(139,92,246,0.12)', border: '#8b5cf6', text: '#6d28d9', sub: '#7c3aed' },
   needs_attention: { bg: 'rgba(239,68,68,0.15)',  border: '#ef4444', text: '#b91c1c', sub: '#dc2626' },
 };
+
+const ZONE_COLORS_MAP: Record<ZoneColor, { bg: string; border: string; text: string }> = {
+  blue:   { bg: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.30)', text: '#3b82f6' },
+  green:  { bg: 'rgba(34,197,94,0.10)',   border: 'rgba(34,197,94,0.30)',  text: '#22c55e' },
+  orange: { bg: 'rgba(249,115,22,0.10)',  border: 'rgba(249,115,22,0.30)', text: '#f97316' },
+  purple: { bg: 'rgba(168,85,247,0.10)',  border: 'rgba(168,85,247,0.30)', text: '#a855f7' },
+  pink:   { bg: 'rgba(236,72,153,0.10)',  border: 'rgba(236,72,153,0.30)', text: '#ec4899' },
+};
+
+function getFloorBackground(style?: FloorStyle): React.CSSProperties {
+  switch (style) {
+    case 'wood':
+      return {
+        backgroundColor: '#f5e6d3',
+        backgroundImage: [
+          'repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(139,90,43,0.04) 20px, rgba(139,90,43,0.04) 21px)',
+          'repeating-linear-gradient(0deg, transparent, transparent 4px, rgba(139,90,43,0.03) 4px, rgba(139,90,43,0.03) 5px)',
+        ].join(', '),
+      };
+    case 'tile':
+      return {
+        backgroundColor: '#f8f8f8',
+        backgroundImage: 'linear-gradient(#e5e5e5 1px, transparent 1px), linear-gradient(90deg, #e5e5e5 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+      };
+    case 'white':
+      return { backgroundColor: '#ffffff' };
+    case 'grey':
+      return { backgroundColor: '#f3f4f6' };
+    case 'dots':
+    default:
+      return {
+        backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)',
+        backgroundSize: `${GRID}px ${GRID}px`,
+      };
+  }
+}
 
 interface SelectedTable {
   dbId: string;
@@ -219,11 +258,79 @@ function StaffFloorCanvas({
           position: 'relative',
           transform: `scale(${scale})`,
           transformOrigin: 'top left',
-          backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)',
-          backgroundSize: `${GRID}px ${GRID}px`,
+          ...getFloorBackground(plan.floorStyle),
           userSelect: 'none',
         }}
       >
+      {/* Layer 1: Zones */}
+      {(plan.zones ?? []).map(zone => {
+        const zc = ZONE_COLORS_MAP[zone.color];
+        return (
+          <div
+            key={zone.id}
+            style={{
+              position: 'absolute', left: zone.x, top: zone.y, width: zone.width, height: zone.height,
+              background: zc.bg, border: `1.5px dashed ${zc.border}`, borderRadius: 8,
+              zIndex: 0, pointerEvents: 'none',
+            }}
+          >
+            <span style={{ position: 'absolute', top: 6, left: 10, fontSize: 11, fontWeight: 600, color: zc.text, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{zone.name}</span>
+          </div>
+        );
+      })}
+
+      {/* Layer 2: Walls */}
+      {(plan.walls ?? []).length > 0 && (
+        <svg width={CANVAS_W} height={CANVAS_H} style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, pointerEvents: 'none' }}>
+          {(plan.walls ?? []).map(wall => (
+            <polygon
+              key={wall.id}
+              points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
+              fill="none"
+              stroke="#1f2937"
+              strokeWidth={7}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          ))}
+        </svg>
+      )}
+
+      {/* Layer 3: Counter */}
+      {plan.counter && (
+        <div
+          style={{
+            position: 'absolute', left: plan.counter.x, top: plan.counter.y,
+            width: plan.counter.width, height: plan.counter.height,
+            background: 'repeating-linear-gradient(45deg, #6b7280, #6b7280 2px, #9ca3af 2px, #9ca3af 6px)',
+            borderRadius: 6, border: '2px solid #4b5563',
+            zIndex: 1, pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+          }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.4)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Counter</span>
+        </div>
+      )}
+
+      {/* Layer 4: Doors */}
+      {(plan.doors ?? []).map(door => (
+        <div
+          key={door.id}
+          style={{
+            position: 'absolute', left: door.x - 18, top: door.y - 18, width: 36, height: 36,
+            background: 'rgba(255,255,255,0.9)',
+            border: '1.5px solid #6b7280', borderRadius: 8,
+            zIndex: 1, pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+          }}
+        >
+          <DoorOpen className="w-5 h-5 text-gray-600" />
+        </div>
+      ))}
+
+      {/* Layer 5: Labels */}
       {plan.labels.map((label) => (
         <div
           key={label.id}
@@ -253,8 +360,10 @@ function StaffFloorCanvas({
         </div>
       ))}
 
+      {/* Layer 6: Merge group backgrounds */}
       <MergeGroupBackgrounds tables={plan.tables} getTableStatus={getTableStatus} />
 
+      {/* Layer 7: Tables */}
       {plan.tables.map((table) => {
         const info = getTableStatus(table.table_number);
         const dbId = dbTableIds.get(table.table_number) ?? table.id;
