@@ -30,6 +30,8 @@ import {
   LayoutTemplate,
   Palette,
   Edit3,
+  Copy,
+  ListOrdered,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -77,9 +79,63 @@ import type {
 const GRID     = 20;
 const CANVAS_W = 1400;
 const CANVAS_H = 900;
+const SNAP_WALL_THRESHOLD = 18;
 
 function snap(v: number) {
   return Math.round(v / GRID) * GRID;
+}
+
+function snapToWalls(
+  x: number, y: number, w: number, h: number,
+  walls: FloorWall[],
+): { x: number; y: number } {
+  let bestX = x, bestY = y;
+  let bestDx = SNAP_WALL_THRESHOLD + 1;
+  let bestDy = SNAP_WALL_THRESHOLD + 1;
+
+  const edges = {
+    left: x, right: x + w, top: y, bottom: y + h,
+    cx: x + w / 2, cy: y + h / 2,
+  };
+
+  for (const wall of walls) {
+    const pts = wall.points;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      if (len === 0) continue;
+
+      const isVertical = Math.abs(dx) < Math.abs(dy);
+      if (isVertical) {
+        const wallX = (a.x + b.x) / 2;
+        const segMinY = Math.min(a.y, b.y);
+        const segMaxY = Math.max(a.y, b.y);
+        if (edges.cy < segMinY - h / 2 || edges.cy > segMaxY + h / 2) continue;
+
+        const dLeft = Math.abs(edges.left - wallX);
+        const dRight = Math.abs(edges.right - wallX);
+        if (dLeft < bestDx) { bestDx = dLeft; bestX = wallX; }
+        if (dRight < bestDx) { bestDx = dRight; bestX = wallX - w; }
+      } else {
+        const wallY = (a.y + b.y) / 2;
+        const segMinX = Math.min(a.x, b.x);
+        const segMaxX = Math.max(a.x, b.x);
+        if (edges.cx < segMinX - w / 2 || edges.cx > segMaxX + w / 2) continue;
+
+        const dTop = Math.abs(edges.top - wallY);
+        const dBottom = Math.abs(edges.bottom - wallY);
+        if (dTop < bestDy) { bestDy = dTop; bestY = wallY; }
+        if (dBottom < bestDy) { bestDy = dBottom; bestY = wallY - h; }
+      }
+    }
+  }
+
+  return {
+    x: bestDx <= SNAP_WALL_THRESHOLD ? bestX : x,
+    y: bestDy <= SNAP_WALL_THRESHOLD ? bestY : y,
+  };
 }
 
 /** Prefer display_name when set, fall back to #table_number. */
@@ -879,6 +935,48 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     updatePlan(prev => ({ ...prev, labels: prev.labels.filter(l => l.id !== labelId) }));
   }
 
+  function duplicateTable(tableId: string) {
+    const src = plan.tables.find(t => t.id === tableId);
+    if (!src) return;
+    const existingNumbers = plan.tables.map(t => t.table_number);
+    const nextNum = existingNumbers.length === 0 ? 1 : Math.max(...existingNumbers) + 1;
+    const { w } = tableSize(src.capacity);
+    const ft: FloorTable = {
+      id: crypto.randomUUID(),
+      table_number: nextNum,
+      display_name: null,
+      x: Math.min(CANVAS_W - w, src.x + w + GRID),
+      y: src.y,
+      shape: src.shape,
+      capacity: src.capacity,
+    };
+    updatePlan(prev => ({ ...prev, tables: [...prev.tables, ft] }));
+    setEditSelectedId(ft.id);
+    toast.success(`Table #${nextNum} created`);
+  }
+
+  // ── Auto-number ────────────────────────────────────────────────────────
+  const [showAutoNumberConfirm, setShowAutoNumberConfirm] = useState(false);
+
+  function autoNumberTables() {
+    const sorted = [...plan.tables].sort((a, b) => {
+      const rowA = Math.floor(a.y / 80);
+      const rowB = Math.floor(b.y / 80);
+      if (rowA !== rowB) return rowA - rowB;
+      return a.x - b.x;
+    });
+    const idToNewNumber = new Map(sorted.map((t, i) => [t.id, i + 1]));
+    updatePlan(prev => ({
+      ...prev,
+      tables: prev.tables.map(t => ({
+        ...t,
+        table_number: idToNewNumber.get(t.id) ?? t.table_number,
+      })),
+    }));
+    setShowAutoNumberConfirm(false);
+    toast.success(`Renumbered ${sorted.length} tables by position`);
+  }
+
   // ── Drag ─────────────────────────────────────────────────────────────────
   function handlePointerDown(
     e: React.PointerEvent,
@@ -917,8 +1015,15 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     const rect = canvasRef.current!.getBoundingClientRect();
     const rawX = e.clientX - rect.left - dragOffset.current.x;
     const rawY = e.clientY - rect.top  - dragOffset.current.y;
-    const x    = snap(Math.max(0, Math.min(CANVAS_W - elemW, rawX)));
-    const y    = snap(Math.max(0, Math.min(CANVAS_H - elemH, rawY)));
+    let x    = snap(Math.max(0, Math.min(CANVAS_W - elemW, rawX)));
+    let y    = snap(Math.max(0, Math.min(CANVAS_H - elemH, rawY)));
+
+    const isTable = plan.tables.some(t => t.id === id);
+    if (isTable && plan.walls?.length) {
+      const snapped = snapToWalls(x, y, elemW, elemH, plan.walls);
+      x = snapped.x;
+      y = snapped.y;
+    }
 
     setPlan(prev => ({
       ...prev,
@@ -1334,6 +1439,19 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           <Undo2 className="w-4 h-4" />
         </Button>
 
+        {plan.tables.length >= 2 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowAutoNumberConfirm(true)}
+            className="ml-1 text-xs gap-1.5"
+            title="Renumber tables by position"
+          >
+            <ListOrdered className="w-4 h-4" />
+            Auto-number
+          </Button>
+        )}
+
         <div className="ml-auto flex items-center gap-4">
           <div className="flex items-center gap-1.5 text-xs">
             {realtimeConnected ? (
@@ -1732,6 +1850,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 onDisplayNameCommit={(name) => commitDisplayName(editSelectedTable.id, name)}
                 onDelete={() => { removeTable(editSelectedTable.id); setEditSelectedId(null); }}
                 onViewStatus={() => setSheetTableId(editSelectedTable.id)}
+                onDuplicate={() => duplicateTable(editSelectedTable.id)}
               />
             )}
           </div>
@@ -1759,12 +1878,21 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               </button>
             )}
             {ctxMenu.type === 'table' && (
-              <button
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
-                onClick={() => { setEditSelectedId(ctxMenu.id); setCtxMenu(null); }}
-              >
-                ✏️ Edit table
-              </button>
+              <>
+                <button
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+                  onClick={() => { setEditSelectedId(ctxMenu.id); setCtxMenu(null); }}
+                >
+                  ✏️ Edit table
+                </button>
+                <button
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+                  onClick={() => { duplicateTable(ctxMenu.id); setCtxMenu(null); }}
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Duplicate table
+                </button>
+              </>
             )}
             {ctxMenu.type === 'zone' && (
               <button
@@ -1864,6 +1992,22 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* ── Auto-number confirmation dialog ── */}
+      <Dialog open={showAutoNumberConfirm} onOpenChange={setShowAutoNumberConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Auto-number Tables</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will renumber all {plan.tables.length} tables based on their position (left-to-right, top-to-bottom). Display names will be kept.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAutoNumberConfirm(false)}>Cancel</Button>
+            <Button onClick={autoNumberTables}>Renumber</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Live status sheet ── */}
       <TableDetailSheet
         table={sheetTable}
@@ -1903,6 +2047,7 @@ interface FloatingToolbarProps {
   onDisplayNameCommit: (name: string) => void;
   onDelete: () => void;
   onViewStatus: () => void;
+  onDuplicate: () => void;
 }
 
 function FloatingToolbar({
@@ -1912,6 +2057,7 @@ function FloatingToolbar({
   onDisplayNameCommit,
   onDelete,
   onViewStatus,
+  onDuplicate,
 }: FloatingToolbarProps) {
   const [nameVal, setNameVal] = useState(table.display_name ?? '');
 
@@ -1999,6 +2145,15 @@ function FloatingToolbar({
           title="View live status"
         >
           <Eye className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Duplicate */}
+        <button
+          onClick={onDuplicate}
+          className="p-1 rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+          title="Duplicate table"
+        >
+          <Copy className="w-3.5 h-3.5" />
         </button>
 
         {/* Delete */}
