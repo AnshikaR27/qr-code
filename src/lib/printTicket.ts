@@ -1,5 +1,6 @@
 import type { Order } from '@/types';
 import type { AddOnInfo } from './kot-print';
+import type { ModificationKOTData } from './escpos-kot';
 
 // ─── Ticket HTML builder ──────────────────────────────────────────────────────
 
@@ -162,6 +163,103 @@ export function printKitchenTicket(
 
   const style      = document.createElement('style');
   style.id         = PRINT_STYLE_ID;
+  style.textContent = `
+    @media print {
+      body > *:not(#${PRINT_DIV_ID}) { display: none !important; }
+      #${PRINT_DIV_ID} {
+        display: block !important;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 80mm;
+      }
+      @page { size: 80mm auto; margin: 0; }
+    }
+    #${PRINT_DIV_ID} { display: none; }
+  `;
+  document.head.appendChild(style);
+
+  window.print();
+
+  const cleanup = () => {
+    document.getElementById(PRINT_DIV_ID)?.remove();
+    document.getElementById(PRINT_STYLE_ID)?.remove();
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+}
+
+// ─── Modification KOT (browser fallback) ─────────────────────────────────────
+
+function buildModificationTicketHtml(data: ModificationKOTData, restaurantName: string): string {
+  const tableDisplay = data.table
+    ? (data.table.display_name?.trim() || String(data.table.table_number))
+    : null;
+
+  const bannerText = data.type === 'order_cancelled' ? 'ORDER CANCELLED' : 'CANCELLED';
+
+  const time = new Date(data.created_at).toLocaleTimeString('en-IN', {
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+  const date = new Date(data.created_at).toLocaleDateString('en-IN', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  });
+
+  let itemsHtml = '';
+  for (const item of data.items) {
+    itemsHtml += `
+      <div style="margin:3px 0;font-size:12px;">
+        <span style="font-weight:bold;">${item.quantity}x</span>
+        <span style="text-decoration:line-through;">${item.name}</span>
+      </div>`;
+    for (const addon of item.selected_addons ?? []) {
+      itemsHtml += `<div style="padding-left:20px;font-size:11px;color:#333;">+ ${addon.name}</div>`;
+    }
+  }
+
+  return `
+<div style="font-family:'Courier New',Courier,monospace;font-size:12px;width:72mm;color:#000;background:#fff;padding:3mm 4mm;">
+  <div style="border:3px solid #000;padding:6px;margin-bottom:6px;text-align:center;">
+    <div style="font-size:18px;font-weight:bold;letter-spacing:1px;">*** ${bannerText} ***</div>
+    <div style="font-size:14px;font-weight:bold;margin-top:2px;">ORDER #${data.order_number}</div>
+    ${tableDisplay ? `<div style="font-size:12px;font-weight:bold;">TABLE ${tableDisplay}</div>` : ''}
+    <div style="font-size:10px;">${date} &middot; ${time}</div>
+  </div>
+
+  <div style="text-align:center;font-size:13px;font-weight:bold;margin-bottom:4px;">
+    ${restaurantName.toUpperCase()}
+  </div>
+
+  <div style="border-top:1px dashed #000;margin:4px 0;"></div>
+
+  ${itemsHtml}
+
+  <div style="border-top:1px dashed #000;margin:4px 0;"></div>
+
+  <div style="font-size:11px;margin:3px 0;">
+    <strong>REASON:</strong> ${data.reason}
+  </div>
+
+  <div style="border-top:2px solid #000;margin:4px 0;"></div>
+  <div style="text-align:center;font-size:10px;">
+    ${bannerText} &middot; ORDER #${data.order_number}
+  </div>
+</div>`;
+}
+
+export function printModificationTicket(data: ModificationKOTData, restaurantName: string): void {
+  const html = buildModificationTicketHtml(data, restaurantName);
+
+  document.getElementById(PRINT_DIV_ID)?.remove();
+  document.getElementById(PRINT_STYLE_ID)?.remove();
+
+  const printDiv = document.createElement('div');
+  printDiv.id = PRINT_DIV_ID;
+  printDiv.innerHTML = html;
+  document.body.appendChild(printDiv);
+
+  const style = document.createElement('style');
+  style.id = PRINT_STYLE_ID;
   style.textContent = `
     @media print {
       body > *:not(#${PRINT_DIV_ID}) { display: none !important; }

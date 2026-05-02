@@ -31,7 +31,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { status } = body as { status?: string };
+  const { status, reason } = body as { status?: string; reason?: string };
   if (!status || !ALLOWED_STATUSES.includes(status as OrderStatus)) {
     return NextResponse.json(
       { error: 'Invalid status', allowed: ALLOWED_STATUSES },
@@ -82,7 +82,7 @@ export async function PATCH(
     action: `order.status.${status}`,
     entity_type: 'order',
     entity_id: orderId,
-    metadata: { order_number: order.order_number, status },
+    metadata: { order_number: order.order_number, status, ...(reason ? { reason } : {}) },
   });
 
   return NextResponse.json(updated);

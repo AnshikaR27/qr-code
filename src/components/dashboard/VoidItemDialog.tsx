@@ -27,7 +27,7 @@ interface VoidItemDialogProps {
   onOpenChange: (open: boolean) => void;
   orderId: string;
   item: OrderItem | null;
-  onVoided: () => void;
+  onVoided: (info: { reason: string; action: 'void' | 'reduce'; new_quantity?: number }) => void;
 }
 
 export default function VoidItemDialog({ open, onOpenChange, orderId, item, onVoided }: VoidItemDialogProps) {
@@ -66,9 +66,10 @@ export default function VoidItemDialog({ open, onOpenChange, orderId, item, onVo
       }
       toast.success(action === 'void' ? 'Item voided' : 'Quantity reduced');
       onOpenChange(false);
+      const voidReason = reason.trim();
       setReason('');
       setAction('void');
-      onVoided();
+      onVoided({ reason: voidReason, action, ...(action === 'reduce' ? { new_quantity: newQuantity } : {}) });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong');
     } finally {

@@ -166,3 +166,98 @@ export function buildKOTTicket(
 
   return p.build();
 }
+
+// ── Modification KOT (void / cancel) ─────────────────────────────────────────
+
+export type ModificationType = 'item_cancelled' | 'order_cancelled';
+
+export interface ModificationKOTData {
+  type: ModificationType;
+  order_number: number;
+  order_type: string;
+  table?: { table_number: number; display_name?: string | null } | null;
+  customer_name: string | null;
+  items: { name: string; quantity: number; notes?: string | null; selected_addons?: { name: string; price?: number }[] }[];
+  reason: string;
+  created_at: string;
+}
+
+export function buildModificationKOTTicket(
+  data: ModificationKOTData,
+  restaurantName: string,
+  paperWidth: '80mm' | '58mm' = '80mm',
+): Uint8Array {
+  const lineWidth = paperWidth === '58mm' ? 32 : 42;
+  const p = new ESCPOSBuilder();
+  p.initialize();
+
+  const tableDisplay = data.table
+    ? (data.table.display_name?.trim() || String(data.table.table_number))
+    : null;
+
+  const bannerText = data.type === 'order_cancelled' ? 'ORDER CANCELLED' : 'CANCELLED';
+
+  // Banner
+  p.alignCenter()
+    .text('='.repeat(lineWidth))
+    .newLine()
+    .bold(true)
+    .doubleSize(true)
+    .text(`*** ${bannerText} ***`)
+    .doubleSize(false)
+    .newLine()
+    .text(`ORDER #${data.order_number}`)
+    .newLine();
+  if (tableDisplay) {
+    p.text(`TABLE ${tableDisplay}`).newLine();
+  }
+  p.bold(false)
+    .text(formatDateTime(data.created_at).slice(0, lineWidth))
+    .newLine()
+    .text('='.repeat(lineWidth))
+    .newLine();
+
+  // Restaurant header
+  p.alignCenter()
+    .bold(true)
+    .text(restaurantName.toUpperCase().slice(0, lineWidth))
+    .newLine()
+    .bold(false);
+
+  p.dashLine(lineWidth);
+
+  // Items
+  p.alignLeft();
+  for (const item of data.items) {
+    p.bold(true)
+      .text(`${item.quantity}x `)
+      .bold(false)
+      .text(item.name.slice(0, lineWidth - 3))
+      .newLine();
+
+    for (const addon of item.selected_addons ?? []) {
+      p.text(`   + ${addon.name}`.slice(0, lineWidth)).newLine();
+    }
+  }
+
+  p.dashLine(lineWidth);
+
+  // Reason
+  p.alignLeft()
+    .bold(true)
+    .text('REASON:')
+    .newLine()
+    .bold(false);
+  p.wrapText(data.reason, lineWidth);
+
+  p.dashLine(lineWidth);
+
+  // Footer
+  p.alignCenter()
+    .text(`${bannerText} · ORDER #${data.order_number}`.slice(0, lineWidth))
+    .newLine();
+
+  p.feed(4).cut();
+
+  return p.build();
+}

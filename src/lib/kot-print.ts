@@ -7,6 +7,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import type { Order, PrinterConfig } from '@/types';
+import type { ModificationKOTData, ModificationType } from '@/lib/escpos-kot';
 
 export interface AddOnInfo {
   isAddOn: boolean;
@@ -115,5 +116,63 @@ export async function printKOT(
     // No printer config — fall back to browser print
     const { printKitchenTicket } = await import('@/lib/printTicket');
     printKitchenTicket(order, kot, restaurantName, categoriesInOrder, addOnInfo);
+  }
+}
+
+export { type ModificationKOTData, type ModificationType };
+
+export async function printModificationKOT(
+  data: ModificationKOTData,
+  restaurantName: string,
+  printerConfig: PrinterConfig | null,
+): Promise<void> {
+  if (printerConfig && printerConfig.printers.length > 0) {
+    const { printerService } = await import('@/lib/printer-service');
+    const { buildModificationKOTTicket } = await import('@/lib/escpos-kot');
+    const copies = printerConfig.copies_kot ?? 1;
+
+    if (printerConfig.kot_printer_mode !== 'station_routing') {
+      const pid = printerConfig.kot_printer_mode;
+      const printer =
+        printerConfig.printers.find((p) => p.id === pid) ?? printerConfig.printers[0];
+      if (printer.type === 'browser') {
+        const { printModificationTicket } = await import('@/lib/printTicket');
+        printModificationTicket(data, restaurantName);
+      } else {
+        const ticket = buildModificationKOTTicket(data, restaurantName, printer.paper_width);
+        for (let i = 0; i < copies; i++) await printerService.print(printer, ticket);
+      }
+    } else {
+      // Station routing: send cancellation KOT to ALL KOT printers so every station sees it
+      const kotPrinterIds = new Set<string>();
+      const routingMap = printerConfig.station_routing ?? {};
+      const defaultPrinterId = printerConfig.printers[0].id;
+      const itemCategories = data.items.map(() => 'Uncategorized');
+      // Collect all unique printers from routing
+      for (const cat of Object.values(routingMap)) {
+        if (cat) kotPrinterIds.add(cat);
+      }
+      if (kotPrinterIds.size === 0) kotPrinterIds.add(defaultPrinterId);
+      // Also add the default
+      kotPrinterIds.add(defaultPrinterId);
+      void itemCategories;
+
+      await Promise.all(
+        Array.from(kotPrinterIds).map(async (pid) => {
+          const printer = printerConfig.printers.find((p) => p.id === pid);
+          if (!printer) return;
+          if (printer.type === 'browser') {
+            const { printModificationTicket } = await import('@/lib/printTicket');
+            printModificationTicket(data, restaurantName);
+            return;
+          }
+          const ticket = buildModificationKOTTicket(data, restaurantName, printer.paper_width);
+          for (let i = 0; i < copies; i++) await printerService.print(printer, ticket);
+        }),
+      );
+    }
+  } else {
+    const { printModificationTicket } = await import('@/lib/printTicket');
+    printModificationTicket(data, restaurantName);
   }
 }

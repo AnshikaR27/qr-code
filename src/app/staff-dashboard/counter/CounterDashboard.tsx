@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag, AlertTriangle, Usb, Search, X, ChefHat, UtensilsCrossed } from 'lucide-react';
+import { format } from 'date-fns';
+import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag, AlertTriangle, Usb, Search, X, XCircle, ChefHat, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrders } from '@/contexts/OrdersContext';
 import { useStaff } from '@/contexts/StaffContext';
@@ -11,6 +12,8 @@ import { createClient } from '@/lib/supabase/client';
 import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
 import { buildCombinedBillData } from '@/lib/billing';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
+import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
+import CompletedOrderModal from '@/components/dashboard/CompletedOrderModal';
 import ItemAvailabilityModal from '@/components/dashboard/ItemAvailabilityModal';
 import type { Order, OrderItem, PrinterDevice } from '@/types';
 
@@ -27,8 +30,10 @@ interface TableGroup {
   readyToBill: boolean;
 }
 
+type CounterFilter = 'active' | 'completed';
+
 export default function CounterDashboard() {
-  const { orders } = useOrders();
+  const { orders, refreshOrders } = useOrders();
   const { staff, restaurant } = useStaff();
   const [billingOrders, setBillingOrders] = useState<Order[] | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -37,6 +42,11 @@ export default function CounterDashboard() {
   const [connectingUSB, setConnectingUSB] = useState<string | null>(null);
   const [show86List, setShow86List] = useState(false);
   const [unavailableCount, setUnavailableCount] = useState(0);
+  const [filter, setFilter] = useState<CounterFilter>('active');
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [voidOrderId, setVoidOrderId] = useState<string>('');
+  const [voidItem, setVoidItem] = useState<OrderItem | null>(null);
   const can86 = hasPermission(staff.role, 'menu:mark_out_of_stock');
 
   useEffect(() => {
@@ -83,6 +93,18 @@ export default function CounterDashboard() {
       o => (o.status === 'placed' || o.status === 'ready' || o.status === 'delivered') &&
         !o.payment_method &&
         new Date(o.created_at).getTime() >= todayMs,
+    );
+  }, [orders]);
+
+  const completedOrders = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayMs = todayStart.getTime();
+    return orders.filter(
+      o => (!!o.payment_method || o.status === 'cancelled') &&
+        new Date(o.created_at).getTime() >= todayMs,
+    ).sort((a, b) =>
+      new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime()
     );
   }, [orders]);
 
@@ -321,6 +343,55 @@ export default function CounterDashboard() {
     }
   }, [restaurant.service_mode, restaurant.slug]);
 
+  async function handleCancelOrder(order: Order) {
+    const reason = prompt(`Cancel order #${order.order_number}?\nEnter reason:`);
+    if (!reason) return;
+    setUpdating(order.id);
+    try {
+      const res = await fetch(`/api/staff/orders/${order.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled', reason }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to cancel order');
+      }
+      toast.success(`Order #${order.order_number} cancelled`);
+
+      // KOT reprint for cancelled order
+      const activeItems = (order.items ?? []).filter(i => i.status !== 'voided');
+      if (activeItems.length > 0) {
+        import('@/lib/kot-print').then(({ printModificationKOT }) => {
+          printModificationKOT(
+            {
+              type: 'order_cancelled',
+              order_number: order.order_number,
+              order_type: order.order_type,
+              table: order.table,
+              customer_name: order.customer_name,
+              items: activeItems.map(i => ({ name: i.name, quantity: i.quantity, notes: i.notes, selected_addons: i.selected_addons })),
+              reason,
+              created_at: new Date().toISOString(),
+            },
+            restaurant.name,
+            restaurant.printer_config,
+          ).catch(() => {});
+        });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  function openVoidDialog(orderId: string, item: OrderItem) {
+    setVoidOrderId(orderId);
+    setVoidItem(item);
+    setVoidDialogOpen(true);
+  }
+
   async function handleDismiss(group: TableGroup) {
     const orderIds = group.orders.map(o => o.id);
     setUpdating(orderIds[0]);
@@ -380,8 +451,35 @@ export default function CounterDashboard() {
         </div>
       </div>
 
+      {/* Filter tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+        <button
+          onClick={() => { setFilter('active'); setSearchQuery(''); }}
+          className={cn(
+            'px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
+            filter === 'active' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Active
+          {activeOrders.length > 0 && (
+            <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-amber-500 text-white rounded-full leading-none">
+              {activeOrders.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => { setFilter('completed'); setSearchQuery(''); }}
+          className={cn(
+            'px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
+            filter === 'completed' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Completed
+        </button>
+      </div>
+
       {/* Search */}
-      {tableGroups.length > 0 && (
+      {filter === 'active' && tableGroups.length > 0 && (
         <div className="relative w-full max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <input
@@ -420,30 +518,89 @@ export default function CounterDashboard() {
         </div>
       ))}
 
-      {/* Table cards */}
-      {filteredGroups.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
-          <IndianRupee className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p className="font-medium">
-            {searchQuery.trim() ? 'No matches found' : 'No orders waiting'}
-          </p>
-          <p className="text-xs mt-1">
-            {searchQuery.trim() ? 'Try a different search' : 'Orders marked ready will appear here'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {filteredGroups.map(group => (
-            <TableCard
-              key={group.key}
-              group={group}
-              onCollect={() => setBillingOrders(group.orders)}
-              onMarkReady={() => handleMarkReady(group)}
-              onDismiss={() => handleDismiss(group)}
-              isUpdating={group.orders.some(o => updating === o.id)}
-            />
-          ))}
-        </div>
+      {/* Active cards */}
+      {filter === 'active' && (
+        filteredGroups.length === 0 ? (
+          <div className="text-center py-20 text-muted-foreground">
+            <IndianRupee className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p className="font-medium">
+              {searchQuery.trim() ? 'No matches found' : 'No orders waiting'}
+            </p>
+            <p className="text-xs mt-1">
+              {searchQuery.trim() ? 'Try a different search' : 'Orders marked ready will appear here'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {filteredGroups.map(group => (
+              <TableCard
+                key={group.key}
+                group={group}
+                onCollect={() => setBillingOrders(group.orders)}
+                onMarkReady={() => handleMarkReady(group)}
+                onDismiss={() => handleDismiss(group)}
+                onCancelOrder={handleCancelOrder}
+                onVoidItem={openVoidDialog}
+                isUpdating={group.orders.some(o => updating === o.id)}
+              />
+            ))}
+          </div>
+        )
+      )}
+
+      {/* Completed cards */}
+      {filter === 'completed' && (
+        completedOrders.length === 0 ? (
+          <div className="text-center py-20 text-muted-foreground">
+            <IndianRupee className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p className="font-medium">No completed orders today</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {completedOrders.map(order => {
+              const tableLabel = order.table
+                ? (order.table.display_name?.trim() || `#${order.table.table_number}`)
+                : null;
+              const activeItems = (order.items ?? []).filter(i => i.status !== 'voided');
+              const itemSummary = activeItems.length <= 2
+                ? activeItems.map(i => `${i.quantity}× ${i.name}`).join(', ')
+                : `${activeItems.slice(0, 2).map(i => `${i.quantity}× ${i.name}`).join(', ')} +${activeItems.length - 2} more`;
+              return (
+                <button
+                  key={order.id}
+                  onClick={() => setDetailOrder(order)}
+                  className="w-full text-left bg-white rounded-xl border px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm">#{order.order_number}</span>
+                        {tableLabel && <span className="text-xs text-muted-foreground">Table {tableLabel}</span>}
+                        {order.customer_name && <span className="text-xs text-muted-foreground">· {order.customer_name}</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{itemSummary}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0 flex items-center gap-2">
+                      {order.status === 'cancelled' ? (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">Cancelled</span>
+                      ) : order.payment_method && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {order.payment_method.toUpperCase()}
+                        </span>
+                      )}
+                      <div>
+                        <p className="font-bold text-sm">{formatPrice(order.total)}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {format(new Date(order.updated_at ?? order.created_at), 'h:mm a')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )
       )}
 
       <BillingSheet
@@ -460,6 +617,48 @@ export default function CounterDashboard() {
           restaurantId={restaurant.id}
         />
       )}
+
+      <VoidItemDialog
+        open={voidDialogOpen}
+        onOpenChange={setVoidDialogOpen}
+        orderId={voidOrderId}
+        item={voidItem}
+        onVoided={(info) => {
+          refreshOrders();
+          if (voidItem && voidOrderId) {
+            const order = orders.find(o => o.id === voidOrderId);
+            if (order) {
+              import('@/lib/kot-print').then(({ printModificationKOT }) => {
+                printModificationKOT(
+                  {
+                    type: 'item_cancelled',
+                    order_number: order.order_number,
+                    order_type: order.order_type,
+                    table: order.table,
+                    customer_name: order.customer_name,
+                    items: [{ name: voidItem.name, quantity: voidItem.quantity, notes: voidItem.notes, selected_addons: voidItem.selected_addons }],
+                    reason: info.reason,
+                    created_at: new Date().toISOString(),
+                  },
+                  restaurant.name,
+                  restaurant.printer_config,
+                ).catch(() => {});
+              });
+            }
+          }
+        }}
+      />
+
+      {detailOrder && (
+        <CompletedOrderModal
+          order={detailOrder}
+          restaurant={restaurant}
+          onClose={() => setDetailOrder(null)}
+          onPrintBill={() => {
+            handlePrintBill([detailOrder]);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -471,12 +670,16 @@ function TableCard({
   onCollect,
   onMarkReady,
   onDismiss,
+  onCancelOrder,
+  onVoidItem,
   isUpdating,
 }: {
   group: TableGroup;
   onCollect: () => void;
   onMarkReady: () => void;
   onDismiss: () => void;
+  onCancelOrder: (order: Order) => void;
+  onVoidItem: (orderId: string, item: OrderItem) => void;
   isUpdating: boolean;
 }) {
   const [expanded, setExpanded] = useState(group.items.length <= 5);
@@ -550,12 +753,40 @@ function TableCard({
               {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               {group.items.length} items
             </button>
-            {expanded && <ItemsList items={group.items} />}
+            {expanded && <ItemsList items={group.items} onVoidItem={onVoidItem} />}
           </>
         ) : (
-          <ItemsList items={group.items} />
+          <ItemsList items={group.items} onVoidItem={onVoidItem} />
         )}
       </div>
+
+      {/* Cancel order button(s) */}
+      {group.orders.length === 1 ? (
+        <div className="px-4 pb-1">
+          <button
+            onClick={() => onCancelOrder(group.orders[0])}
+            disabled={isUpdating}
+            className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            Cancel order
+          </button>
+        </div>
+      ) : (
+        <div className="px-4 pb-1 flex flex-wrap gap-2">
+          {group.orders.map(o => (
+            <button
+              key={o.id}
+              onClick={() => onCancelOrder(o)}
+              disabled={isUpdating}
+              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              Cancel #{o.order_number}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="px-4 pb-4 pt-1 space-y-2">
@@ -606,19 +837,30 @@ function TableCard({
 
 // ─── Items List ──────────────────────────────────────────────────────────────
 
-function ItemsList({ items }: { items: OrderItem[] }) {
+function ItemsList({ items, onVoidItem }: { items: OrderItem[]; onVoidItem?: (orderId: string, item: OrderItem) => void }) {
   return (
     <div className="space-y-1.5">
       {items.map(item => {
         const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
         return (
           <div key={item.id}>
-            <div className="flex justify-between gap-2">
+            <div className="flex justify-between gap-2 items-start">
               <span className="text-sm">
                 <span className="font-semibold">{item.quantity}×</span> {item.name}
               </span>
-              <span className="text-xs text-muted-foreground flex-shrink-0">
-                {formatPrice((item.price + addonTotal) * item.quantity)}
+              <span className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="text-xs text-muted-foreground">
+                  {formatPrice((item.price + addonTotal) * item.quantity)}
+                </span>
+                {onVoidItem && (
+                  <button
+                    onClick={() => onVoidItem(item.order_id, item)}
+                    className="p-0.5 text-red-400 hover:text-red-600 transition-colors"
+                    title="Void item"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </span>
             </div>
             {(item.selected_addons ?? []).map((addon, ai) => (
