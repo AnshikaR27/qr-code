@@ -110,7 +110,7 @@ export default function OrderReviewPage() {
 
       const isAddOn = order.table_id ? !!getActiveOrder(order.table_id) : false;
       if (order.table_id && !isAddOn) {
-        setActiveOrder(order.table_id, data.orderId, data.orderNumber);
+        setActiveOrder(order.table_id, data.orderId, data.orderNumber, order.customer_name);
       }
       if (isAddOn) {
         toast.success('Added to your order!');

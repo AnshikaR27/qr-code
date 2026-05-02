@@ -415,7 +415,22 @@ function TableOrdersModal({
           }),
         ),
       );
-      toast.success('All items marked ready');
+      toast.success(totalItems === 1 ? 'Order marked ready' : 'All items marked ready');
+      const isTableService = restaurant.service_mode === 'table_service';
+      preppingOrders.forEach(order => {
+        fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order.id,
+            title: isTableService ? 'Your food is on its way!' : 'Your order is ready!',
+            body: isTableService
+              ? `Order #${order.order_number} — your food is being brought to your table.`
+              : `Order #${order.order_number} — please collect from the counter`,
+            url: `/${restaurant.slug}/order/${order.id}`,
+          }),
+        }).catch(() => {});
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
     } finally {
@@ -613,7 +628,7 @@ function TableOrdersModal({
                 ) : (
                   <CheckCheck className="w-5 h-5" />
                 )}
-                Mark All Ready
+                {totalItems === 1 ? 'Mark Ready' : 'Mark All Ready'}
               </button>
             )}
             <button

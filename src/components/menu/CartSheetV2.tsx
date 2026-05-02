@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { X, Plus, Minus } from 'lucide-react';
 import { formatPrice, cdnImg } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
+import { getActiveOrder } from '@/lib/active-order';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import type { Restaurant, Product } from '@/types';
 
@@ -26,7 +27,11 @@ export default function CartSheetV2({
   const router = useRouter();
   const { items, updateQuantity, getTotal } = useCart();
   const total = getTotal();
-  const [customerName, setCustomerName] = useState('');
+  const [customerName, setCustomerName] = useState(() => {
+    if (!tableId) return '';
+    const active = getActiveOrder(tableId);
+    return active?.customerName ?? '';
+  });
   const [noteOpen, setNoteOpen] = useState(false);
   const [orderNote, setOrderNote] = useState('');
   const [mounted, setMounted] = useState(false);

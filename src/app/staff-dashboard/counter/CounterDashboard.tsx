@@ -299,12 +299,27 @@ export default function CounterDashboard() {
           ? `Order #${pending[0].order_number} marked ready`
           : 'Orders marked ready'
       );
+      const isTableService = restaurant.service_mode === 'table_service';
+      pending.forEach(o => {
+        fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: o.id,
+            title: isTableService ? 'Your food is on its way!' : 'Your order is ready!',
+            body: isTableService
+              ? `Order #${o.order_number} — your food is being brought to your table.`
+              : `Order #${o.order_number} — please collect from the counter`,
+            url: `/${restaurant.slug}/order/${o.id}`,
+          }),
+        }).catch(() => {});
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to mark ready');
     } finally {
       setUpdating(null);
     }
-  }, []);
+  }, [restaurant.service_mode, restaurant.slug]);
 
   async function handleDismiss(group: TableGroup) {
     const orderIds = group.orders.map(o => o.id);
@@ -579,7 +594,7 @@ function TableCard({
             ) : (
               <>
                 <ChefHat className="w-5 h-5" />
-                Mark All Ready
+                {group.items.length === 1 ? 'Mark Ready' : 'Mark All Ready'}
               </>
             )}
           </button>
