@@ -11,7 +11,7 @@
  * Idempotent — safe to run multiple times.
  */
 
-const RESTAURANT_SLUG = 'coffee-clan';
+const RESTAURANT_SLUG = 'anshikas-cafe';
 
 // ─── Floor plan layout ───────────────────────────────────────────────────────
 
@@ -76,31 +76,33 @@ const labels = [
   { id: 'label-garden', text: 'Garden', x: 1060, y: 100 },
 ];
 
+const { randomUUID } = require('crypto');
+
 const tables = [
   // Indoor — 3 round 2-seaters near front (window seats)
-  { id: 'ft-t1', table_number: 1, display_name: 'T1', x: 120, y: 180, shape: 'round', capacity: 2 },
-  { id: 'ft-t2', table_number: 2, display_name: 'T2', x: 300, y: 180, shape: 'round', capacity: 2 },
-  { id: 'ft-t3', table_number: 3, display_name: 'T3', x: 480, y: 180, shape: 'round', capacity: 2 },
+  { id: randomUUID(), table_number: 1, display_name: 'T1', x: 120, y: 180, shape: 'round', capacity: 2 },
+  { id: randomUUID(), table_number: 2, display_name: 'T2', x: 300, y: 180, shape: 'round', capacity: 2 },
+  { id: randomUUID(), table_number: 3, display_name: 'T3', x: 480, y: 180, shape: 'round', capacity: 2 },
 
   // Indoor — 3 square 4-seaters in the middle
-  { id: 'ft-t4', table_number: 4, display_name: 'T4', x: 140, y: 380, shape: 'square', capacity: 4 },
-  { id: 'ft-t5', table_number: 5, display_name: 'T5', x: 340, y: 380, shape: 'square', capacity: 4 },
-  { id: 'ft-t6', table_number: 6, display_name: 'T6', x: 540, y: 380, shape: 'square', capacity: 4 },
+  { id: randomUUID(), table_number: 4, display_name: 'T4', x: 140, y: 380, shape: 'square', capacity: 4 },
+  { id: randomUUID(), table_number: 5, display_name: 'T5', x: 340, y: 380, shape: 'square', capacity: 4 },
+  { id: randomUUID(), table_number: 6, display_name: 'T6', x: 540, y: 380, shape: 'square', capacity: 4 },
 
   // Indoor — 2 rectangular 6-seaters near back wall
-  { id: 'ft-t7', table_number: 7, display_name: 'T7', x: 140, y: 560, shape: 'square', capacity: 6 },
-  { id: 'ft-t8', table_number: 8, display_name: 'T8', x: 400, y: 560, shape: 'square', capacity: 6 },
+  { id: randomUUID(), table_number: 7, display_name: 'T7', x: 140, y: 560, shape: 'square', capacity: 6 },
+  { id: randomUUID(), table_number: 8, display_name: 'T8', x: 400, y: 560, shape: 'square', capacity: 6 },
 
   // Outdoor — 2 round 2-seaters
-  { id: 'ft-t9',  table_number: 9,  display_name: 'T9',  x: 980,  y: 180, shape: 'round', capacity: 2 },
-  { id: 'ft-t10', table_number: 10, display_name: 'T10', x: 1180, y: 180, shape: 'round', capacity: 2 },
+  { id: randomUUID(), table_number: 9,  display_name: 'T9',  x: 980,  y: 180, shape: 'round', capacity: 2 },
+  { id: randomUUID(), table_number: 10, display_name: 'T10', x: 1180, y: 180, shape: 'round', capacity: 2 },
 
   // Outdoor — 2 square 4-seaters
-  { id: 'ft-t11', table_number: 11, display_name: 'T11', x: 980,  y: 380, shape: 'square', capacity: 4 },
-  { id: 'ft-t12', table_number: 12, display_name: 'T12', x: 1180, y: 380, shape: 'square', capacity: 4 },
+  { id: randomUUID(), table_number: 11, display_name: 'T11', x: 980,  y: 380, shape: 'square', capacity: 4 },
+  { id: randomUUID(), table_number: 12, display_name: 'T12', x: 1180, y: 380, shape: 'square', capacity: 4 },
 
   // Outdoor — 1 rectangular 6-seater
-  { id: 'ft-t13', table_number: 13, display_name: 'T13', x: 1020, y: 560, shape: 'square', capacity: 6 },
+  { id: randomUUID(), table_number: 13, display_name: 'T13', x: 1020, y: 560, shape: 'square', capacity: 6 },
 ];
 
 const floorPlan = {
@@ -157,7 +159,20 @@ async function main() {
   const restaurant = restaurants[0];
   console.log(`Found: ${restaurant.name} (${restaurant.id})`);
 
-  // 2. Update floor_plan JSON on the restaurant
+  // 2. Check for existing table rows — reuse their UUIDs for idempotency
+  const existingTables = await supabaseRequest(
+    'GET',
+    `tables?restaurant_id=eq.${restaurant.id}&select=id,table_number`,
+  );
+  const existingById = new Map((existingTables || []).map(t => [t.table_number, t.id]));
+
+  for (const t of tables) {
+    if (existingById.has(t.table_number)) {
+      t.id = existingById.get(t.table_number);
+    }
+  }
+
+  // 3. Update floor_plan JSON on the restaurant (with resolved UUIDs)
   console.log('Setting floor plan...');
   await supabaseRequest(
     'PATCH',
@@ -166,7 +181,7 @@ async function main() {
   );
   console.log('Floor plan saved.');
 
-  // 3. Upsert table records (idempotent via table_number + restaurant_id)
+  // 4. Upsert table records
   console.log('Upserting table records...');
   const tableRows = tables.map(t => ({
     id: t.id,
