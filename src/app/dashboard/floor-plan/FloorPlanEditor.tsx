@@ -59,7 +59,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import {
-  ChairsSvgLayer,
   WallsSvgLayer,
   CounterElement,
   DoorArcsSvgLayer,
@@ -1865,9 +1864,6 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               />
             ))}
 
-            {/* Decorative: Chairs around tables */}
-            <ChairsSvgLayer tables={plan.tables} canvasW={CANVAS_W} canvasH={CANVAS_H} />
-
             {/* Layer 6: Merge group backgrounds */}
             <MergeGroupBackgrounds tables={plan.tables} tableStatusMap={tableStatusMap} />
 
@@ -2701,9 +2697,6 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
 
       {/* Labels */}
       {plan.labels.map(l => <LabelElement key={l.id} label={l} viewOnly />)}
-
-      {/* Chairs (decorative) */}
-      <ChairsSvgLayer tables={plan.tables} canvasW={CANVAS_W} canvasH={CANVAS_H} />
 
       {/* Merge group backgrounds */}
       <MergeGroupBackgrounds tables={plan.tables} tableStatusMap={tableStatusMap} />

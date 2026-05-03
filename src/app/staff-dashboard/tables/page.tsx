@@ -18,7 +18,6 @@ import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/Bi
 import { buildCombinedBillData } from '@/lib/billing';
 import NewOrderDrawer from '@/components/dashboard/NewOrderDrawer';
 import {
-  ChairsSvgLayer,
   WallsSvgLayer,
   CounterElement,
   DoorArcsSvgLayer,
@@ -809,17 +808,6 @@ function StaffFloorCanvas({
     if (peekTable) setPeekTable(prev => prev ? { ...prev, screenX: e.clientX, screenY: e.clientY } : null);
   }
 
-  // ── Occupied table set for chairs ─────────────────────────────────────────
-
-  const occupiedTableNumbers = useMemo(() => {
-    const set = new Set<number>();
-    for (const t of plan.tables) {
-      if (getTableStatus(t.table_number).status !== 'available') set.add(t.table_number);
-    }
-    return set;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan.tables, getTableStatus]);
-
   return (
     <div
       ref={containerRef}
@@ -889,15 +877,7 @@ function StaffFloorCanvas({
         </div>
       ))}
 
-      {/* Layer 6: Chairs (static decorative) */}
-      <ChairsSvgLayer
-        tables={plan.tables}
-        canvasW={CANVAS_W}
-        canvasH={CANVAS_H}
-        occupiedTableNumbers={occupiedTableNumbers}
-      />
-
-      {/* Layer 7: Merge group backgrounds */}
+      {/* Layer 6: Merge group backgrounds */}
       <MergeGroupBackgrounds tables={plan.tables} getTableStatus={getTableStatus} />
 
       {/* Layer 8: Tables */}
@@ -1230,8 +1210,8 @@ function StaffTableElement({
           title={customerNames.join(', ')}
           style={{
             position: 'absolute',
-            top: h + 2,
-            left: '50%',
+            top: h + 4,
+            left: w / 2,
             transform: 'translateX(-50%)',
             fontSize: 10,
             fontWeight: 600,
@@ -1239,7 +1219,7 @@ function StaffTableElement({
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            maxWidth: Math.max(w, 70),
+            maxWidth: w + 20,
             textAlign: 'center',
             pointerEvents: 'auto',
             lineHeight: 1.2,
