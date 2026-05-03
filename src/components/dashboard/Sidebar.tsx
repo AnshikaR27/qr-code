@@ -15,6 +15,8 @@ import {
   Printer,
   Users,
   ScrollText,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -31,6 +33,8 @@ const NAV_ITEMS = [
   { href: '/dashboard/settings',   label: 'Settings',  icon: Settings,       exact: false },
 ];
 
+const SIDEBAR_COLLAPSED_KEY = 'owner-sidebar-collapsed';
+
 interface SidebarProps {
   restaurant: Restaurant;
 }
@@ -38,6 +42,24 @@ interface SidebarProps {
 export default function Sidebar({ restaurant }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (stored !== null) {
+      setCollapsed(stored === 'true');
+    } else if (window.innerWidth < 1024) {
+      setCollapsed(true);
+    }
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      return next;
+    });
+  }
 
   async function handleLogout() {
     const supabase = createClient();
@@ -47,59 +69,94 @@ export default function Sidebar({ restaurant }: SidebarProps) {
   }
 
   return (
-    <aside className="flex flex-col w-64 min-h-screen bg-white border-r">
+    <aside className={cn(
+      'flex flex-col min-h-screen bg-white border-r transition-all duration-200',
+      collapsed ? 'w-[68px]' : 'w-64',
+    )}>
       {/* Logo / Restaurant name */}
-      <div className="p-6 border-b">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-8 h-8 rounded-full flex-shrink-0"
-            style={{ backgroundColor: restaurant.design_tokens?.['--primary'] ?? '#8B6914' }}
-          />
-          <div className="overflow-hidden">
-            <p className="font-semibold text-sm truncate">{restaurant.name}</p>
-            <p className="text-xs text-muted-foreground truncate">/{restaurant.slug}</p>
+      <div className={cn('border-b', collapsed ? 'p-3' : 'px-6 py-4')}>
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={toggleCollapsed}
+              className="p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              title="Expand sidebar"
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </button>
+            <div
+              className="w-8 h-8 rounded-full flex-shrink-0"
+              style={{ backgroundColor: restaurant.design_tokens?.['--primary'] ?? '#8B6914' }}
+              title={restaurant.name}
+            />
           </div>
-        </div>
+        ) : (
+          <div className="flex items-start gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div
+                className="w-8 h-8 rounded-full flex-shrink-0"
+                style={{ backgroundColor: restaurant.design_tokens?.['--primary'] ?? '#8B6914' }}
+              />
+              <div className="overflow-hidden">
+                <p className="font-semibold text-sm truncate">{restaurant.name}</p>
+                <p className="text-xs text-muted-foreground truncate">/{restaurant.slug}</p>
+              </div>
+            </div>
+            <button
+              onClick={toggleCollapsed}
+              className="flex-shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors -mr-1"
+              title="Collapse sidebar"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Nav links */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className={cn('flex-1 space-y-1', collapsed ? 'p-2' : 'p-4')}>
         {NAV_ITEMS.map(({ href, label, icon: Icon, exact }) => {
           const active = exact ? pathname === href : pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
+              title={collapsed ? label : undefined}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                'flex items-center rounded-md text-sm font-medium transition-colors',
+                collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2',
                 active
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
               )}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
-              {label}
+              {!collapsed && label}
             </Link>
           );
         })}
       </nav>
 
       {/* Printer status + Logout */}
-      <div className="p-4 border-t space-y-1">
-        <PrinterStatusDot config={restaurant.printer_config} />
+      <div className={cn('border-t space-y-1', collapsed ? 'p-2' : 'p-4')}>
+        <PrinterStatusDot config={restaurant.printer_config} collapsed={collapsed} />
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          title={collapsed ? 'Log out' : undefined}
+          className={cn(
+            'flex items-center w-full rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors',
+            collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2',
+          )}
         >
           <LogOut className="w-4 h-4 flex-shrink-0" />
-          Log out
+          {!collapsed && 'Log out'}
         </button>
       </div>
     </aside>
   );
 }
 
-function PrinterStatusDot({ config }: { config: Restaurant['printer_config'] }) {
+function PrinterStatusDot({ config, collapsed }: { config: Restaurant['printer_config']; collapsed: boolean }) {
   const [connected, setConnected] = useState(0);
   const [total, setTotal] = useState(0);
 
@@ -131,8 +188,11 @@ function PrinterStatusDot({ config }: { config: Restaurant['printer_config'] }) 
   return (
     <Link
       href="/dashboard/settings"
-      className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-      title={`${connected}/${total} printers`}
+      title={collapsed ? `${connected}/${total} printers` : undefined}
+      className={cn(
+        'flex items-center rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors',
+        collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2',
+      )}
     >
       <div className="relative flex-shrink-0">
         <Printer className="w-4 h-4" />
@@ -141,9 +201,11 @@ function PrinterStatusDot({ config }: { config: Restaurant['printer_config'] }) 
           allConnected ? 'bg-green-500' : noneConnected ? 'bg-red-500' : 'bg-amber-400'
         )} />
       </div>
-      <span className="text-xs">
-        {connected}/{total} printer{total !== 1 ? 's' : ''}
-      </span>
+      {!collapsed && (
+        <span className="text-xs">
+          {connected}/{total} printer{total !== 1 ? 's' : ''}
+        </span>
+      )}
     </Link>
   );
 }
