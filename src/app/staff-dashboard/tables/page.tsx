@@ -46,6 +46,7 @@ const TIMER_AMBER_MINUTES = 60;
 const TIMER_RED_MINUTES = 120;
 
 const LONG_PRESS_MS = 500;
+const LONG_PRESS_MOVE_THRESHOLD = 10;
 const HOVER_DELAY_MS = 300;
 const SEAT_PARTY_TIMEOUT_MS = 30_000;
 
@@ -1031,6 +1032,13 @@ function StaffTableElement({
   const progressColor = progress >= 1 ? '#22c55e' : '#f59e0b';
   const dimmed = isSearchDimmed || isSeatDimmed;
 
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const draggedRef = useRef(false);
+
+  useEffect(() => {
+    if (isDragSource) draggedRef.current = true;
+  }, [isDragSource]);
+
   const inner = (
     <div
       style={{
@@ -1110,6 +1118,7 @@ function StaffTableElement({
     opacity: dimmed ? 0.35 : 1,
     transition: 'opacity 0.25s',
     overflow: 'visible',
+    ...(canDrag && isOccupied ? { touchAction: 'none' as const, WebkitTouchCallout: 'none' as const } : {}),
   };
 
   const progressRing = isOccupied && progress > 0 ? (
@@ -1160,20 +1169,29 @@ function StaffTableElement({
   ) : null;
 
   function handlePointerDown(e: React.PointerEvent) {
+    draggedRef.current = false;
     if (canDrag && isOccupied) {
+      pointerStartRef.current = { x: e.clientX, y: e.clientY };
       onLongPressStart(e.clientX, e.clientY);
     }
   }
 
   function handlePointerMoveLocal(e: React.PointerEvent) {
-    // Cancel long-press if moved too far
-    if (canDrag) {
+    if (!canDrag || !pointerStartRef.current) return;
+    const dx = e.clientX - pointerStartRef.current.x;
+    const dy = e.clientY - pointerStartRef.current.y;
+    if (dx * dx + dy * dy > LONG_PRESS_MOVE_THRESHOLD * LONG_PRESS_MOVE_THRESHOLD) {
       onLongPressCancel();
+      pointerStartRef.current = null;
     }
   }
 
   function handleClick() {
     if (isDragSource) return;
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      return;
+    }
     if (status === 'available') {
       onAvailableClick();
     } else {
@@ -1187,8 +1205,9 @@ function StaffTableElement({
       onClick={handleClick}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMoveLocal}
-      onPointerUp={() => onLongPressCancel()}
-      onPointerCancel={() => onLongPressCancel()}
+      onPointerUp={() => { pointerStartRef.current = null; onLongPressCancel(); }}
+      onPointerCancel={() => { pointerStartRef.current = null; onLongPressCancel(); }}
+      onContextMenu={canDrag && isOccupied ? (e: React.MouseEvent) => e.preventDefault() : undefined}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onMouseMove={onMouseMove}
