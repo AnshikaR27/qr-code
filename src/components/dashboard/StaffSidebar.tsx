@@ -1,9 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ShoppingBag, LayoutGrid, ChefHat, UtensilsCrossed, LogOut, IndianRupee, Settings, Pencil } from 'lucide-react';
+import { ShoppingBag, LayoutGrid, ChefHat, UtensilsCrossed, LogOut, IndianRupee, Settings, Pencil, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { hasPermission } from '@/lib/staff-permissions';
@@ -17,6 +18,7 @@ interface StaffSidebarProps {
 export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [collapsed, setCollapsed] = useState(false);
 
   const canKitchen = hasPermission(staff.role, 'order:set_ready');
   const canTables = hasPermission(staff.role, 'table:assign');
@@ -47,43 +49,74 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-64 min-h-screen bg-white border-r">
-        <div className="p-6 border-b">
-          <p className="font-semibold text-sm truncate">{restaurant.name}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-xs text-muted-foreground truncate">{staff.name}</p>
-            <Badge variant="outline" className="text-[10px] capitalize">{staff.role}</Badge>
-          </div>
+      <aside className={cn(
+        'hidden md:flex flex-col min-h-screen bg-white border-r transition-all duration-200',
+        collapsed ? 'w-[68px]' : 'w-64',
+      )}>
+        <div className={cn('border-b', collapsed ? 'p-3' : 'p-6')}>
+          {collapsed ? (
+            <p className="font-semibold text-sm text-center truncate" title={restaurant.name}>
+              {restaurant.name.charAt(0)}
+            </p>
+          ) : (
+            <>
+              <p className="font-semibold text-sm truncate">{restaurant.name}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-xs text-muted-foreground truncate">{staff.name}</p>
+                <Badge variant="outline" className="text-[10px] capitalize">{staff.role}</Badge>
+              </div>
+            </>
+          )}
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className={cn('flex-1 space-y-1', collapsed ? 'p-2' : 'p-4')}>
           {navItems.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + '/');
             return (
               <Link
                 key={href}
                 href={href}
+                title={collapsed ? label : undefined}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  'flex items-center rounded-md text-sm font-medium transition-colors',
+                  collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2',
                   active
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
-                {label}
+                {!collapsed && label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t">
+        <div className={cn('border-t', collapsed ? 'p-2' : 'p-4')}>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            title={collapsed ? 'Log out' : undefined}
+            className={cn(
+              'flex items-center w-full rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors',
+              collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2',
+            )}
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
-            Log out
+            {!collapsed && 'Log out'}
+          </button>
+
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            className={cn(
+              'flex items-center w-full rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors mt-1',
+              collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2',
+            )}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed
+              ? <PanelLeftOpen className="w-4 h-4 flex-shrink-0" />
+              : <PanelLeftClose className="w-4 h-4 flex-shrink-0" />}
+            {!collapsed && 'Collapse'}
           </button>
         </div>
       </aside>
