@@ -148,6 +148,9 @@ export function stopWaiterCallLoop(): void {
 /** Play the new-order sound once (e.g. for the Enable Sound preview). */
 export function playNewOrder(): void { _playNewOrder(); }
 
+/** Play the waiter-call sound once (three A5 dings). */
+export function playWaiterCall(): void { _playWaiterCall(); }
+
 /**
  * 3-second ding-dong alert for auto-printed orders.
  * Three ding-dong pairs spaced 1 s apart; third pair rises in pitch for urgency.
