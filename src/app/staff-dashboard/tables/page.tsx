@@ -1,8 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -17,6 +15,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { playWaiterCall } from '@/lib/sounds';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import { buildCombinedBillData } from '@/lib/billing';
+import NewOrderDrawer from '@/components/dashboard/NewOrderDrawer';
 import type {
   FloorCapacity,
   FloorPlan,
@@ -162,6 +161,7 @@ export default function StaffTablesPage() {
   const { staff, restaurant } = useStaff();
   const { orders } = useOrders();
   const [selectedTable, setSelectedTable] = useState<SelectedTable | null>(null);
+  const [newOrderTable, setNewOrderTable] = useState<{ dbId: string; label: string; round?: number } | null>(null);
   const [waiterCalls, setWaiterCalls] = useState<WaiterCall[]>([]);
   const [, setTick] = useState(0);
   const reducedMotion = useReducedMotion();
@@ -332,6 +332,7 @@ export default function StaffTablesPage() {
           getTableStatus={getTableStatus}
           dbTableIds={dbTableIds}
           onOccupiedTableClick={handleTableClick}
+          onAvailableTableClick={(table, dbId) => setNewOrderTable({ dbId, label: tableLabelText(table) })}
           reducedMotion={reducedMotion}
           onDismissWaiterCall={dismissWaiterCall}
         />
@@ -342,6 +343,17 @@ export default function StaffTablesPage() {
           table={selectedTable}
           restaurant={restaurant}
           onClose={() => setSelectedTable(null)}
+          onAddItems={(tableId, tableLabel, round) => setNewOrderTable({ dbId: tableId, label: tableLabel, round })}
+        />
+      )}
+
+      {newOrderTable && (
+        <NewOrderDrawer
+          tableId={newOrderTable.dbId}
+          tableLabel={newOrderTable.label}
+          round={newOrderTable.round}
+          onClose={() => setNewOrderTable(null)}
+          onOrderPlaced={() => setNewOrderTable(null)}
         />
       )}
     </div>
@@ -355,6 +367,7 @@ function StaffFloorCanvas({
   getTableStatus,
   dbTableIds,
   onOccupiedTableClick,
+  onAvailableTableClick,
   reducedMotion,
   onDismissWaiterCall,
 }: {
@@ -362,6 +375,7 @@ function StaffFloorCanvas({
   getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean };
   dbTableIds: Map<number, string>;
   onOccupiedTableClick: (table: FloorTable, dbId: string, info: { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean }) => void;
+  onAvailableTableClick: (table: FloorTable, dbId: string) => void;
   reducedMotion: boolean;
   onDismissWaiterCall: (tableNumber: number) => void;
 }) {
@@ -524,6 +538,7 @@ function StaffFloorCanvas({
               if (info.hasWaiterCall) onDismissWaiterCall(table.table_number);
               onOccupiedTableClick(table, dbId, info);
             }}
+            onAvailableClick={() => onAvailableTableClick(table, dbId)}
           />
         );
       })}
@@ -542,6 +557,7 @@ function StaffTableElement({
   hasWaiterCall,
   reducedMotion,
   onOccupiedClick,
+  onAvailableClick,
 }: {
   table: FloorTable;
   status: TableLiveStatus;
@@ -550,6 +566,7 @@ function StaffTableElement({
   hasWaiterCall: boolean;
   reducedMotion: boolean;
   onOccupiedClick: () => void;
+  onAvailableClick: () => void;
 }) {
   const { w, h } = tableSize(table.capacity);
   const isRound = table.shape === 'round';
@@ -735,10 +752,10 @@ function StaffTableElement({
 
   if (status === 'available') {
     return (
-      <Link href={`/staff-dashboard/tables/${dbId}/new-order`} style={positionStyle}>
+      <button type="button" onClick={onAvailableClick} style={positionStyle}>
         {progressRing}
         {inner}
-      </Link>
+      </button>
     );
   }
 
@@ -757,12 +774,13 @@ function TableOrdersModal({
   table,
   restaurant,
   onClose,
+  onAddItems,
 }: {
   table: SelectedTable;
   restaurant: import('@/types').Restaurant;
   onClose: () => void;
+  onAddItems: (tableId: string, tableLabel: string, round: number) => void;
 }) {
-  const router = useRouter();
   const [updating, setUpdating] = useState<string | null>(null);
   const [billingOrders, setBillingOrders] = useState<Order[] | null>(null);
 
@@ -1022,7 +1040,7 @@ function TableOrdersModal({
               Collect {formatPrice(totalAmount)}
             </button>
             <button
-              onClick={() => { onClose(); router.push(`/staff-dashboard/tables/${table.dbId}/new-order?round=${table.orders.length + 1}`); }}
+              onClick={() => { onClose(); onAddItems(table.dbId, table.label, table.orders.length + 1); }}
               className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
             >
               <PlusCircle className="w-5 h-5" />
