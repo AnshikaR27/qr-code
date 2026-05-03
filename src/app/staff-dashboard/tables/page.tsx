@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
   X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2, Bell,
-  Search, Users,
+  Search, Users, ArrowRight,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
@@ -162,6 +162,22 @@ const INJECTED_STYLES = `
 @keyframes recommendPulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(59,130,246,0.3); }
   50%      { box-shadow: 0 0 0 6px rgba(59,130,246,0.15); }
+}
+@keyframes mergeSlideLeft {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(24px); }
+}
+@keyframes mergeSlideRight {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-24px); }
+}
+@keyframes mergePulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+@keyframes mergeDialogIn {
+  0%   { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 `;
 
@@ -1019,9 +1035,10 @@ function StaffTableElement({
   const { w, h } = tableSize(table.capacity);
   const isRound = table.shape === 'round';
   const colors = STATUS_COLORS[status];
-  const customerName = tableOrders.find((o) => o.customer_name)?.customer_name ?? null;
-  const inMergeGroup = !!table.merge_group_id;
-  const showName = customerName && !inMergeGroup;
+  const customerNames = [...new Set(
+    tableOrders.map(o => o.customer_name).filter((n): n is string => !!n),
+  )];
+  const externalName = customerNames.length > 0 ? customerNames.map(n => shortName(n)).join(', ') : null;
   const isOccupied = tableOrders.length > 0;
 
   const minutes = isOccupied ? getOccupancyMinutes(tableOrders) : 0;
@@ -1074,18 +1091,7 @@ function StaffTableElement({
         {tableLabelText(table)}
       </span>
 
-      {showName ? (
-        <span
-          style={{
-            fontSize: 10, fontWeight: 700, color: colors.text,
-            marginTop: 2, lineHeight: 1.1,
-            maxWidth: 'calc(100% - 8px)', overflow: 'hidden',
-            textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center',
-          }}
-        >
-          {shortName(customerName)}
-        </span>
-      ) : !isOccupied ? (
+      {!isOccupied ? (
         <span style={{ fontSize: 11, color: colors.sub, marginTop: 2 }}>
           {table.capacity}p
         </span>
@@ -1219,6 +1225,29 @@ function StaffTableElement({
       {seatValidRing}
       {progressRing}
       {inner}
+      {externalName && (
+        <span
+          title={customerNames.join(', ')}
+          style={{
+            position: 'absolute',
+            top: h + 2,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: 10,
+            fontWeight: 600,
+            color: '#78716c',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: Math.max(w, 70),
+            textAlign: 'center',
+            pointerEvents: 'auto',
+            lineHeight: 1.2,
+          }}
+        >
+          {externalName}
+        </span>
+      )}
     </button>
   );
 }
@@ -1358,8 +1387,12 @@ function MergeConfirmDialog({
   const destLabel = tableLabelText(source.destTable);
   const srcTotal = getOrderTotal(source.sourceOrders);
   const destTotal = getOrderTotal(source.destOrders);
-  const srcName = source.sourceOrders.find(o => o.customer_name)?.customer_name;
-  const destName = source.destOrders.find(o => o.customer_name)?.customer_name;
+  const srcName = source.sourceOrders.find(o => o.customer_name)?.customer_name ?? undefined;
+  const destName = source.destOrders.find(o => o.customer_name)?.customer_name ?? undefined;
+  const combinedTotal = srcTotal + destTotal;
+  const combinedOrders = source.sourceOrders.length + source.destOrders.length;
+  const allNames = [...new Set([destName, srcName].filter(Boolean) as string[])];
+  const combinedNamePreview = allNames.length > 0 ? allNames.map(n => shortName(n)).join(', ') : null;
 
   async function handleConfirm() {
     setLoading(true);
@@ -1367,35 +1400,103 @@ function MergeConfirmDialog({
     setLoading(false);
   }
 
+  function TableCard({ label, name, total, orderCount, side }: {
+    label: string; name?: string; total: number; orderCount: number; side: 'left' | 'right';
+  }) {
+    return (
+      <div
+        style={{
+          animation: `${side === 'left' ? 'mergeSlideLeft' : 'mergeSlideRight'} 0.6s ease-out 0.15s forwards`,
+        }}
+        className="flex flex-col items-center"
+      >
+        <div
+          className="relative flex flex-col items-center justify-center rounded-xl border-2 shadow-md"
+          style={{
+            width: 88,
+            height: 88,
+            background: 'rgba(245,158,11,0.12)',
+            borderColor: '#f59e0b',
+          }}
+        >
+          <span className="font-bold text-sm text-amber-800">{label}</span>
+          <span className="text-[10px] text-amber-600 mt-1">{formatPrice(total)}</span>
+          <span className="text-[9px] text-amber-500">{orderCount} order{orderCount !== 1 ? 's' : ''}</span>
+        </div>
+        {name && (
+          <span className="text-[10px] font-medium text-stone-500 mt-1 max-w-[80px] truncate text-center">
+            {shortName(name)}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-        <h3 className="font-bold text-lg">Merge tables?</h3>
-        <p className="text-sm text-gray-600">
-          Merge <strong>Table {srcLabel}</strong>
-          {srcName ? ` (${shortName(srcName)}, ${formatPrice(srcTotal)})` : ` (${formatPrice(srcTotal)})`}
-          {' '}with <strong>Table {destLabel}</strong>
-          {destName ? ` (${shortName(destName)}, ${formatPrice(destTotal)})` : ` (${formatPrice(destTotal)})`}?
-        </p>
-        <p className="text-xs text-gray-500">
-          All orders will be combined under Table {destLabel}. Table {srcLabel} will become available.
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl text-sm font-medium border hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={loading}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Merge
-          </button>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onCancel} />
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+        style={{ animation: 'mergeDialogIn 0.25s ease-out' }}
+      >
+        {/* Visual merge area */}
+        <div className="relative bg-gradient-to-b from-violet-50 to-white pt-6 pb-4 px-6">
+          <h3 className="font-bold text-lg text-center mb-4">Merge tables</h3>
+
+          <div className="flex items-center justify-center gap-0">
+            <TableCard label={srcLabel} name={srcName} total={srcTotal} orderCount={source.sourceOrders.length} side="left" />
+
+            {/* Intersection zone */}
+            <div className="relative flex items-center justify-center" style={{ width: 40, zIndex: 2 }}>
+              <div
+                className="w-8 h-8 rounded-full bg-violet-100 border-2 border-violet-300 flex items-center justify-center"
+                style={{ animation: 'mergePulse 1.5s ease-in-out infinite' }}
+              >
+                <ArrowRight className="w-3.5 h-3.5 text-violet-600" style={{ marginLeft: -1 }} />
+              </div>
+            </div>
+
+            <TableCard label={destLabel} name={destName} total={destTotal} orderCount={source.destOrders.length} side="right" />
+          </div>
+
+          {/* Combined result preview */}
+          <div className="mt-4 flex items-center justify-center gap-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <ReceiptText className="w-3 h-3" />
+              {combinedOrders} order{combinedOrders !== 1 ? 's' : ''}
+            </span>
+            <span className="w-px h-3 bg-gray-300" />
+            <span className="font-semibold text-gray-700">{formatPrice(combinedTotal)}</span>
+            {combinedNamePreview && (
+              <>
+                <span className="w-px h-3 bg-gray-300" />
+                <span className="text-stone-500">{combinedNamePreview}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Footer info + actions */}
+        <div className="px-6 pb-5 pt-3 space-y-3">
+          <p className="text-xs text-gray-500 text-center">
+            All orders combine under <strong>{destLabel}</strong>. {srcLabel} becomes available.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium border hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              Merge
+            </button>
+          </div>
         </div>
       </div>
     </div>
