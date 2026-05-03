@@ -32,6 +32,9 @@ import {
   Edit3,
   Copy,
   ListOrdered,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -336,6 +339,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   const [billingOrders, setBillingOrders]         = useState<Order[] | null>(null);
   const [searchQuery, setSearchQuery]             = useState('');
 
+  // ── Zoom state ─────────────────────────────────────────────────────────────
+  const [zoom, setZoom] = useState(1);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   // ── Refs ───────────────────────────────────────────────────────────────────
   const canvasRef            = useRef<HTMLDivElement>(null);
   const saveTimer            = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -360,6 +367,22 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // ── Zoom with Ctrl+Scroll / pinch ─────────────────────────────────────────
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom(prev => {
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        return Math.min(3, Math.max(0.3, Math.round((prev + delta) * 10) / 10));
+      });
+    };
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
@@ -403,6 +426,19 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         handleUndo();
+      }
+
+      if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        setZoom(z => Math.min(3, Math.round((z + 0.1) * 10) / 10));
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+        e.preventDefault();
+        setZoom(z => Math.max(0.3, Math.round((z - 0.1) * 10) / 10));
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        setZoom(1);
       }
     };
     window.addEventListener('keydown', handler);
@@ -783,8 +819,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     deselectAll();
 
     const rect = canvasRef.current!.getBoundingClientRect();
-    const x    = snap(Math.max(0, e.clientX - rect.left));
-    const y    = snap(Math.max(0, e.clientY - rect.top));
+    const x    = snap(Math.max(0, (e.clientX - rect.left) / zoom));
+    const y    = snap(Math.max(0, (e.clientY - rect.top) / zoom));
 
     if (mode === 'addTable') {
       placeTable(x, y);
@@ -799,8 +835,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     } else if (mode === 'addCounter') {
       placeCounter(x, y);
     } else if (mode === 'select') {
-      const raw = e.clientX - rect.left;
-      const rawY = e.clientY - rect.top;
+      const raw = (e.clientX - rect.left) / zoom;
+      const rawY = (e.clientY - rect.top) / zoom;
       const wallId = findWallAt(raw, rawY);
       if (wallId) setSelectedWallId(wallId);
     }
@@ -818,8 +854,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     if (e.target !== canvasRef.current) return;
     if (mode === 'addZone') {
       const rect = canvasRef.current!.getBoundingClientRect();
-      const x = snap(e.clientX - rect.left);
-      const y = snap(e.clientY - rect.top);
+      const x = snap((e.clientX - rect.left) / zoom);
+      const y = snap((e.clientY - rect.top) / zoom);
       setZoneDrawStart({ x, y });
       setZoneDrawCurrent({ x, y });
     }
@@ -828,11 +864,11 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   function handleCanvasPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (mode === 'drawWalls' && wallDrawingPoints.length > 0 && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
-      setWallPreviewPoint({ x: snap(e.clientX - rect.left), y: snap(e.clientY - rect.top) });
+      setWallPreviewPoint({ x: snap((e.clientX - rect.left) / zoom), y: snap((e.clientY - rect.top) / zoom) });
     }
     if (mode === 'addZone' && zoneDrawStart && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
-      setZoneDrawCurrent({ x: snap(e.clientX - rect.left), y: snap(e.clientY - rect.top) });
+      setZoneDrawCurrent({ x: snap((e.clientX - rect.left) / zoom), y: snap((e.clientY - rect.top) / zoom) });
     }
   }
 
@@ -993,8 +1029,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
     const rect = canvasRef.current!.getBoundingClientRect();
     dragOffset.current = {
-      x: e.clientX - rect.left - elemX,
-      y: e.clientY - rect.top  - elemY,
+      x: (e.clientX - rect.left) / zoom - elemX,
+      y: (e.clientY - rect.top) / zoom  - elemY,
     };
     setDraggingId(id);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -1013,8 +1049,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     if (dx > 5 || dy > 5) dragMoved.current = true;
 
     const rect = canvasRef.current!.getBoundingClientRect();
-    const rawX = e.clientX - rect.left - dragOffset.current.x;
-    const rawY = e.clientY - rect.top  - dragOffset.current.y;
+    const rawX = (e.clientX - rect.left) / zoom - dragOffset.current.x;
+    const rawY = (e.clientY - rect.top) / zoom  - dragOffset.current.y;
     let x    = snap(Math.max(0, Math.min(CANVAS_W - elemW, rawX)));
     let y    = snap(Math.max(0, Math.min(CANVAS_H - elemH, rawY)));
 
@@ -1198,8 +1234,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   function handleWallPointMove(e: React.PointerEvent) {
     if (!draggingWallPoint) return;
     const rect = canvasRef.current!.getBoundingClientRect();
-    const x = snap(Math.max(0, Math.min(CANVAS_W, e.clientX - rect.left)));
-    const y = snap(Math.max(0, Math.min(CANVAS_H, e.clientY - rect.top)));
+    const x = snap(Math.max(0, Math.min(CANVAS_W, (e.clientX - rect.left) / zoom)));
+    const y = snap(Math.max(0, Math.min(CANVAS_H, (e.clientY - rect.top) / zoom)));
     moveWallPoint(draggingWallPoint.wallId, draggingWallPoint.pointIndex, x, y);
   }
 
@@ -1308,8 +1344,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   function handleResizeMove(e: React.PointerEvent) {
     if (!resizing) return;
     const rect = canvasRef.current!.getBoundingClientRect();
-    const mx = snap(e.clientX - rect.left);
-    const my = snap(e.clientY - rect.top);
+    const mx = snap((e.clientX - rect.left) / zoom);
+    const my = snap((e.clientY - rect.top) / zoom);
     const o = resizing.origRect;
     let nx = o.x, ny = o.y, nw = o.width, nh = o.height;
     if (resizing.handle.includes('w')) { nx = Math.min(mx, o.x + o.width - 40); nw = o.x + o.width - nx; }
@@ -1630,7 +1666,15 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         </div>
 
         {/* ── Canvas scroll area ── */}
-        <div className="flex-1 overflow-auto p-4 bg-gray-100">
+        <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 bg-gray-100 relative">
+          {/* Zoom controls */}
+          <div className="sticky top-2 left-2 z-[100] inline-flex items-center gap-1 bg-white/90 backdrop-blur-sm border rounded-lg px-1.5 py-1 shadow-sm mb-2">
+            <button onClick={() => setZoom(z => Math.max(0.3, Math.round((z - 0.1) * 10) / 10))} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="Zoom out"><ZoomOut className="w-4 h-4" /></button>
+            <span className="text-xs font-medium text-gray-600 w-10 text-center select-none">{Math.round(zoom * 100)}%</span>
+            <button onClick={() => setZoom(z => Math.min(3, Math.round((z + 0.1) * 10) / 10))} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="Zoom in"><ZoomIn className="w-4 h-4" /></button>
+            <button onClick={() => setZoom(1)} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="Reset zoom"><Maximize2 className="w-3.5 h-3.5" /></button>
+          </div>
+          <div style={{ width: CANVAS_W * zoom, height: CANVAS_H * zoom }}>
           <div
             ref={canvasRef}
             onClick={handleCanvasClick}
@@ -1645,6 +1689,8 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               ...getFloorBackground(plan.floorStyle),
               cursor: mode !== 'select' ? 'crosshair' : 'default',
               userSelect: 'none',
+              transform: `scale(${zoom})`,
+              transformOrigin: 'top left',
             }}
             className="rounded-xl border bg-white shadow-sm"
           >
@@ -1853,6 +1899,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 onDuplicate={() => duplicateTable(editSelectedTable.id)}
               />
             )}
+          </div>
           </div>
         </div>
       </div>
