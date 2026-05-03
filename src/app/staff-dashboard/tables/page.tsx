@@ -1,18 +1,20 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2, DoorOpen,
+  X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2, DoorOpen, Bell,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
 import { useOrders } from '@/contexts/OrdersContext';
 import { hasPermission } from '@/lib/staff-permissions';
 import { cn, formatPrice } from '@/lib/utils';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { playWaiterCall } from '@/lib/sounds';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import { buildCombinedBillData } from '@/lib/billing';
 import type {
@@ -21,6 +23,7 @@ import type {
   FloorStyle,
   FloorTable,
   Order,
+  WaiterCall,
   ZoneColor,
 } from '@/types';
 
@@ -28,8 +31,54 @@ const GRID = 20;
 const CANVAS_W = 1400;
 const CANVAS_H = 900;
 
+const TIMER_AMBER_MINUTES = 60;
+const TIMER_RED_MINUTES = 120;
+
 function tableLabelText(t: { table_number: number; display_name?: string | null }): string {
   return t.display_name?.trim() || `#${t.table_number}`;
+}
+
+function formatTimer(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function timerColor(minutes: number): string {
+  if (minutes >= TIMER_RED_MINUTES) return '#dc2626';
+  if (minutes >= TIMER_AMBER_MINUTES) return '#d97706';
+  return '#9ca3af';
+}
+
+function getOccupancyMinutes(tableOrders: Order[]): number {
+  const earliest = tableOrders.reduce((min, o) => {
+    const t = new Date(o.created_at).getTime();
+    return t < min ? t : min;
+  }, Infinity);
+  if (earliest === Infinity) return 0;
+  return Math.floor((Date.now() - earliest) / 60000);
+}
+
+function getOrderTotal(tableOrders: Order[]): number {
+  return tableOrders.reduce((sum, o) => sum + o.total, 0);
+}
+
+function getProgressFraction(tableOrders: Order[]): number {
+  let totalItems = 0;
+  let readyItems = 0;
+  for (const o of tableOrders) {
+    if (o.status === 'ready') {
+      const active = (o.items ?? []).filter(i => i.status !== 'voided');
+      totalItems += active.reduce((s, i) => s + i.quantity, 0);
+      readyItems += active.reduce((s, i) => s + i.quantity, 0);
+    } else {
+      const active = (o.items ?? []).filter(i => i.status !== 'voided');
+      totalItems += active.reduce((s, i) => s + i.quantity, 0);
+    }
+  }
+  if (totalItems === 0) return 0;
+  return readyItems / totalItems;
 }
 
 function tableSize(capacity: FloorCapacity) {
@@ -53,6 +102,18 @@ const STATUS_COLORS: Record<TableLiveStatus, { bg: string; border: string; text:
   ready_to_bill:   { bg: 'rgba(139,92,246,0.12)', border: '#8b5cf6', text: '#6d28d9', sub: '#7c3aed' },
   needs_attention: { bg: 'rgba(239,68,68,0.15)',  border: '#ef4444', text: '#b91c1c', sub: '#dc2626' },
 };
+
+const WAITER_PULSE_KEYFRAMES = `
+@keyframes waiterPulseRing {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  70%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+@keyframes waiterPulseRingReduced {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+`;
 
 const ZONE_COLORS_MAP: Record<ZoneColor, { bg: string; border: string; text: string }> = {
   blue:   { bg: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.30)', text: '#3b82f6' },
@@ -101,6 +162,10 @@ export default function StaffTablesPage() {
   const { staff, restaurant } = useStaff();
   const { orders } = useOrders();
   const [selectedTable, setSelectedTable] = useState<SelectedTable | null>(null);
+  const [waiterCalls, setWaiterCalls] = useState<WaiterCall[]>([]);
+  const [, setTick] = useState(0);
+  const reducedMotion = useReducedMotion();
+  const prevWaiterCallCount = useRef(0);
 
   if (!hasPermission(staff.role, 'table:assign')) {
     return (
@@ -125,20 +190,77 @@ export default function StaffTablesPage() {
       });
   }, [restaurant.id]);
 
+  // Fetch waiter calls + realtime subscription
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from('waiter_calls')
+      .select('*, table:tables(id, table_number)')
+      .eq('restaurant_id', restaurant.id)
+      .eq('status', 'pending')
+      .then(({ data }) => { if (data) setWaiterCalls(data); });
+
+    const channel = supabase
+      .channel('staff-tables-waiter-calls')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'waiter_calls', filter: `restaurant_id=eq.${restaurant.id}` },
+        () => {
+          supabase
+            .from('waiter_calls')
+            .select('*, table:tables(id, table_number)')
+            .eq('restaurant_id', restaurant.id)
+            .eq('status', 'pending')
+            .then(({ data }) => { if (data) setWaiterCalls(data); });
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [restaurant.id]);
+
+  // Play audio alert on new waiter call
+  useEffect(() => {
+    if (waiterCalls.length > prevWaiterCallCount.current && prevWaiterCallCount.current >= 0) {
+      playWaiterCall();
+    }
+    prevWaiterCallCount.current = waiterCalls.length;
+  }, [waiterCalls.length]);
+
+  // Timer tick every 30 seconds to update occupancy durations
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   const activeOrders = orders.filter(
     (o) => o.status !== 'delivered' && o.status !== 'cancelled' && !o.payment_method
   );
 
-  function getTableStatus(tableNumber: number): { status: TableLiveStatus; orders: Order[] } {
+  const waiterCallTableNumbers = new Set(
+    waiterCalls.map(wc => wc.table?.table_number).filter((n): n is number => n != null),
+  );
+
+  function getTableStatus(tableNumber: number): { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean } {
     const tableOrders = activeOrders.filter((o) => o.table?.table_number === tableNumber);
-    if (tableOrders.length === 0) return { status: 'available', orders: [] };
+    const hasWaiterCall = waiterCallTableNumbers.has(tableNumber);
+    if (hasWaiterCall) return { status: 'needs_attention', orders: tableOrders, hasWaiterCall };
+    if (tableOrders.length === 0) return { status: 'available', orders: [], hasWaiterCall: false };
     const allReady = tableOrders.every((o) => o.status === 'ready');
-    if (allReady) return { status: 'ready_to_bill', orders: tableOrders };
-    return { status: 'occupied', orders: tableOrders };
+    if (allReady) return { status: 'ready_to_bill', orders: tableOrders, hasWaiterCall: false };
+    return { status: 'occupied', orders: tableOrders, hasWaiterCall: false };
   }
 
-  function handleTableClick(table: FloorTable, dbId: string, info: { status: TableLiveStatus; orders: Order[] }) {
-    if (info.status === 'available') return; // available tables use Link navigation
+  const dismissWaiterCall = useCallback(async (tableNumber: number) => {
+    const call = waiterCalls.find(wc => wc.table?.table_number === tableNumber);
+    if (!call) return;
+    const supabase = createClient();
+    await supabase.from('waiter_calls').update({ status: 'acknowledged' }).eq('id', call.id);
+    setWaiterCalls(prev => prev.filter(wc => wc.id !== call.id));
+    toast.success('Waiter call dismissed');
+  }, [waiterCalls]);
+
+  function handleTableClick(table: FloorTable, dbId: string, info: { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean }) {
+    if (info.status === 'available') return;
     setSelectedTable({
       dbId,
       label: tableLabelText(table),
@@ -180,35 +302,38 @@ export default function StaffTablesPage() {
   );
 
   return (
-    <div className="p-4 sm:p-6 pb-20 md:pb-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Tables</h1>
-        <p className="text-sm text-muted-foreground mt-1">Tap a table to view or place an order</p>
+    <div className="p-4 sm:p-6 pb-20 md:pb-2">
+      {/* Inject waiter pulse keyframes */}
+      <style dangerouslySetInnerHTML={{ __html: WAITER_PULSE_KEYFRAMES }} />
+
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-2">
+        <h1 className="text-lg font-semibold">Tables</h1>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          {([
+            { key: 'available' as const, color: 'bg-green-500', textColor: 'text-green-700', label: 'available' },
+            { key: 'occupied' as const, color: 'bg-amber-500', textColor: 'text-amber-700', label: 'occupied' },
+            { key: 'ready_to_bill' as const, color: 'bg-violet-500', textColor: 'text-violet-700', label: 'ready to bill' },
+            { key: 'needs_attention' as const, color: 'bg-red-500', textColor: 'text-red-700', label: 'attention' },
+          ]).map(({ key, color, textColor, label }) => (
+            statusCounts[key] > 0 ? (
+              <span key={key} className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${color}`} />
+                <span className={`font-medium ${textColor}`}>{statusCounts[key]}</span>
+                <span className="text-muted-foreground">{label}</span>
+              </span>
+            ) : null
+          ))}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
-        <span className="text-muted-foreground font-medium">
-          {plan.tables.length} table{plan.tables.length !== 1 ? 's' : ''}:
-        </span>
-        {([
-          { key: 'available' as const, color: 'bg-green-500', textColor: 'text-green-700', label: 'available' },
-          { key: 'occupied' as const, color: 'bg-amber-500', textColor: 'text-amber-700', label: 'occupied' },
-          { key: 'ready_to_bill' as const, color: 'bg-violet-500', textColor: 'text-violet-700', label: 'ready to bill' },
-        ]).map(({ key, color, textColor, label }) => (
-          <span key={key} className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${color}`} />
-            <span className={`font-medium ${textColor}`}>{statusCounts[key]}</span>
-            <span className="text-muted-foreground">{label}</span>
-          </span>
-        ))}
-      </div>
-
-      <div className="overflow-auto rounded-xl border shadow-sm bg-white">
+      <div className="rounded-xl border shadow-sm bg-white overflow-hidden">
         <StaffFloorCanvas
           plan={plan}
           getTableStatus={getTableStatus}
           dbTableIds={dbTableIds}
           onOccupiedTableClick={handleTableClick}
+          reducedMotion={reducedMotion}
+          onDismissWaiterCall={dismissWaiterCall}
         />
       </div>
 
@@ -230,33 +355,52 @@ function StaffFloorCanvas({
   getTableStatus,
   dbTableIds,
   onOccupiedTableClick,
+  reducedMotion,
+  onDismissWaiterCall,
 }: {
   plan: FloorPlan;
-  getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[] };
+  getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean };
   dbTableIds: Map<number, string>;
-  onOccupiedTableClick: (table: FloorTable, dbId: string, info: { status: TableLiveStatus; orders: Order[] }) => void;
+  onOccupiedTableClick: (table: FloorTable, dbId: string, info: { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean }) => void;
+  reducedMotion: boolean;
+  onDismissWaiterCall: (tableNumber: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [dims, setDims] = useState({ scale: 1, containerW: CANVAS_W });
 
   useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+
     function update() {
-      if (!containerRef.current) return;
-      setScale(Math.min(1, containerRef.current.clientWidth / CANVAS_W));
+      const rect = el.getBoundingClientRect();
+      const availW = rect.width;
+      const isMobile = window.innerWidth < 768;
+      const availH = window.innerHeight - rect.top - (isMobile ? 76 : 12);
+      const scaleX = availW / CANVAS_W;
+      const scaleY = Math.max(100, availH) / CANVAS_H;
+      setDims({ scale: Math.min(1, scaleX, scaleY), containerW: availW });
     }
+
     update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    return () => { observer.disconnect(); window.removeEventListener('resize', update); };
   }, []);
 
+  const leftOffset = Math.max(0, (dims.containerW - CANVAS_W * dims.scale) / 2);
+
   return (
-    <div ref={containerRef} style={{ overflow: 'hidden', height: CANVAS_H * scale }}>
+    <div ref={containerRef} style={{ overflow: 'hidden', height: CANVAS_H * dims.scale, position: 'relative' }}>
       <div
         style={{
           width: CANVAS_W,
           height: CANVAS_H,
-          position: 'relative',
-          transform: `scale(${scale})`,
+          position: 'absolute',
+          left: leftOffset,
+          top: 0,
+          transform: `scale(${dims.scale})`,
           transformOrigin: 'top left',
           ...getFloorBackground(plan.floorStyle),
           userSelect: 'none',
@@ -374,7 +518,12 @@ function StaffFloorCanvas({
             status={info.status}
             orders={info.orders}
             dbId={dbId}
-            onOccupiedClick={() => onOccupiedTableClick(table, dbId, info)}
+            hasWaiterCall={info.hasWaiterCall}
+            reducedMotion={reducedMotion}
+            onOccupiedClick={() => {
+              if (info.hasWaiterCall) onDismissWaiterCall(table.table_number);
+              onOccupiedTableClick(table, dbId, info);
+            }}
           />
         );
       })}
@@ -390,12 +539,16 @@ function StaffTableElement({
   status,
   orders: tableOrders,
   dbId,
+  hasWaiterCall,
+  reducedMotion,
   onOccupiedClick,
 }: {
   table: FloorTable;
   status: TableLiveStatus;
   orders: Order[];
   dbId: string;
+  hasWaiterCall: boolean;
+  reducedMotion: boolean;
   onOccupiedClick: () => void;
 }) {
   const { w, h } = tableSize(table.capacity);
@@ -404,7 +557,14 @@ function StaffTableElement({
   const customerName = tableOrders.find((o) => o.customer_name)?.customer_name ?? null;
   const inMergeGroup = !!table.merge_group_id;
   const showName = customerName && !inMergeGroup;
-  const orderCount = tableOrders.length;
+  const isOccupied = tableOrders.length > 0;
+
+  const minutes = isOccupied ? getOccupancyMinutes(tableOrders) : 0;
+  const total = isOccupied ? getOrderTotal(tableOrders) : 0;
+  const progress = isOccupied ? getProgressFraction(tableOrders) : 0;
+  const isSmall = table.capacity <= 2;
+
+  const progressColor = progress >= 1 ? '#22c55e' : '#f59e0b';
 
   const inner = (
     <div
@@ -421,19 +581,32 @@ function StaffTableElement({
         boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
         transition: 'box-shadow 0.15s, transform 0.15s',
         padding: '0 4px',
+        position: 'relative' as const,
+        overflow: 'hidden',
       }}
       className="hover:shadow-lg hover:scale-105"
     >
+      {/* Waiter call bell icon */}
+      {hasWaiterCall && (
+        <Bell
+          className="absolute"
+          style={{ top: 3, right: isRound ? 8 : 4, width: 12, height: 12, color: '#ef4444' }}
+        />
+      )}
+
+      {/* Table label */}
       <span style={{ fontWeight: 700, fontSize: 13, color: colors.text, lineHeight: 1 }}>
         {tableLabelText(table)}
       </span>
+
+      {/* Customer name or capacity */}
       {showName ? (
         <span
           style={{
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: 700,
             color: colors.text,
-            marginTop: 3,
+            marginTop: 2,
             lineHeight: 1.1,
             maxWidth: 'calc(100% - 8px)',
             overflow: 'hidden',
@@ -444,20 +617,42 @@ function StaffTableElement({
         >
           {shortName(customerName)}
         </span>
-      ) : orderCount > 0 ? (
-        <span style={{ fontSize: 10, fontWeight: 600, color: colors.text, marginTop: 3 }}>
-          {orderCount} order{orderCount !== 1 ? 's' : ''}
-        </span>
-      ) : (
-        <span style={{ fontSize: 11, color: colors.sub, marginTop: 3 }}>
+      ) : !isOccupied ? (
+        <span style={{ fontSize: 11, color: colors.sub, marginTop: 2 }}>
           {table.capacity}p
+        </span>
+      ) : null}
+
+      {/* Timer — hide on small tables to save space */}
+      {isOccupied && !isSmall && minutes > 0 && (
+        <span style={{
+          fontSize: 10,
+          fontWeight: 500,
+          color: timerColor(minutes),
+          marginTop: 1,
+          lineHeight: 1,
+        }}>
+          {formatTimer(minutes)}
+        </span>
+      )}
+
+      {/* Order value */}
+      {isOccupied && total > 0 && (
+        <span style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: colors.text,
+          marginTop: 1,
+          lineHeight: 1,
+        }}>
+          {formatPrice(total)}
         </span>
       )}
     </div>
   );
 
-  const positionStyle = {
-    position: 'absolute' as const,
+  const positionStyle: React.CSSProperties = {
+    position: 'absolute',
     left: table.x,
     top: table.y,
     width: w,
@@ -468,16 +663,89 @@ function StaffTableElement({
     textDecoration: 'none',
   };
 
+  const progressRing = isOccupied && progress > 0 ? (
+    <svg
+      style={{
+        position: 'absolute',
+        top: -3,
+        left: -3,
+        width: w + 6,
+        height: h + 6,
+        pointerEvents: 'none',
+        zIndex: 3,
+      }}
+    >
+      {isRound ? (
+        <circle
+          cx={(w + 6) / 2}
+          cy={(h + 6) / 2}
+          r={(w + 6) / 2 - 2}
+          fill="none"
+          stroke={progressColor}
+          strokeWidth={2.5}
+          strokeDasharray={`${progress * Math.PI * (w + 2)} ${Math.PI * (w + 2)}`}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${(w + 6) / 2} ${(h + 6) / 2})`}
+          style={{ transition: 'stroke-dasharray 0.5s, stroke 0.3s' }}
+        />
+      ) : (
+        <rect
+          x={2}
+          y={2}
+          width={w + 2}
+          height={h + 2}
+          rx={12}
+          ry={12}
+          fill="none"
+          stroke={progressColor}
+          strokeWidth={2.5}
+          strokeDasharray={`${progress * 2 * (w + h + 4)} ${2 * (w + h + 4)}`}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dasharray 0.5s, stroke 0.3s' }}
+        />
+      )}
+    </svg>
+  ) : null;
+
+  const waiterPulse = hasWaiterCall && !reducedMotion ? (
+    <div
+      style={{
+        position: 'absolute',
+        inset: -4,
+        borderRadius: isRound ? '50%' : 14,
+        border: '2px solid rgba(239,68,68,0.6)',
+        animation: 'waiterPulseRing 1.5s ease-out infinite',
+        pointerEvents: 'none',
+        zIndex: 1,
+      }}
+    />
+  ) : hasWaiterCall && reducedMotion ? (
+    <div
+      style={{
+        position: 'absolute',
+        inset: -4,
+        borderRadius: isRound ? '50%' : 14,
+        border: '2px solid rgba(239,68,68,0.6)',
+        animation: 'waiterPulseRingReduced 2s ease-in-out infinite',
+        pointerEvents: 'none',
+        zIndex: 1,
+      }}
+    />
+  ) : null;
+
   if (status === 'available') {
     return (
       <Link href={`/staff-dashboard/tables/${dbId}/new-order`} style={positionStyle}>
+        {progressRing}
         {inner}
       </Link>
     );
   }
 
   return (
-    <button type="button" onClick={onOccupiedClick} style={positionStyle}>
+    <button type="button" onClick={onOccupiedClick} style={{ ...positionStyle, overflow: 'visible' }}>
+      {waiterPulse}
+      {progressRing}
       {inner}
     </button>
   );
@@ -788,7 +1056,7 @@ function MergeGroupBackgrounds({
   getTableStatus,
 }: {
   tables: FloorTable[];
-  getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[] };
+  getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean };
 }) {
   const groups = new Map<string, FloorTable[]>();
   for (const t of tables) {
