@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
-import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag, AlertTriangle, Usb, Search, X, XCircle, ChefHat, UtensilsCrossed } from 'lucide-react';
+import { IndianRupee, Clock, ChevronDown, ChevronUp, ShoppingBag, AlertTriangle, Usb, Search, X, XCircle, ChefHat, UtensilsCrossed, Merge, Scissors, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrders } from '@/contexts/OrdersContext';
 import { useStaff } from '@/contexts/StaffContext';
@@ -48,6 +48,14 @@ export default function CounterDashboard() {
   const [voidOrderId, setVoidOrderId] = useState<string>('');
   const [voidItem, setVoidItem] = useState<OrderItem | null>(null);
   const can86 = hasPermission(staff.role, 'menu:mark_out_of_stock');
+  const canMerge = hasPermission(staff.role, 'order:merge');
+
+  // Drag-to-merge state
+  const [draggingGroupKey, setDraggingGroupKey] = useState<string | null>(null);
+  const [dropTargetGroupKey, setDropTargetGroupKey] = useState<string | null>(null);
+
+  // Search-merge dialog
+  const [mergeSearchGroup, setMergeSearchGroup] = useState<TableGroup | null>(null);
 
   useEffect(() => {
     const config = restaurant.printer_config;
@@ -413,6 +421,64 @@ export default function CounterDashboard() {
     }
   }
 
+  async function mergeGroups(sourceGroup: TableGroup, targetGroup: TableGroup) {
+    const allOrderIds = [...sourceGroup.orders, ...targetGroup.orders].map(o => o.id);
+    const allEligible = [...sourceGroup.orders, ...targetGroup.orders].every(
+      o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method,
+    );
+    if (!allEligible) {
+      toast.error('Cannot merge — all orders must be active and unpaid');
+      return;
+    }
+    const existingGroupId =
+      sourceGroup.orders.find(o => o.merge_group_id)?.merge_group_id ??
+      targetGroup.orders.find(o => o.merge_group_id)?.merge_group_id;
+    const groupId = existingGroupId ?? crypto.randomUUID();
+
+    try {
+      const res = await fetch('/api/staff/orders/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ids: allOrderIds, merge_group_id: groupId }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to merge orders');
+      }
+      toast.success('Orders merged', {
+        action: { label: 'Undo', onClick: () => splitMergeGroup(groupId) },
+        duration: 5000,
+      });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to merge orders');
+    }
+  }
+
+  async function splitMergeGroup(mergeGroupId: string) {
+    try {
+      const res = await fetch('/api/staff/orders/merge', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merge_group_id: mergeGroupId }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to split orders');
+      }
+      toast.success('Orders split');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to split orders');
+    }
+  }
+
+  function handleDragDrop(sourceKey: string, targetKey: string) {
+    setDraggingGroupKey(null);
+    setDropTargetGroupKey(null);
+    const sourceGroup = filteredGroups.find(g => g.key === sourceKey);
+    const targetGroup = filteredGroups.find(g => g.key === targetKey);
+    if (sourceGroup && targetGroup) mergeGroups(sourceGroup, targetGroup);
+  }
+
   return (
     <div className="p-4 sm:p-6 pb-24 max-w-4xl mx-auto space-y-4">
       {/* Header */}
@@ -542,6 +608,15 @@ export default function CounterDashboard() {
                 onCancelOrder={handleCancelOrder}
                 onVoidItem={openVoidDialog}
                 isUpdating={group.orders.some(o => updating === o.id)}
+                canMerge={canMerge}
+                isDragging={draggingGroupKey === group.key}
+                isDropTarget={dropTargetGroupKey === group.key}
+                onDragStart={() => setDraggingGroupKey(group.key)}
+                onDragOverTarget={(targetKey) => setDropTargetGroupKey(targetKey)}
+                onDragDrop={(targetKey) => handleDragDrop(group.key, targetKey)}
+                onDragCancel={() => { setDraggingGroupKey(null); setDropTargetGroupKey(null); }}
+                onMergeSearch={() => setMergeSearchGroup(group)}
+                onSplit={group.key.startsWith('merge:') ? () => splitMergeGroup(group.key.replace('merge:', '')) : undefined}
               />
             ))}
           </div>
@@ -659,11 +734,25 @@ export default function CounterDashboard() {
           }}
         />
       )}
+
+      {mergeSearchGroup && (
+        <MergeSearchDialog
+          sourceGroup={mergeSearchGroup}
+          allGroups={tableGroups}
+          onMerge={(targetGroup) => {
+            mergeGroups(mergeSearchGroup, targetGroup);
+            setMergeSearchGroup(null);
+          }}
+          onClose={() => setMergeSearchGroup(null)}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Table Card ──────────────────────────────────────────────────────────────
+
+const LONG_PRESS_MS = 500;
 
 function TableCard({
   group,
@@ -673,6 +762,15 @@ function TableCard({
   onCancelOrder,
   onVoidItem,
   isUpdating,
+  canMerge,
+  isDragging,
+  isDropTarget,
+  onDragStart,
+  onDragOverTarget,
+  onDragDrop,
+  onDragCancel,
+  onMergeSearch,
+  onSplit,
 }: {
   group: TableGroup;
   onCollect: () => void;
@@ -681,9 +779,22 @@ function TableCard({
   onCancelOrder: (order: Order) => void;
   onVoidItem: (orderId: string, item: OrderItem) => void;
   isUpdating: boolean;
+  canMerge: boolean;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  onDragStart: () => void;
+  onDragOverTarget: (targetKey: string | null) => void;
+  onDragDrop: (targetKey: string) => void;
+  onDragCancel: () => void;
+  onMergeSearch: () => void;
+  onSplit?: () => void;
 }) {
   const [expanded, setExpanded] = useState(group.items.length <= 5);
   const waitMinutes = Math.floor((Date.now() - group.oldestReadyAt) / 60_000);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const nameDisplay =
     group.customerNames.length === 0
@@ -692,11 +803,92 @@ function TableCard({
         ? group.customerNames.join(', ')
         : `${group.customerNames.slice(0, 2).join(', ')} +${group.customerNames.length - 2} more`;
 
+  const isMerged = group.key.startsWith('merge:');
+  const allEligible = group.orders.every(o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method);
+  const dragEnabled = canMerge && allEligible && !isMerged;
+
+  function handlePointerDown(e: React.PointerEvent) {
+    if (!dragEnabled) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointerStart.current = { x: e.clientX, y: e.clientY };
+    longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = null;
+      cardRef.current?.setPointerCapture(e.pointerId);
+      setDragOffset({ x: 0, y: 0 });
+      onDragStart();
+    }, LONG_PRESS_MS);
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    const dx = e.clientX - pointerStart.current.x;
+    const dy = e.clientY - pointerStart.current.y;
+    if (longPressTimer.current && Math.hypot(dx, dy) > 8) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    if (!isDragging) return;
+    setDragOffset({ x: dx, y: dy });
+    const card = cardRef.current;
+    if (card) {
+      card.style.pointerEvents = 'none';
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      card.style.pointerEvents = '';
+      const targetEl = el?.closest('[data-group-key]') as HTMLElement | null;
+      const targetKey = targetEl?.dataset.groupKey ?? null;
+      onDragOverTarget(targetKey && targetKey !== group.key ? targetKey : null);
+    }
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    if (!isDragging) return;
+    const card = cardRef.current;
+    let targetKey: string | null = null;
+    if (card) {
+      card.style.pointerEvents = 'none';
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      card.style.pointerEvents = '';
+      const targetEl = el?.closest('[data-group-key]') as HTMLElement | null;
+      targetKey = targetEl?.dataset.groupKey ?? null;
+    }
+    setDragOffset({ x: 0, y: 0 });
+    if (targetKey && targetKey !== group.key) {
+      onDragDrop(targetKey);
+    } else {
+      onDragCancel();
+    }
+  }
+
+  function handlePointerCancel() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    if (isDragging) onDragCancel();
+    setDragOffset({ x: 0, y: 0 });
+  }
+
   return (
-    <div className={cn(
-      'bg-white rounded-xl border-2 shadow-sm flex flex-col overflow-hidden',
-      group.readyToBill ? 'border-green-300' : 'border-amber-300',
-    )}>
+    <div
+      ref={cardRef}
+      data-group-key={group.key}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      style={{
+        transform: isDragging
+          ? `translate(${dragOffset.x}px, ${dragOffset.y}px) scale(1.03) rotate(1.5deg)`
+          : isDropTarget ? 'scale(1.02)' : undefined,
+        transition: isDragging ? 'none' : 'transform 0.2s, box-shadow 0.2s',
+        zIndex: isDragging ? 50 : isDropTarget ? 10 : undefined,
+        position: 'relative',
+        ...(dragEnabled ? { touchAction: 'none' as const } : {}),
+      }}
+      className={cn(
+        'bg-white rounded-xl border-2 shadow-sm flex flex-col overflow-hidden',
+        group.readyToBill ? 'border-green-300' : 'border-amber-300',
+        isDragging && 'opacity-90 shadow-2xl',
+        isDropTarget && 'ring-2 ring-violet-400 ring-offset-2',
+      )}
+    >
       {/* Header */}
       <div className={cn(
         'px-4 py-3 flex items-center justify-between',
@@ -710,6 +902,11 @@ function TableCard({
               <span className="flex items-center gap-1.5">
                 <ShoppingBag className="w-5 h-5 text-muted-foreground" />
                 {group.tableLabel} #{group.orderNumbers[0]}
+              </span>
+            )}
+            {isMerged && (
+              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">
+                Merged
               </span>
             )}
             <span className={cn(
@@ -730,15 +927,40 @@ function TableCard({
             </p>
           )}
         </div>
-        <div className="text-right">
+        <div className="text-right flex flex-col items-end gap-1">
           <p className="font-bold text-lg">{formatPrice(group.total)}</p>
           <div className={cn(
-            'flex items-center gap-1 mt-0.5 text-xs justify-end',
+            'flex items-center gap-1 text-xs',
             waitMinutes >= 5 ? 'text-red-600 font-semibold' : 'text-muted-foreground',
           )}>
             <Clock className="w-3 h-3" />
             {waitMinutes < 1 ? 'Just now' : `${waitMinutes} min`}
           </div>
+          {/* Merge/Split actions */}
+          {canMerge && (
+            <div className="flex items-center gap-1 mt-0.5">
+              {!isMerged && allEligible && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onMergeSearch(); }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors"
+                  title="Merge with another order"
+                >
+                  <Merge className="w-3 h-3" />
+                  Merge
+                </button>
+              )}
+              {onSplit && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSplit(); }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors"
+                  title="Split merged orders"
+                >
+                  <Scissors className="w-3 h-3" />
+                  Split
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -876,6 +1098,162 @@ function ItemsList({ items, onVoidItem }: { items: OrderItem[]; onVoidItem?: (or
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── Merge Search Dialog ────────────────────────────────────────────────────
+
+function MergeSearchDialog({
+  sourceGroup,
+  allGroups,
+  onMerge,
+  onClose,
+}: {
+  sourceGroup: TableGroup;
+  allGroups: TableGroup[];
+  onMerge: (target: TableGroup) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [confirming, setConfirming] = useState<TableGroup | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const candidates = useMemo(() => {
+    return allGroups.filter(g => {
+      if (g.key === sourceGroup.key) return false;
+      const eligible = g.orders.every(o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method);
+      if (!eligible) return false;
+      if (!query.trim()) return true;
+      const q = query.trim().toLowerCase();
+      return (
+        g.tableLabel.toLowerCase().includes(q) ||
+        g.customerNames.some(n => n.toLowerCase().includes(q)) ||
+        g.orderNumbers.some(n => String(n).includes(q))
+      );
+    });
+  }, [allGroups, sourceGroup.key, query]);
+
+  async function handleConfirm() {
+    if (!confirming) return;
+    setLoading(true);
+    await onMerge(confirming);
+    setLoading(false);
+  }
+
+  if (confirming) {
+    const srcName = sourceGroup.customerNames[0];
+    const destName = confirming.customerNames[0];
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+          <h3 className="font-bold text-lg flex items-center gap-2">
+            <Merge className="w-5 h-5 text-violet-600" />
+            Merge orders?
+          </h3>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 p-3 rounded-xl bg-amber-50 border border-amber-200 text-center">
+              <p className="font-bold text-sm">{sourceGroup.tableLabel}</p>
+              {srcName && <p className="text-xs text-muted-foreground mt-0.5">{srcName}</p>}
+              <p className="text-xs font-semibold mt-1">{formatPrice(sourceGroup.total)}</p>
+              <p className="text-[10px] text-muted-foreground">{sourceGroup.orders.length} order{sourceGroup.orders.length !== 1 ? 's' : ''}</p>
+            </div>
+            <Merge className="w-5 h-5 text-violet-400 flex-shrink-0" />
+            <div className="flex-1 p-3 rounded-xl bg-amber-50 border border-amber-200 text-center">
+              <p className="font-bold text-sm">{confirming.tableLabel}</p>
+              {destName && <p className="text-xs text-muted-foreground mt-0.5">{destName}</p>}
+              <p className="text-xs font-semibold mt-1">{formatPrice(confirming.total)}</p>
+              <p className="text-[10px] text-muted-foreground">{confirming.orders.length} order{confirming.orders.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div className="text-center text-xs text-muted-foreground">
+            Combined: <strong>{formatPrice(sourceGroup.total + confirming.total)}</strong> · {sourceGroup.items.length + confirming.items.length} items
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setConfirming(null)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium border hover:bg-gray-50 transition-colors"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              Merge
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div className="p-5 pb-3">
+          <h3 className="font-bold text-lg flex items-center gap-2 mb-1">
+            <Merge className="w-5 h-5 text-violet-600" />
+            Merge with…
+          </h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Select an order to merge with <strong>{sourceGroup.tableLabel}</strong>
+          </p>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search by table, customer, or order #…"
+              className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400"
+            />
+          </div>
+        </div>
+        <div className="max-h-64 overflow-y-auto px-5 pb-5 space-y-2">
+          {candidates.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              {query.trim() ? 'No matching orders' : 'No other orders to merge with'}
+            </p>
+          ) : (
+            candidates.map(g => (
+              <button
+                key={g.key}
+                onClick={() => setConfirming(g)}
+                className="w-full text-left p-3 rounded-xl border hover:border-violet-300 hover:bg-violet-50/50 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-sm">{g.isTable ? `Table ${g.tableLabel}` : `${g.tableLabel} #${g.orderNumbers[0]}`}</p>
+                    {g.customerNames.length > 0 && (
+                      <p className="text-xs text-muted-foreground">{g.customerNames.join(', ')}</p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-sm">{formatPrice(g.total)}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {g.items.length} item{g.items.length !== 1 ? 's' : ''} · {g.orders.length} order{g.orders.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+        <div className="px-5 pb-4">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl text-sm font-medium border hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

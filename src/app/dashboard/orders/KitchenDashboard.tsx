@@ -843,14 +843,16 @@ function MergedOrderCard({
           )}>
             {allReady ? 'Ready' : 'Active'}
           </span>
-          <button
-            onClick={onUnmerge}
-            className="flex items-center gap-1 text-xs text-violet-500 hover:text-violet-700 px-2 py-1 rounded-lg hover:bg-violet-100 transition-colors"
-            title="Split into individual orders"
-          >
-            <Unlink2 className="w-3.5 h-3.5" />
-            Split
-          </button>
+          {(!staffSession || hasPermission(staffSession.role, 'order:merge')) && (
+            <button
+              onClick={onUnmerge}
+              className="flex items-center gap-1 text-xs text-violet-500 hover:text-violet-700 px-2 py-1 rounded-lg hover:bg-violet-100 transition-colors"
+              title="Split into individual orders"
+            >
+              <Unlink2 className="w-3.5 h-3.5" />
+              Split
+            </button>
+          )}
         </div>
       </div>
 
@@ -1010,8 +1012,8 @@ function OrderCard({
 
   const isDragging   = draggingOrderId === order.id;
   const isDropTarget = dropTargetOrderId === order.id;
-  // Only unmerged, active, unpaid orders may be dragged (merged groups have their own card)
-  const canDrag = !isTerminal && !order.merge_group_id && !order.payment_method;
+  const canMerge = !staffSession || hasPermission(staffSession.role, 'order:merge');
+  const canDrag = canMerge && !isTerminal && !order.merge_group_id && !order.payment_method;
 
   function handlePointerDown(e: React.PointerEvent) {
     if (!canDrag) return;

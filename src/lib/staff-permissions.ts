@@ -20,7 +20,6 @@ export type Permission =
 const FLOOR: Set<Permission> = new Set([
   'order:view',
   'order:set_delivered',
-  'order:merge',
   'waiter_call:dismiss',
   'table:assign',
 ]);
@@ -28,7 +27,6 @@ const FLOOR: Set<Permission> = new Set([
 const KITCHEN: Set<Permission> = new Set([
   'order:view',
   'order:set_ready',
-  'order:merge',
   'menu:mark_out_of_stock',
 ]);
 
