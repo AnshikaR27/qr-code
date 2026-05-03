@@ -793,7 +793,7 @@ function StaffFloorCanvas({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [dims, setDims] = useState({ scale: 1, containerW: CANVAS_W });
+  const [dims, setDims] = useState({ scale: 1, containerW: CANVAS_W, containerH: CANVAS_H });
 
   // Feature 4: Hover peek
   const [peekTable, setPeekTable] = useState<{ table: FloorTable; orders: Order[]; screenX: number; screenY: number } | null>(null);
@@ -815,7 +815,7 @@ function StaffFloorCanvas({
         : window.innerHeight - rect.top - (window.innerWidth < 768 ? 76 : 12);
       const scaleX = availW / CANVAS_W;
       const scaleY = Math.max(100, availH) / CANVAS_H;
-      setDims({ scale: Math.min(1, scaleX, scaleY), containerW: availW });
+      setDims({ scale: Math.min(1, scaleX, scaleY), containerW: availW, containerH: availH });
     }
 
     update();
@@ -878,10 +878,17 @@ function StaffFloorCanvas({
     if (peekTable) setPeekTable(prev => prev ? { ...prev, screenX: e.clientX, screenY: e.clientY } : null);
   }
 
+  const floorBg = getFloorBackground(plan.floorStyle);
+
   return (
     <div
       ref={containerRef}
-      style={{ overflow: 'hidden', height: isFullscreen ? '100%' : CANVAS_H * dims.scale, position: 'relative' }}
+      style={{
+        overflow: 'hidden',
+        height: isFullscreen ? '100%' : CANVAS_H * dims.scale,
+        position: 'relative',
+        ...(isFullscreen ? floorBg : {}),
+      }}
       onPointerMove={handleCanvasPointerMove}
       onPointerUp={handleCanvasPointerUp}
       onPointerLeave={() => { if (dragState) onDragCancel(); }}
@@ -893,10 +900,10 @@ function StaffFloorCanvas({
           height: CANVAS_H,
           position: 'absolute',
           left: leftOffset,
-          top: 0,
+          top: isFullscreen ? Math.max(0, (dims.containerH - CANVAS_H * dims.scale) / 2) : 0,
           transform: `scale(${dims.scale})`,
           transformOrigin: 'top left',
-          ...getFloorBackground(plan.floorStyle),
+          ...(isFullscreen ? {} : floorBg),
           userSelect: 'none',
         }}
       >
@@ -1283,13 +1290,13 @@ function StaffTableElement({
             top: h + 5,
             left: w / 2,
             transform: 'translateX(-50%)',
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: 700,
-            color: '#57534e',
+            color: '#44403c',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            maxWidth: w + 30,
+            maxWidth: w + 40,
             textAlign: 'center',
             pointerEvents: 'auto',
             lineHeight: 1.2,

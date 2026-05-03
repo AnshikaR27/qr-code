@@ -2813,7 +2813,7 @@ function TableElement({
         </span>
         {showName ? (
           <span style={{
-            fontSize: 12, fontWeight: 700, color: text, marginTop: 3, lineHeight: 1.1,
+            fontSize: 13, fontWeight: 700, color: text, marginTop: 3, lineHeight: 1.1,
             maxWidth: 'calc(100% - 4px)', overflow: 'hidden', textOverflow: 'ellipsis',
             whiteSpace: 'nowrap', textAlign: 'center',
           }}>
