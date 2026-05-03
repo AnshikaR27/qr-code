@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
   X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2, Bell,
-  Search, Users, ArrowRight,
+  Search, Users, ArrowRight, Maximize2, Minimize2,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
@@ -305,6 +305,9 @@ export default function StaffTablesPage() {
   const [seatParty, setSeatParty] = useState<SeatPartyState | null>(null);
   const seatPartyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Fullscreen
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   // Feature 2/3: Drag state + merge dialog
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [mergeDialog, setMergeDialog] = useState<MergeDialogState | null>(null);
@@ -559,96 +562,160 @@ export default function StaffTablesPage() {
     { available: 0, occupied: 0, ready_to_bill: 0, needs_attention: 0 } as Record<TableLiveStatus, number>,
   );
 
+  const header = (
+    <div className={cn(
+      'flex flex-wrap items-center justify-between gap-x-4 gap-y-1',
+      isFullscreen ? 'px-4 py-2 bg-white/90 backdrop-blur-sm border-b' : 'mb-2',
+    )}>
+      <div className="flex items-center gap-2">
+        <h1 className="text-lg font-semibold">Tables</h1>
+
+        {/* Feature 6: Seat party button */}
+        <SeatPartyButton
+          active={!!seatParty}
+          onSelectSize={startSeatParty}
+          onDismiss={dismissSeatParty}
+          noTablesMsg={seatParty && seatParty.validIds.size === 0
+            ? `No tables for ${seatParty.partySize} guests`
+            : null
+          }
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        {/* Feature 5: Search */}
+        <div className="flex items-center">
+          {searchOpen ? (
+            <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1 shadow-sm">
+              <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Customer or table…"
+                className="w-32 text-xs outline-none bg-transparent"
+              />
+              <button onClick={() => { setSearchQuery(''); setSearchOpen(false); }} className="p-0.5 hover:bg-gray-100 rounded">
+                <X className="w-3 h-3 text-muted-foreground" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              title="Search tables"
+            >
+              <Search className="w-4 h-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+
+        {/* Fullscreen toggle */}
+        <button
+          onClick={() => setIsFullscreen(f => !f)}
+          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        >
+          {isFullscreen
+            ? <Minimize2 className="w-4 h-4 text-muted-foreground" />
+            : <Maximize2 className="w-4 h-4 text-muted-foreground" />
+          }
+        </button>
+
+        {/* Status legend */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          {([
+            { key: 'available' as const, color: 'bg-green-500', textColor: 'text-green-700', label: 'available' },
+            { key: 'occupied' as const, color: 'bg-amber-500', textColor: 'text-amber-700', label: 'occupied' },
+            { key: 'ready_to_bill' as const, color: 'bg-violet-500', textColor: 'text-violet-700', label: 'ready' },
+            { key: 'needs_attention' as const, color: 'bg-red-500', textColor: 'text-red-700', label: 'attention' },
+          ]).map(({ key, color, textColor, label }) => (
+            statusCounts[key] > 0 ? (
+              <span key={key} className="flex items-center gap-1">
+                <span className={`w-2 h-2 rounded-full ${color}`} />
+                <span className={`font-medium ${textColor}`}>{statusCounts[key]}</span>
+                <span className="text-muted-foreground hidden sm:inline">{label}</span>
+              </span>
+            ) : null
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const canvas = (
+    <StaffFloorCanvas
+      plan={plan}
+      getTableStatus={getTableStatus}
+      dbTableIds={dbTableIds}
+      onOccupiedTableClick={handleTableClick}
+      onAvailableTableClick={(table, dbId) => {
+        if (seatParty) dismissSeatParty();
+        setNewOrderTable({ dbId, label: tableLabelText(table) });
+      }}
+      reducedMotion={reducedMotion}
+      onDismissWaiterCall={dismissWaiterCall}
+      canDrag={canDragMove}
+      dragState={dragState}
+      onDragStart={(table, dbId, tableOrders) => setDragState({ sourceTable: table, sourceDbId: dbId, sourceOrders: tableOrders, cursorX: 0, cursorY: 0 })}
+      onDragMove={(x, y) => setDragState(prev => prev ? { ...prev, cursorX: x, cursorY: y } : null)}
+      onDragEnd={handleDragDrop}
+      onDragCancel={() => setDragState(null)}
+      searchMatchIds={searchTerm ? searchMatchIds : null}
+      seatParty={seatParty}
+      isFullscreen={isFullscreen}
+    />
+  );
+
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-40 bg-white flex flex-col">
+        <style dangerouslySetInnerHTML={{ __html: INJECTED_STYLES }} />
+        {header}
+        <div className="flex-1 overflow-hidden">
+          {canvas}
+        </div>
+
+        {selectedTable && (
+          <TableOrdersModal
+            table={selectedTable}
+            restaurant={restaurant}
+            onClose={() => setSelectedTable(null)}
+            onAddItems={(tableId, tableLabel, round) => setNewOrderTable({ dbId: tableId, label: tableLabel, round })}
+            mergeHistory={mergeHistoryRef.current}
+            allTables={plan.tables}
+            dbTableIds={dbTableIds}
+          />
+        )}
+
+        {newOrderTable && (
+          <NewOrderDrawer
+            tableId={newOrderTable.dbId}
+            tableLabel={newOrderTable.label}
+            round={newOrderTable.round}
+            onClose={() => setNewOrderTable(null)}
+            onOrderPlaced={() => setNewOrderTable(null)}
+          />
+        )}
+
+        {mergeDialog && (
+          <MergeConfirmDialog
+            source={mergeDialog}
+            onConfirm={handleMergeConfirm}
+            onCancel={() => setMergeDialog(null)}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 pb-20 md:pb-2">
       <style dangerouslySetInnerHTML={{ __html: INJECTED_STYLES }} />
-
-      {/* Header with status legend, search, seat party */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold">Tables</h1>
-
-          {/* Feature 6: Seat party button */}
-          <SeatPartyButton
-            active={!!seatParty}
-            onSelectSize={startSeatParty}
-            onDismiss={dismissSeatParty}
-            noTablesMsg={seatParty && seatParty.validIds.size === 0
-              ? `No tables for ${seatParty.partySize} guests`
-              : null
-            }
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Feature 5: Search */}
-          <div className="flex items-center">
-            {searchOpen ? (
-              <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1 shadow-sm">
-                <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                <input
-                  autoFocus
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Customer or table…"
-                  className="w-32 text-xs outline-none bg-transparent"
-                />
-                <button onClick={() => { setSearchQuery(''); setSearchOpen(false); }} className="p-0.5 hover:bg-gray-100 rounded">
-                  <X className="w-3 h-3 text-muted-foreground" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setSearchOpen(true)}
-                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                title="Search tables"
-              >
-                <Search className="w-4 h-4 text-muted-foreground" />
-              </button>
-            )}
-          </div>
-
-          {/* Status legend */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            {([
-              { key: 'available' as const, color: 'bg-green-500', textColor: 'text-green-700', label: 'available' },
-              { key: 'occupied' as const, color: 'bg-amber-500', textColor: 'text-amber-700', label: 'occupied' },
-              { key: 'ready_to_bill' as const, color: 'bg-violet-500', textColor: 'text-violet-700', label: 'ready' },
-              { key: 'needs_attention' as const, color: 'bg-red-500', textColor: 'text-red-700', label: 'attention' },
-            ]).map(({ key, color, textColor, label }) => (
-              statusCounts[key] > 0 ? (
-                <span key={key} className="flex items-center gap-1">
-                  <span className={`w-2 h-2 rounded-full ${color}`} />
-                  <span className={`font-medium ${textColor}`}>{statusCounts[key]}</span>
-                  <span className="text-muted-foreground hidden sm:inline">{label}</span>
-                </span>
-              ) : null
-            ))}
-          </div>
-        </div>
-      </div>
+      {header}
 
       <div className="rounded-xl border shadow-sm bg-white overflow-hidden">
-        <StaffFloorCanvas
-          plan={plan}
-          getTableStatus={getTableStatus}
-          dbTableIds={dbTableIds}
-          onOccupiedTableClick={handleTableClick}
-          onAvailableTableClick={(table, dbId) => {
-            if (seatParty) dismissSeatParty();
-            setNewOrderTable({ dbId, label: tableLabelText(table) });
-          }}
-          reducedMotion={reducedMotion}
-          onDismissWaiterCall={dismissWaiterCall}
-          canDrag={canDragMove}
-          dragState={dragState}
-          onDragStart={(table, dbId, tableOrders) => setDragState({ sourceTable: table, sourceDbId: dbId, sourceOrders: tableOrders, cursorX: 0, cursorY: 0 })}
-          onDragMove={(x, y) => setDragState(prev => prev ? { ...prev, cursorX: x, cursorY: y } : null)}
-          onDragEnd={handleDragDrop}
-          onDragCancel={() => setDragState(null)}
-          searchMatchIds={searchTerm ? searchMatchIds : null}
-          seatParty={seatParty}
-        />
+        {canvas}
       </div>
 
       {selectedTable && (
@@ -705,6 +772,7 @@ function StaffFloorCanvas({
   onDragCancel,
   searchMatchIds,
   seatParty,
+  isFullscreen,
 }: {
   plan: FloorPlan;
   getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean };
@@ -721,6 +789,7 @@ function StaffFloorCanvas({
   onDragCancel: () => void;
   searchMatchIds: Set<string> | null;
   seatParty: SeatPartyState | null;
+  isFullscreen?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -741,8 +810,9 @@ function StaffFloorCanvas({
     function update() {
       const rect = el.getBoundingClientRect();
       const availW = rect.width;
-      const isMobile = window.innerWidth < 768;
-      const availH = window.innerHeight - rect.top - (isMobile ? 76 : 12);
+      const availH = isFullscreen
+        ? rect.height
+        : window.innerHeight - rect.top - (window.innerWidth < 768 ? 76 : 12);
       const scaleX = availW / CANVAS_W;
       const scaleY = Math.max(100, availH) / CANVAS_H;
       setDims({ scale: Math.min(1, scaleX, scaleY), containerW: availW });
@@ -753,7 +823,7 @@ function StaffFloorCanvas({
     observer.observe(el);
     window.addEventListener('resize', update);
     return () => { observer.disconnect(); window.removeEventListener('resize', update); };
-  }, []);
+  }, [isFullscreen]);
 
   const leftOffset = Math.max(0, (dims.containerW - CANVAS_W * dims.scale) / 2);
 
@@ -811,7 +881,7 @@ function StaffFloorCanvas({
   return (
     <div
       ref={containerRef}
-      style={{ overflow: 'hidden', height: CANVAS_H * dims.scale, position: 'relative' }}
+      style={{ overflow: 'hidden', height: isFullscreen ? '100%' : CANVAS_H * dims.scale, position: 'relative' }}
       onPointerMove={handleCanvasPointerMove}
       onPointerUp={handleCanvasPointerUp}
       onPointerLeave={() => { if (dragState) onDragCancel(); }}
@@ -1210,16 +1280,16 @@ function StaffTableElement({
           title={customerNames.join(', ')}
           style={{
             position: 'absolute',
-            top: h + 4,
+            top: h + 5,
             left: w / 2,
             transform: 'translateX(-50%)',
-            fontSize: 10,
-            fontWeight: 600,
-            color: '#78716c',
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#57534e',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            maxWidth: w + 20,
+            maxWidth: w + 30,
             textAlign: 'center',
             pointerEvents: 'auto',
             lineHeight: 1.2,
