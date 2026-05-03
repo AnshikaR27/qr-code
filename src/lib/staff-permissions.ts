@@ -10,6 +10,7 @@ export type Permission =
   | 'order:comp_refund'
   | 'waiter_call:dismiss'
   | 'table:assign'
+  | 'table:move'
   | 'menu:mark_out_of_stock'
   | 'menu:edit_items'
   | 'menu:edit_categories'
@@ -41,6 +42,7 @@ const COUNTER: Set<Permission> = new Set([
   'order:comp_refund',
   'waiter_call:dismiss',
   'table:assign',
+  'table:move',
   'menu:mark_out_of_stock',
   'settings:edit_printer',
 ]);
@@ -55,6 +57,7 @@ const MANAGER: Set<Permission> = new Set([
   'order:comp_refund',
   'waiter_call:dismiss',
   'table:assign',
+  'table:move',
   'menu:mark_out_of_stock',
   'menu:edit_items',
   'menu:edit_categories',

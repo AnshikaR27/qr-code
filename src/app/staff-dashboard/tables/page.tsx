@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2, DoorOpen, Bell,
+  X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2, Bell,
+  Search, Users,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
@@ -16,6 +17,15 @@ import { playWaiterCall } from '@/lib/sounds';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import { buildCombinedBillData } from '@/lib/billing';
 import NewOrderDrawer from '@/components/dashboard/NewOrderDrawer';
+import {
+  ChairsSvgLayer,
+  WallsSvgLayer,
+  CounterElement,
+  DoorArcsSvgLayer,
+  isOutdoorZone,
+  OUTDOOR_PATTERN_CSS,
+  TABLE_DROP_SHADOW,
+} from '@/components/floor-plan/floor-plan-decorations';
 import type {
   FloorCapacity,
   FloorPlan,
@@ -26,12 +36,20 @@ import type {
   ZoneColor,
 } from '@/types';
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+
 const GRID = 20;
 const CANVAS_W = 1400;
 const CANVAS_H = 900;
 
 const TIMER_AMBER_MINUTES = 60;
 const TIMER_RED_MINUTES = 120;
+
+const LONG_PRESS_MS = 500;
+const HOVER_DELAY_MS = 300;
+const SEAT_PARTY_TIMEOUT_MS = 30_000;
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
 
 function tableLabelText(t: { table_number: number; display_name?: string | null }): string {
   return t.display_name?.trim() || `#${t.table_number}`;
@@ -93,6 +111,26 @@ function shortName(full: string): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
+function getStatusSummary(tableOrders: Order[]): string {
+  const placed = tableOrders.filter(o => o.status === 'placed').length;
+  const ready = tableOrders.filter(o => o.status === 'ready').length;
+  if (placed === 0 && ready > 0) return 'All ready';
+  const parts: string[] = [];
+  if (placed > 0) parts.push(`${placed} preparing`);
+  if (ready > 0) parts.push(`${ready} ready`);
+  return parts.join(', ') || 'Placed';
+}
+
+function getTableAtPoint(x: number, y: number, tables: FloorTable[]): FloorTable | null {
+  for (const t of tables) {
+    const { w, h } = tableSize(t.capacity);
+    if (x >= t.x && x <= t.x + w && y >= t.y && y <= t.y + h) return t;
+  }
+  return null;
+}
+
+// ─── Status types ────────────────────────────────────────────────────────────
+
 type TableLiveStatus = 'available' | 'occupied' | 'ready_to_bill' | 'needs_attention';
 
 const STATUS_COLORS: Record<TableLiveStatus, { bg: string; border: string; text: string; sub: string }> = {
@@ -102,7 +140,7 @@ const STATUS_COLORS: Record<TableLiveStatus, { bg: string; border: string; text:
   needs_attention: { bg: 'rgba(239,68,68,0.15)',  border: '#ef4444', text: '#b91c1c', sub: '#dc2626' },
 };
 
-const WAITER_PULSE_KEYFRAMES = `
+const INJECTED_STYLES = `
 @keyframes waiterPulseRing {
   0%   { transform: scale(1);   opacity: 0.7; }
   70%  { transform: scale(1.5); opacity: 0; }
@@ -111,6 +149,18 @@ const WAITER_PULSE_KEYFRAMES = `
 @keyframes waiterPulseRingReduced {
   0%, 100% { opacity: 0.5; }
   50%      { opacity: 1; }
+}
+@keyframes dragLift {
+  0%   { transform: scale(1);   box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+  100% { transform: scale(1.08); box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+}
+@keyframes dropTargetGlow {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(34,197,94,0.3); }
+  50%      { box-shadow: 0 0 0 6px rgba(34,197,94,0.15); }
+}
+@keyframes recommendPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(59,130,246,0.3); }
+  50%      { box-shadow: 0 0 0 6px rgba(59,130,246,0.15); }
 }
 `;
 
@@ -151,11 +201,75 @@ function getFloorBackground(style?: FloorStyle): React.CSSProperties {
   }
 }
 
+// ─── Drag state ──────────────────────────────────────────────────────────────
+
+interface DragState {
+  sourceTable: FloorTable;
+  sourceDbId: string;
+  sourceOrders: Order[];
+  cursorX: number;
+  cursorY: number;
+}
+
+// ─── Selected table for modal ────────────────────────────────────────────────
+
 interface SelectedTable {
   dbId: string;
   label: string;
   orders: Order[];
 }
+
+// ─── Merge dialog state ──────────────────────────────────────────────────────
+
+interface MergeDialogState {
+  sourceTable: FloorTable;
+  sourceDbId: string;
+  sourceOrders: Order[];
+  destTable: FloorTable;
+  destDbId: string;
+  destOrders: Order[];
+}
+
+// ─── Seat party recommendation ───────────────────────────────────────────────
+
+interface SeatPartyState {
+  partySize: number;
+  recommendedId: string | null;
+  validIds: Set<string>;
+}
+
+function rankTablesForParty(
+  tables: FloorTable[],
+  partySize: number,
+  getStatus: (tn: number) => { status: TableLiveStatus },
+  counterPos?: { x: number; y: number } | null,
+): { recommended: FloorTable | null; validIds: Set<string> } {
+  const available = tables.filter(t => getStatus(t.table_number).status === 'available' && t.capacity >= partySize);
+  if (available.length === 0) return { recommended: null, validIds: new Set() };
+
+  const validIds = new Set(available.map(t => t.id));
+  const hour = new Date().getHours();
+  const preferOutdoor = hour >= 17;
+
+  const scored = available.map(t => {
+    let score = 0;
+    const fit = t.capacity - partySize;
+    score -= fit * 10;
+    if (counterPos) {
+      const dist = Math.hypot(t.x - counterPos.x, t.y - counterPos.y);
+      if (partySize <= 2) score -= dist * 0.01;
+      else if (partySize >= 5) score += dist * 0.005;
+    }
+    return { table: t, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return { recommended: scored[0]?.table ?? null, validIds };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export default function StaffTablesPage() {
   const { staff, restaurant } = useStaff();
@@ -166,6 +280,21 @@ export default function StaffTablesPage() {
   const [, setTick] = useState(0);
   const reducedMotion = useReducedMotion();
   const prevWaiterCallCount = useRef(0);
+
+  // Feature 5: Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Feature 6: Seat party
+  const [seatParty, setSeatParty] = useState<SeatPartyState | null>(null);
+  const seatPartyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Feature 2/3: Drag state + merge dialog
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [mergeDialog, setMergeDialog] = useState<MergeDialogState | null>(null);
+  const mergeHistoryRef = useRef<Map<string, { tableId: string; tableNumber: number }>>(new Map());
+
+  const canDragMove = hasPermission(staff.role, 'table:move');
 
   if (!hasPermission(staff.role, 'table:assign')) {
     return (
@@ -190,7 +319,6 @@ export default function StaffTablesPage() {
       });
   }, [restaurant.id]);
 
-  // Fetch waiter calls + realtime subscription
   useEffect(() => {
     const supabase = createClient();
     supabase
@@ -218,7 +346,6 @@ export default function StaffTablesPage() {
     return () => { supabase.removeChannel(channel); };
   }, [restaurant.id]);
 
-  // Play audio alert on new waiter call
   useEffect(() => {
     if (waiterCalls.length > prevWaiterCallCount.current && prevWaiterCallCount.current >= 0) {
       playWaiterCall();
@@ -226,7 +353,6 @@ export default function StaffTablesPage() {
     prevWaiterCallCount.current = waiterCalls.length;
   }, [waiterCalls.length]);
 
-  // Timer tick every 30 seconds to update occupancy durations
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 30_000);
     return () => clearInterval(id);
@@ -261,14 +387,9 @@ export default function StaffTablesPage() {
 
   function handleTableClick(table: FloorTable, dbId: string, info: { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean }) {
     if (info.status === 'available') return;
-    setSelectedTable({
-      dbId,
-      label: tableLabelText(table),
-      orders: info.orders,
-    });
+    setSelectedTable({ dbId, label: tableLabelText(table), orders: info.orders });
   }
 
-  // Keep modal orders in sync with live order updates
   useEffect(() => {
     if (!selectedTable) return;
     const freshOrders = activeOrders.filter(
@@ -281,6 +402,127 @@ export default function StaffTablesPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders]);
+
+  // ── Feature 2/3: Drag handlers ────────────────────────────────────────────
+
+  const handleMoveOrders = useCallback(async (
+    sourceOrders: Order[],
+    sourceTableNumber: number,
+    destDbId: string,
+    destLabel: string,
+    sourceLabel: string,
+  ) => {
+    const supabase = createClient();
+    const orderIds = sourceOrders.map(o => o.id);
+    const { error } = await supabase
+      .from('orders')
+      .update({ table_id: destDbId })
+      .in('id', orderIds);
+    if (error) {
+      toast.error('Failed to move orders');
+      return;
+    }
+    const wcs = waiterCalls.filter(wc => wc.table?.table_number === sourceTableNumber);
+    if (wcs.length > 0) {
+      await supabase
+        .from('waiter_calls')
+        .update({ table_id: destDbId })
+        .in('id', wcs.map(w => w.id));
+    }
+    const customerName = sourceOrders.find(o => o.customer_name)?.customer_name;
+    toast.success(`Moved ${customerName ? shortName(customerName) : 'orders'} from ${sourceLabel} → ${destLabel}`);
+  }, [waiterCalls]);
+
+  const handleMergeConfirm = useCallback(async () => {
+    if (!mergeDialog) return;
+    const { sourceOrders, sourceTable, destDbId, destTable } = mergeDialog;
+    const supabase = createClient();
+    const orderIds = sourceOrders.map(o => o.id);
+    for (const oid of orderIds) {
+      mergeHistoryRef.current.set(oid, {
+        tableId: mergeDialog.sourceDbId,
+        tableNumber: sourceTable.table_number,
+      });
+    }
+    const { error } = await supabase
+      .from('orders')
+      .update({ table_id: destDbId })
+      .in('id', orderIds);
+    if (error) {
+      toast.error('Failed to merge tables');
+      setMergeDialog(null);
+      return;
+    }
+    toast.success(`Merged Table ${tableLabelText(sourceTable)} into Table ${tableLabelText(destTable)}`);
+    setMergeDialog(null);
+  }, [mergeDialog]);
+
+  const handleDragDrop = useCallback((targetTable: FloorTable) => {
+    if (!dragState) return;
+    const targetDbId = dbTableIds.get(targetTable.table_number) ?? targetTable.id;
+    const targetInfo = getTableStatus(targetTable.table_number);
+
+    if (targetInfo.status === 'available') {
+      handleMoveOrders(
+        dragState.sourceOrders,
+        dragState.sourceTable.table_number,
+        targetDbId,
+        tableLabelText(targetTable),
+        tableLabelText(dragState.sourceTable),
+      );
+    } else {
+      setMergeDialog({
+        sourceTable: dragState.sourceTable,
+        sourceDbId: dragState.sourceDbId,
+        sourceOrders: dragState.sourceOrders,
+        destTable: targetTable,
+        destDbId: targetDbId,
+        destOrders: targetInfo.orders,
+      });
+    }
+    setDragState(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragState, dbTableIds, handleMoveOrders]);
+
+  // ── Feature 6: Seat party ─────────────────────────────────────────────────
+
+  function startSeatParty(size: number) {
+    if (seatPartyTimer.current) clearTimeout(seatPartyTimer.current);
+    const counterPos = plan.counter ? { x: plan.counter.x + plan.counter.width / 2, y: plan.counter.y + plan.counter.height / 2 } : null;
+    const { recommended, validIds } = rankTablesForParty(plan.tables, size, getTableStatus, counterPos);
+    setSeatParty({ partySize: size, recommendedId: recommended?.id ?? null, validIds });
+    seatPartyTimer.current = setTimeout(() => setSeatParty(null), SEAT_PARTY_TIMEOUT_MS);
+  }
+
+  function dismissSeatParty() {
+    setSeatParty(null);
+    if (seatPartyTimer.current) clearTimeout(seatPartyTimer.current);
+  }
+
+  // ── Computed search/highlight sets ────────────────────────────────────────
+
+  const searchTerm = searchQuery.trim().toLowerCase();
+  const searchMatchIds = useMemo(() => {
+    if (!searchTerm) return new Set<string>();
+    const ids = new Set<string>();
+    for (const t of plan.tables) {
+      const info = getTableStatus(t.table_number);
+      const name = info.orders.find(o => o.customer_name)?.customer_name ?? '';
+      const label = tableLabelText(t).toLowerCase();
+      const num = String(t.table_number);
+      if (
+        name.toLowerCase().includes(searchTerm) ||
+        label.includes(searchTerm) ||
+        num.includes(searchTerm)
+      ) {
+        ids.add(t.id);
+      }
+    }
+    return ids;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, plan.tables, activeOrders]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (plan.tables.length === 0) {
     return (
@@ -303,26 +545,70 @@ export default function StaffTablesPage() {
 
   return (
     <div className="p-4 sm:p-6 pb-20 md:pb-2">
-      {/* Inject waiter pulse keyframes */}
-      <style dangerouslySetInnerHTML={{ __html: WAITER_PULSE_KEYFRAMES }} />
+      <style dangerouslySetInnerHTML={{ __html: INJECTED_STYLES }} />
 
+      {/* Header with status legend, search, seat party */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-2">
-        <h1 className="text-lg font-semibold">Tables</h1>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-          {([
-            { key: 'available' as const, color: 'bg-green-500', textColor: 'text-green-700', label: 'available' },
-            { key: 'occupied' as const, color: 'bg-amber-500', textColor: 'text-amber-700', label: 'occupied' },
-            { key: 'ready_to_bill' as const, color: 'bg-violet-500', textColor: 'text-violet-700', label: 'ready to bill' },
-            { key: 'needs_attention' as const, color: 'bg-red-500', textColor: 'text-red-700', label: 'attention' },
-          ]).map(({ key, color, textColor, label }) => (
-            statusCounts[key] > 0 ? (
-              <span key={key} className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${color}`} />
-                <span className={`font-medium ${textColor}`}>{statusCounts[key]}</span>
-                <span className="text-muted-foreground">{label}</span>
-              </span>
-            ) : null
-          ))}
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-semibold">Tables</h1>
+
+          {/* Feature 6: Seat party button */}
+          <SeatPartyButton
+            active={!!seatParty}
+            onSelectSize={startSeatParty}
+            onDismiss={dismissSeatParty}
+            noTablesMsg={seatParty && seatParty.validIds.size === 0
+              ? `No tables for ${seatParty.partySize} guests`
+              : null
+            }
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Feature 5: Search */}
+          <div className="flex items-center">
+            {searchOpen ? (
+              <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1 shadow-sm">
+                <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <input
+                  autoFocus
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Customer or table…"
+                  className="w-32 text-xs outline-none bg-transparent"
+                />
+                <button onClick={() => { setSearchQuery(''); setSearchOpen(false); }} className="p-0.5 hover:bg-gray-100 rounded">
+                  <X className="w-3 h-3 text-muted-foreground" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                title="Search tables"
+              >
+                <Search className="w-4 h-4 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+
+          {/* Status legend */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            {([
+              { key: 'available' as const, color: 'bg-green-500', textColor: 'text-green-700', label: 'available' },
+              { key: 'occupied' as const, color: 'bg-amber-500', textColor: 'text-amber-700', label: 'occupied' },
+              { key: 'ready_to_bill' as const, color: 'bg-violet-500', textColor: 'text-violet-700', label: 'ready' },
+              { key: 'needs_attention' as const, color: 'bg-red-500', textColor: 'text-red-700', label: 'attention' },
+            ]).map(({ key, color, textColor, label }) => (
+              statusCounts[key] > 0 ? (
+                <span key={key} className="flex items-center gap-1">
+                  <span className={`w-2 h-2 rounded-full ${color}`} />
+                  <span className={`font-medium ${textColor}`}>{statusCounts[key]}</span>
+                  <span className="text-muted-foreground hidden sm:inline">{label}</span>
+                </span>
+              ) : null
+            ))}
+          </div>
         </div>
       </div>
 
@@ -332,9 +618,20 @@ export default function StaffTablesPage() {
           getTableStatus={getTableStatus}
           dbTableIds={dbTableIds}
           onOccupiedTableClick={handleTableClick}
-          onAvailableTableClick={(table, dbId) => setNewOrderTable({ dbId, label: tableLabelText(table) })}
+          onAvailableTableClick={(table, dbId) => {
+            if (seatParty) dismissSeatParty();
+            setNewOrderTable({ dbId, label: tableLabelText(table) });
+          }}
           reducedMotion={reducedMotion}
           onDismissWaiterCall={dismissWaiterCall}
+          canDrag={canDragMove}
+          dragState={dragState}
+          onDragStart={(table, dbId, tableOrders) => setDragState({ sourceTable: table, sourceDbId: dbId, sourceOrders: tableOrders, cursorX: 0, cursorY: 0 })}
+          onDragMove={(x, y) => setDragState(prev => prev ? { ...prev, cursorX: x, cursorY: y } : null)}
+          onDragEnd={handleDragDrop}
+          onDragCancel={() => setDragState(null)}
+          searchMatchIds={searchTerm ? searchMatchIds : null}
+          seatParty={seatParty}
         />
       </div>
 
@@ -344,6 +641,9 @@ export default function StaffTablesPage() {
           restaurant={restaurant}
           onClose={() => setSelectedTable(null)}
           onAddItems={(tableId, tableLabel, round) => setNewOrderTable({ dbId: tableId, label: tableLabel, round })}
+          mergeHistory={mergeHistoryRef.current}
+          allTables={plan.tables}
+          dbTableIds={dbTableIds}
         />
       )}
 
@@ -356,11 +656,22 @@ export default function StaffTablesPage() {
           onOrderPlaced={() => setNewOrderTable(null)}
         />
       )}
+
+      {/* Feature 3: Merge confirmation dialog */}
+      {mergeDialog && (
+        <MergeConfirmDialog
+          source={mergeDialog}
+          onConfirm={handleMergeConfirm}
+          onCancel={() => setMergeDialog(null)}
+        />
+      )}
     </div>
   );
 }
 
-// ─── Floor Canvas ───────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// FLOOR CANVAS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function StaffFloorCanvas({
   plan,
@@ -370,6 +681,14 @@ function StaffFloorCanvas({
   onAvailableTableClick,
   reducedMotion,
   onDismissWaiterCall,
+  canDrag,
+  dragState,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  onDragCancel,
+  searchMatchIds,
+  seatParty,
 }: {
   plan: FloorPlan;
   getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean };
@@ -378,9 +697,26 @@ function StaffFloorCanvas({
   onAvailableTableClick: (table: FloorTable, dbId: string) => void;
   reducedMotion: boolean;
   onDismissWaiterCall: (tableNumber: number) => void;
+  canDrag: boolean;
+  dragState: DragState | null;
+  onDragStart: (table: FloorTable, dbId: string, orders: Order[]) => void;
+  onDragMove: (canvasX: number, canvasY: number) => void;
+  onDragEnd: (targetTable: FloorTable) => void;
+  onDragCancel: () => void;
+  searchMatchIds: Set<string> | null;
+  seatParty: SeatPartyState | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ scale: 1, containerW: CANVAS_W });
+
+  // Feature 4: Hover peek
+  const [peekTable, setPeekTable] = useState<{ table: FloorTable; orders: Order[]; screenX: number; screenY: number } | null>(null);
+  const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Drag long-press
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -405,9 +741,78 @@ function StaffFloorCanvas({
 
   const leftOffset = Math.max(0, (dims.containerW - CANVAS_W * dims.scale) / 2);
 
+  function screenToCanvas(screenX: number, screenY: number): { x: number; y: number } | null {
+    const el = canvasRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return {
+      x: (screenX - rect.left) / dims.scale,
+      y: (screenY - rect.top) / dims.scale,
+    };
+  }
+
+  // ── Drag pointer handlers at canvas level ─────────────────────────────────
+
+  function handleCanvasPointerMove(e: React.PointerEvent) {
+    if (!dragState) return;
+    const pt = screenToCanvas(e.clientX, e.clientY);
+    if (pt) onDragMove(pt.x, pt.y);
+  }
+
+  function handleCanvasPointerUp(e: React.PointerEvent) {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    longPressStart.current = null;
+    if (!dragState) return;
+    const pt = screenToCanvas(e.clientX, e.clientY);
+    if (pt) {
+      const target = getTableAtPoint(pt.x, pt.y, plan.tables);
+      if (target && target.id !== dragState.sourceTable.id) {
+        onDragEnd(target);
+        return;
+      }
+    }
+    onDragCancel();
+  }
+
+  // ── Hover handlers (desktop) ──────────────────────────────────────────────
+
+  function handleTableMouseEnter(table: FloorTable, orders: Order[], e: React.MouseEvent) {
+    if (dragState || window.innerWidth < 768) return;
+    peekTimer.current = setTimeout(() => {
+      setPeekTable({ table, orders, screenX: e.clientX, screenY: e.clientY });
+    }, HOVER_DELAY_MS);
+  }
+
+  function handleTableMouseLeave() {
+    if (peekTimer.current) { clearTimeout(peekTimer.current); peekTimer.current = null; }
+    setPeekTable(null);
+  }
+
+  function handleTableMouseMove(e: React.MouseEvent) {
+    if (peekTable) setPeekTable(prev => prev ? { ...prev, screenX: e.clientX, screenY: e.clientY } : null);
+  }
+
+  // ── Occupied table set for chairs ─────────────────────────────────────────
+
+  const occupiedTableNumbers = useMemo(() => {
+    const set = new Set<number>();
+    for (const t of plan.tables) {
+      if (getTableStatus(t.table_number).status !== 'available') set.add(t.table_number);
+    }
+    return set;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.tables, getTableStatus]);
+
   return (
-    <div ref={containerRef} style={{ overflow: 'hidden', height: CANVAS_H * dims.scale, position: 'relative' }}>
+    <div
+      ref={containerRef}
+      style={{ overflow: 'hidden', height: CANVAS_H * dims.scale, position: 'relative' }}
+      onPointerMove={handleCanvasPointerMove}
+      onPointerUp={handleCanvasPointerUp}
+      onPointerLeave={() => { if (dragState) onDragCancel(); }}
+    >
       <div
+        ref={canvasRef}
         style={{
           width: CANVAS_W,
           height: CANVAS_H,
@@ -420,9 +825,10 @@ function StaffFloorCanvas({
           userSelect: 'none',
         }}
       >
-      {/* Layer 1: Zones */}
+      {/* Layer 1: Zones — with outdoor pattern */}
       {(plan.zones ?? []).map(zone => {
         const zc = ZONE_COLORS_MAP[zone.color];
+        const outdoor = isOutdoorZone(zone.name);
         return (
           <div
             key={zone.id}
@@ -430,6 +836,7 @@ function StaffFloorCanvas({
               position: 'absolute', left: zone.x, top: zone.y, width: zone.width, height: zone.height,
               background: zc.bg, border: `1.5px dashed ${zc.border}`, borderRadius: 8,
               zIndex: 0, pointerEvents: 'none',
+              ...(outdoor ? OUTDOOR_PATTERN_CSS : {}),
             }}
           >
             <span style={{ position: 'absolute', top: 6, left: 10, fontSize: 11, fontWeight: 600, color: zc.text, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{zone.name}</span>
@@ -437,80 +844,27 @@ function StaffFloorCanvas({
         );
       })}
 
-      {/* Layer 2: Walls */}
-      {(plan.walls ?? []).length > 0 && (
-        <svg width={CANVAS_W} height={CANVAS_H} style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, pointerEvents: 'none' }}>
-          {(plan.walls ?? []).map(wall => (
-            <polygon
-              key={wall.id}
-              points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
-              fill="none"
-              stroke="#1f2937"
-              strokeWidth={7}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          ))}
-        </svg>
-      )}
+      {/* Layer 2: Architectural walls */}
+      <WallsSvgLayer walls={plan.walls ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} />
 
-      {/* Layer 3: Counter */}
-      {plan.counter && (
-        <div
-          style={{
-            position: 'absolute', left: plan.counter.x, top: plan.counter.y,
-            width: plan.counter.width, height: plan.counter.height,
-            background: 'repeating-linear-gradient(45deg, #6b7280, #6b7280 2px, #9ca3af 2px, #9ca3af 6px)',
-            borderRadius: 6, border: '2px solid #4b5563',
-            zIndex: 1, pointerEvents: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-          }}
-        >
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.4)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Counter</span>
-        </div>
-      )}
+      {/* Layer 3: Counter with surface treatment */}
+      {plan.counter && <CounterElement counter={plan.counter} />}
 
-      {/* Layer 4: Doors */}
-      {(plan.doors ?? []).map(door => (
-        <div
-          key={door.id}
-          style={{
-            position: 'absolute', left: door.x - 18, top: door.y - 18, width: 36, height: 36,
-            background: 'rgba(255,255,255,0.9)',
-            border: '1.5px solid #6b7280', borderRadius: 8,
-            zIndex: 1, pointerEvents: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-          }}
-        >
-          <DoorOpen className="w-5 h-5 text-gray-600" />
-        </div>
-      ))}
+      {/* Layer 4: Architectural door arcs */}
+      <DoorArcsSvgLayer doors={plan.doors ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} />
 
       {/* Layer 5: Labels */}
       {plan.labels.map((label) => (
         <div
           key={label.id}
-          style={{
-            position: 'absolute',
-            left: label.x,
-            top: label.y,
-            zIndex: 1,
-          }}
+          style={{ position: 'absolute', left: label.x, top: label.y, zIndex: 1 }}
         >
           <div
             style={{
-              padding: '4px 12px',
-              borderRadius: 5,
-              background: 'rgba(0,0,0,0.05)',
-              border: '1.5px dashed #94a3b8',
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#475569',
-              whiteSpace: 'nowrap',
-              letterSpacing: '0.03em',
-              textTransform: 'uppercase',
+              padding: '4px 12px', borderRadius: 5,
+              background: 'rgba(0,0,0,0.05)', border: '1.5px dashed #94a3b8',
+              fontSize: 13, fontWeight: 600, color: '#475569',
+              whiteSpace: 'nowrap', letterSpacing: '0.03em', textTransform: 'uppercase',
             }}
           >
             {label.text}
@@ -518,13 +872,29 @@ function StaffFloorCanvas({
         </div>
       ))}
 
-      {/* Layer 6: Merge group backgrounds */}
+      {/* Layer 6: Chairs (static decorative) */}
+      <ChairsSvgLayer
+        tables={plan.tables}
+        canvasW={CANVAS_W}
+        canvasH={CANVAS_H}
+        occupiedTableNumbers={occupiedTableNumbers}
+      />
+
+      {/* Layer 7: Merge group backgrounds */}
       <MergeGroupBackgrounds tables={plan.tables} getTableStatus={getTableStatus} />
 
-      {/* Layer 7: Tables */}
+      {/* Layer 8: Tables */}
       {plan.tables.map((table) => {
         const info = getTableStatus(table.table_number);
         const dbId = dbTableIds.get(table.table_number) ?? table.id;
+        const isDragSource = dragState?.sourceTable.id === table.id;
+        const isSearchDimmed = searchMatchIds !== null && !searchMatchIds.has(table.id);
+        const isDragTarget = dragState && !isDragSource;
+        const isValidDropTarget = isDragTarget && table.id !== dragState.sourceTable.id;
+        const isSeatValid = seatParty?.validIds.has(table.id) ?? false;
+        const isSeatRecommended = seatParty?.recommendedId === table.id;
+        const isSeatDimmed = seatParty && !isSeatValid;
+
         return (
           <StaffTableElement
             key={table.id}
@@ -534,20 +904,73 @@ function StaffFloorCanvas({
             dbId={dbId}
             hasWaiterCall={info.hasWaiterCall}
             reducedMotion={reducedMotion}
+            isDragSource={isDragSource}
+            isValidDropTarget={!!isValidDropTarget}
+            isSearchDimmed={isSearchDimmed}
+            isSeatValid={isSeatValid}
+            isSeatRecommended={isSeatRecommended}
+            isSeatDimmed={!!isSeatDimmed}
             onOccupiedClick={() => {
               if (info.hasWaiterCall) onDismissWaiterCall(table.table_number);
               onOccupiedTableClick(table, dbId, info);
             }}
             onAvailableClick={() => onAvailableTableClick(table, dbId)}
+            canDrag={canDrag}
+            onLongPressStart={(sx, sy) => {
+              if (!canDrag || info.orders.length === 0) return;
+              longPressStart.current = { x: sx, y: sy };
+              longPressTimer.current = setTimeout(() => {
+                onDragStart(table, dbId, info.orders);
+                longPressTimer.current = null;
+              }, LONG_PRESS_MS);
+            }}
+            onLongPressCancel={() => {
+              if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+              longPressStart.current = null;
+            }}
+            onMouseEnter={e => info.orders.length > 0 ? handleTableMouseEnter(table, info.orders, e) : undefined}
+            onMouseLeave={handleTableMouseLeave}
+            onMouseMove={handleTableMouseMove}
           />
         );
       })}
+
+      {/* Drag ghost indicator */}
+      {dragState && dragState.cursorX > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            left: dragState.cursorX - 20,
+            top: dragState.cursorY - 20,
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            background: 'rgba(245,158,11,0.3)',
+            border: '2px solid #f59e0b',
+            pointerEvents: 'none',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 11,
+            fontWeight: 700,
+            color: '#b45309',
+          }}
+        >
+          {tableLabelText(dragState.sourceTable)}
+        </div>
+      )}
       </div>
+
+      {/* Feature 4: Quick peek card (fixed positioning, outside canvas) */}
+      {peekTable && <QuickPeekCard peek={peekTable} />}
     </div>
   );
 }
 
-// ─── Table Element ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// TABLE ELEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function StaffTableElement({
   table,
@@ -556,8 +979,20 @@ function StaffTableElement({
   dbId,
   hasWaiterCall,
   reducedMotion,
+  isDragSource,
+  isValidDropTarget,
+  isSearchDimmed,
+  isSeatValid,
+  isSeatRecommended,
+  isSeatDimmed,
   onOccupiedClick,
   onAvailableClick,
+  canDrag,
+  onLongPressStart,
+  onLongPressCancel,
+  onMouseEnter,
+  onMouseLeave,
+  onMouseMove,
 }: {
   table: FloorTable;
   status: TableLiveStatus;
@@ -565,8 +1000,20 @@ function StaffTableElement({
   dbId: string;
   hasWaiterCall: boolean;
   reducedMotion: boolean;
+  isDragSource: boolean;
+  isValidDropTarget: boolean;
+  isSearchDimmed: boolean;
+  isSeatValid: boolean;
+  isSeatRecommended: boolean;
+  isSeatDimmed: boolean;
   onOccupiedClick: () => void;
   onAvailableClick: () => void;
+  canDrag: boolean;
+  onLongPressStart: (screenX: number, screenY: number) => void;
+  onLongPressCancel: () => void;
+  onMouseEnter: (e: React.MouseEvent) => void;
+  onMouseLeave: () => void;
+  onMouseMove: (e: React.MouseEvent) => void;
 }) {
   const { w, h } = tableSize(table.capacity);
   const isRound = table.shape === 'round';
@@ -582,6 +1029,7 @@ function StaffTableElement({
   const isSmall = table.capacity <= 2;
 
   const progressColor = progress >= 1 ? '#22c55e' : '#f59e0b';
+  const dimmed = isSearchDimmed || isSeatDimmed;
 
   const inner = (
     <div
@@ -595,15 +1043,18 @@ function StaffTableElement({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-        transition: 'box-shadow 0.15s, transform 0.15s',
+        filter: TABLE_DROP_SHADOW,
+        transition: 'box-shadow 0.15s, transform 0.15s, opacity 0.25s',
         padding: '0 4px',
         position: 'relative' as const,
         overflow: 'hidden',
+        ...(isDragSource ? {
+          animation: reducedMotion ? undefined : 'dragLift 0.2s forwards',
+          opacity: 0.7,
+        } : {}),
       }}
-      className="hover:shadow-lg hover:scale-105"
+      className={!isDragSource ? 'hover:shadow-lg hover:scale-105' : undefined}
     >
-      {/* Waiter call bell icon */}
       {hasWaiterCall && (
         <Bell
           className="absolute"
@@ -611,25 +1062,17 @@ function StaffTableElement({
         />
       )}
 
-      {/* Table label */}
       <span style={{ fontWeight: 700, fontSize: 13, color: colors.text, lineHeight: 1 }}>
         {tableLabelText(table)}
       </span>
 
-      {/* Customer name or capacity */}
       {showName ? (
         <span
           style={{
-            fontSize: 10,
-            fontWeight: 700,
-            color: colors.text,
-            marginTop: 2,
-            lineHeight: 1.1,
-            maxWidth: 'calc(100% - 8px)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            textAlign: 'center',
+            fontSize: 10, fontWeight: 700, color: colors.text,
+            marginTop: 2, lineHeight: 1.1,
+            maxWidth: 'calc(100% - 8px)', overflow: 'hidden',
+            textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center',
           }}
         >
           {shortName(customerName)}
@@ -640,28 +1083,14 @@ function StaffTableElement({
         </span>
       ) : null}
 
-      {/* Timer — hide on small tables to save space */}
       {isOccupied && !isSmall && minutes > 0 && (
-        <span style={{
-          fontSize: 10,
-          fontWeight: 500,
-          color: timerColor(minutes),
-          marginTop: 1,
-          lineHeight: 1,
-        }}>
+        <span style={{ fontSize: 10, fontWeight: 500, color: timerColor(minutes), marginTop: 1, lineHeight: 1 }}>
           {formatTimer(minutes)}
         </span>
       )}
 
-      {/* Order value */}
       {isOccupied && total > 0 && (
-        <span style={{
-          fontSize: 10,
-          fontWeight: 600,
-          color: colors.text,
-          marginTop: 1,
-          lineHeight: 1,
-        }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: colors.text, marginTop: 1, lineHeight: 1 }}>
           {formatPrice(total)}
         </span>
       )}
@@ -674,32 +1103,23 @@ function StaffTableElement({
     top: table.y,
     width: w,
     height: h,
-    cursor: 'pointer',
-    zIndex: 2,
+    cursor: isDragSource ? 'grabbing' : 'pointer',
+    zIndex: isDragSource ? 50 : 2,
     display: 'block',
     textDecoration: 'none',
+    opacity: dimmed ? 0.35 : 1,
+    transition: 'opacity 0.25s',
+    overflow: 'visible',
   };
 
   const progressRing = isOccupied && progress > 0 ? (
     <svg
-      style={{
-        position: 'absolute',
-        top: -3,
-        left: -3,
-        width: w + 6,
-        height: h + 6,
-        pointerEvents: 'none',
-        zIndex: 3,
-      }}
+      style={{ position: 'absolute', top: -3, left: -3, width: w + 6, height: h + 6, pointerEvents: 'none', zIndex: 3 }}
     >
       {isRound ? (
         <circle
-          cx={(w + 6) / 2}
-          cy={(h + 6) / 2}
-          r={(w + 6) / 2 - 2}
-          fill="none"
-          stroke={progressColor}
-          strokeWidth={2.5}
+          cx={(w + 6) / 2} cy={(h + 6) / 2} r={(w + 6) / 2 - 2}
+          fill="none" stroke={progressColor} strokeWidth={2.5}
           strokeDasharray={`${progress * Math.PI * (w + 2)} ${Math.PI * (w + 2)}`}
           strokeLinecap="round"
           transform={`rotate(-90 ${(w + 6) / 2} ${(h + 6) / 2})`}
@@ -707,15 +1127,8 @@ function StaffTableElement({
         />
       ) : (
         <rect
-          x={2}
-          y={2}
-          width={w + 2}
-          height={h + 2}
-          rx={12}
-          ry={12}
-          fill="none"
-          stroke={progressColor}
-          strokeWidth={2.5}
+          x={2} y={2} width={w + 2} height={h + 2} rx={12} ry={12}
+          fill="none" stroke={progressColor} strokeWidth={2.5}
           strokeDasharray={`${progress * 2 * (w + h + 4)} ${2 * (w + h + 4)}`}
           strokeLinecap="round"
           style={{ transition: 'stroke-dasharray 0.5s, stroke 0.3s' }}
@@ -725,61 +1138,271 @@ function StaffTableElement({
   ) : null;
 
   const waiterPulse = hasWaiterCall && !reducedMotion ? (
-    <div
-      style={{
-        position: 'absolute',
-        inset: -4,
-        borderRadius: isRound ? '50%' : 14,
-        border: '2px solid rgba(239,68,68,0.6)',
-        animation: 'waiterPulseRing 1.5s ease-out infinite',
-        pointerEvents: 'none',
-        zIndex: 1,
-      }}
-    />
+    <div style={{ position: 'absolute', inset: -4, borderRadius: isRound ? '50%' : 14, border: '2px solid rgba(239,68,68,0.6)', animation: 'waiterPulseRing 1.5s ease-out infinite', pointerEvents: 'none', zIndex: 1 }} />
   ) : hasWaiterCall && reducedMotion ? (
-    <div
-      style={{
-        position: 'absolute',
-        inset: -4,
-        borderRadius: isRound ? '50%' : 14,
-        border: '2px solid rgba(239,68,68,0.6)',
-        animation: 'waiterPulseRingReduced 2s ease-in-out infinite',
-        pointerEvents: 'none',
-        zIndex: 1,
-      }}
-    />
+    <div style={{ position: 'absolute', inset: -4, borderRadius: isRound ? '50%' : 14, border: '2px solid rgba(239,68,68,0.6)', animation: 'waiterPulseRingReduced 2s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }} />
   ) : null;
 
-  if (status === 'available') {
-    return (
-      <button type="button" onClick={onAvailableClick} style={positionStyle}>
-        {progressRing}
-        {inner}
-      </button>
-    );
+  const dropTargetRing = isValidDropTarget && !reducedMotion ? (
+    <div style={{ position: 'absolute', inset: -5, borderRadius: isRound ? '50%' : 15, animation: 'dropTargetGlow 1s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }} />
+  ) : null;
+
+  const seatRecommendRing = isSeatRecommended && !reducedMotion ? (
+    <div style={{ position: 'absolute', inset: -5, borderRadius: isRound ? '50%' : 15, animation: 'recommendPulse 1s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }}>
+      <span style={{ position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: 'white', padding: '1px 5px', borderRadius: 4, border: '1px solid #93c5fd' }}>
+        Best fit
+      </span>
+    </div>
+  ) : null;
+
+  const seatValidRing = isSeatValid && !isSeatRecommended ? (
+    <div style={{ position: 'absolute', inset: -4, borderRadius: isRound ? '50%' : 14, border: '2px solid rgba(59,130,246,0.35)', pointerEvents: 'none', zIndex: 1 }} />
+  ) : null;
+
+  function handlePointerDown(e: React.PointerEvent) {
+    if (canDrag && isOccupied) {
+      onLongPressStart(e.clientX, e.clientY);
+    }
+  }
+
+  function handlePointerMoveLocal(e: React.PointerEvent) {
+    // Cancel long-press if moved too far
+    if (canDrag) {
+      onLongPressCancel();
+    }
+  }
+
+  function handleClick() {
+    if (isDragSource) return;
+    if (status === 'available') {
+      onAvailableClick();
+    } else {
+      onOccupiedClick();
+    }
   }
 
   return (
-    <button type="button" onClick={onOccupiedClick} style={{ ...positionStyle, overflow: 'visible' }}>
+    <button
+      type="button"
+      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMoveLocal}
+      onPointerUp={() => onLongPressCancel()}
+      onPointerCancel={() => onLongPressCancel()}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onMouseMove={onMouseMove}
+      style={positionStyle}
+    >
       {waiterPulse}
+      {dropTargetRing}
+      {seatRecommendRing}
+      {seatValidRing}
       {progressRing}
       {inner}
     </button>
   );
 }
 
-// ─── Table Orders Modal ─────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// QUICK PEEK CARD (Feature 4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function QuickPeekCard({ peek }: {
+  peek: { table: FloorTable; orders: Order[]; screenX: number; screenY: number };
+}) {
+  const { table, orders, screenX, screenY } = peek;
+  const minutes = getOccupancyMinutes(orders);
+  const total = getOrderTotal(orders);
+  const totalItems = orders.reduce(
+    (sum, o) => sum + (o.items ?? []).filter(i => i.status !== 'voided').reduce((s, i) => s + i.quantity, 0), 0,
+  );
+  const customerName = orders.find(o => o.customer_name)?.customer_name;
+  const statusSummary = getStatusSummary(orders);
+  const hasWaiterCallRecent = false;
+
+  const CARD_W = 220;
+  const CARD_H = 120;
+  let left = screenX + 16;
+  let top = screenY - 10;
+  if (left + CARD_W > window.innerWidth - 8) left = screenX - CARD_W - 16;
+  if (top + CARD_H > window.innerHeight - 8) top = window.innerHeight - CARD_H - 8;
+  if (top < 8) top = 8;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        left,
+        top,
+        width: CARD_W,
+        zIndex: 200,
+        pointerEvents: 'none',
+      }}
+    >
+      <div className="bg-white rounded-xl shadow-xl border p-3 space-y-1.5 text-xs">
+        {customerName && (
+          <p className="font-bold text-sm text-gray-900 truncate">{customerName}</p>
+        )}
+        <p className="text-gray-600">
+          {orders.length} order{orders.length !== 1 ? 's' : ''} · {totalItems} item{totalItems !== 1 ? 's' : ''}
+        </p>
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-gray-900">{formatPrice(total)}</span>
+          <span className="text-gray-500 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {formatTimer(minutes)}
+          </span>
+        </div>
+        <p className="text-gray-500">{statusSummary}</p>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SEAT PARTY BUTTON (Feature 6)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function SeatPartyButton({
+  active,
+  onSelectSize,
+  onDismiss,
+  noTablesMsg,
+}: {
+  active: boolean;
+  onSelectSize: (size: number) => void;
+  onDismiss: () => void;
+  noTablesMsg: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => { if (active) { onDismiss(); } else { setOpen(!open); } }}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors',
+          active
+            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+        )}
+      >
+        <Users className="w-3.5 h-3.5" />
+        {active ? 'Cancel' : 'Seat'}
+      </button>
+
+      {open && !active && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute top-full left-0 mt-1 z-40 bg-white border rounded-xl shadow-lg p-3 w-48">
+            <p className="text-xs font-medium text-gray-700 mb-2">How many guests?</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[1, 2, 3, 4, 5, 6].map(n => (
+                <button
+                  key={n}
+                  onClick={() => { onSelectSize(n); setOpen(false); }}
+                  className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-blue-100 hover:text-blue-700 text-sm font-semibold transition-colors"
+                >
+                  {n}{n === 6 ? '+' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {noTablesMsg && (
+        <div className="absolute top-full left-0 mt-1 z-40 bg-amber-50 border border-amber-200 rounded-lg shadow-sm p-2 w-52">
+          <p className="text-xs text-amber-800">{noTablesMsg}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MERGE CONFIRM DIALOG (Feature 3)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function MergeConfirmDialog({
+  source,
+  onConfirm,
+  onCancel,
+}: {
+  source: MergeDialogState;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const srcLabel = tableLabelText(source.sourceTable);
+  const destLabel = tableLabelText(source.destTable);
+  const srcTotal = getOrderTotal(source.sourceOrders);
+  const destTotal = getOrderTotal(source.destOrders);
+  const srcName = source.sourceOrders.find(o => o.customer_name)?.customer_name;
+  const destName = source.destOrders.find(o => o.customer_name)?.customer_name;
+
+  async function handleConfirm() {
+    setLoading(true);
+    await onConfirm();
+    setLoading(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <h3 className="font-bold text-lg">Merge tables?</h3>
+        <p className="text-sm text-gray-600">
+          Merge <strong>Table {srcLabel}</strong>
+          {srcName ? ` (${shortName(srcName)}, ${formatPrice(srcTotal)})` : ` (${formatPrice(srcTotal)})`}
+          {' '}with <strong>Table {destLabel}</strong>
+          {destName ? ` (${shortName(destName)}, ${formatPrice(destTotal)})` : ` (${formatPrice(destTotal)})`}?
+        </p>
+        <p className="text-xs text-gray-500">
+          All orders will be combined under Table {destLabel}. Table {srcLabel} will become available.
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium border hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            Merge
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TABLE ORDERS MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function TableOrdersModal({
   table,
   restaurant,
   onClose,
   onAddItems,
+  mergeHistory,
+  allTables,
+  dbTableIds,
 }: {
   table: SelectedTable;
   restaurant: import('@/types').Restaurant;
   onClose: () => void;
   onAddItems: (tableId: string, tableLabel: string, round: number) => void;
+  mergeHistory: Map<string, { tableId: string; tableNumber: number }>;
+  allTables: FloorTable[];
+  dbTableIds: Map<number, string>;
 }) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [billingOrders, setBillingOrders] = useState<Order[] | null>(null);
@@ -797,6 +1420,38 @@ function TableOrdersModal({
   const sortedOrders = [...table.orders].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
+
+  const mergedOrderIds = table.orders.filter(o => mergeHistory.has(o.id)).map(o => o.id);
+  const canUnmerge = mergedOrderIds.length > 0;
+
+  async function handleUnmerge() {
+    const supabase = createClient();
+    setUpdating('unmerge');
+    try {
+      const groups = new Map<string, string[]>();
+      for (const oid of mergedOrderIds) {
+        const orig = mergeHistory.get(oid);
+        if (!orig) continue;
+        const list = groups.get(orig.tableId) ?? [];
+        list.push(oid);
+        groups.set(orig.tableId, list);
+      }
+
+      for (const [origTableId, orderIds] of groups) {
+        const { error } = await supabase
+          .from('orders')
+          .update({ table_id: origTableId })
+          .in('id', orderIds);
+        if (error) throw error;
+        for (const oid of orderIds) mergeHistory.delete(oid);
+      }
+      toast.success('Tables unmerged');
+    } catch {
+      toast.error('Failed to unmerge');
+    } finally {
+      setUpdating(null);
+    }
+  }
 
   async function handleMarkAllReady() {
     setUpdating('all');
@@ -956,6 +1611,7 @@ function TableOrdersModal({
               const isReady = order.status === 'ready';
               const roundNum = idx + 1;
               const names = [order.customer_name].filter(Boolean);
+              const fromMerge = mergeHistory.has(order.id);
 
               return (
                 <div key={order.id}>
@@ -965,6 +1621,9 @@ function TableOrdersModal({
                     </span>
                     {names.length > 0 && (
                       <span className="text-xs text-muted-foreground">· {names.join(', ')}</span>
+                    )}
+                    {fromMerge && (
+                      <span className="text-[10px] text-violet-500 font-medium">merged</span>
                     )}
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       · <Clock className="w-3 h-3" />
@@ -1046,6 +1705,19 @@ function TableOrdersModal({
               <PlusCircle className="w-5 h-5" />
               Add items · Round {table.orders.length + 1}
             </button>
+
+            {/* Feature 3: Unmerge button */}
+            {canUnmerge && (
+              <button
+                onClick={handleUnmerge}
+                disabled={!!updating}
+                className="w-full py-2 rounded-xl text-xs font-medium text-violet-600 hover:bg-violet-50 border border-violet-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                {updating === 'unmerge' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Unmerge tables
+              </button>
+            )}
+
             <button
               onClick={handleCloseTable}
               disabled={!!updating}
@@ -1067,7 +1739,9 @@ function TableOrdersModal({
   );
 }
 
-// ─── Merge Group Backgrounds ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// MERGE GROUP BACKGROUNDS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function MergeGroupBackgrounds({
   tables,

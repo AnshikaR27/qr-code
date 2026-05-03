@@ -58,6 +58,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
+import {
+  ChairsSvgLayer,
+  WallsSvgLayer,
+  CounterElement,
+  DoorArcsSvgLayer,
+  isOutdoorZone,
+  OUTDOOR_PATTERN_CSS,
+  TABLE_DROP_SHADOW,
+} from '@/components/floor-plan/floor-plan-decorations';
 import type {
   FloorCapacity,
   FloorCounter,
@@ -1698,6 +1707,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
             {(plan.zones ?? []).map(zone => {
               const zc = ZONE_COLORS_MAP[zone.color];
               const isSel = selectedElement?.type === 'zone' && selectedElement.id === zone.id;
+              const outdoor = isOutdoorZone(zone.name);
               return (
                 <div
                   key={zone.id}
@@ -1706,6 +1716,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                     background: zc.bg, border: `1.5px ${isSel ? 'solid' : 'dashed'} ${zc.border}`, borderRadius: 8,
                     zIndex: 0, cursor: mode === 'select' ? (draggingId === zone.id ? 'grabbing' : 'grab') : 'default',
                     touchAction: 'none',
+                    ...(outdoor ? OUTDOOR_PATTERN_CSS : {}),
                   }}
                   onPointerDown={e => handlePointerDown(e, zone.id, zone.x, zone.y)}
                   onPointerMove={e => handlePointerMove(e, zone.id, zone.width, zone.height)}
@@ -1743,31 +1754,20 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               }} />
             )}
 
-            {/* Layer 2: Walls (SVG) */}
-            <svg width={CANVAS_W} height={CANVAS_H} style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, pointerEvents: 'none' }}>
-              {(plan.walls ?? []).map(wall => (
-                <polygon
-                  key={wall.id}
-                  points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
-                  fill="none"
-                  stroke={selectedWallId === wall.id ? '#2563eb' : '#1f2937'}
-                  strokeWidth={selectedWallId === wall.id ? 8 : 7}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-              ))}
-              {/* Wall drawing preview */}
-              {mode === 'drawWalls' && wallDrawingPoints.length > 0 && (
+            {/* Layer 2: Walls (decorated SVG with shadows) */}
+            <WallsSvgLayer walls={plan.walls ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} selectedWallId={selectedWallId} />
+            {/* Wall drawing preview (separate SVG for in-progress drawing) */}
+            {mode === 'drawWalls' && wallDrawingPoints.length > 0 && (
+              <svg width={CANVAS_W} height={CANVAS_H} style={{ position: 'absolute', left: 0, top: 0, zIndex: 2, pointerEvents: 'none' }}>
                 <polyline
                   points={[...wallDrawingPoints, ...(wallPreviewPoint ? [wallPreviewPoint] : [])].map(p => `${p.x},${p.y}`).join(' ')}
                   fill="none" stroke="#1f2937" strokeWidth={7} strokeDasharray="8 4" strokeLinejoin="round" strokeLinecap="round"
                 />
-              )}
-              {/* Drawing point markers */}
-              {mode === 'drawWalls' && wallDrawingPoints.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r={5} fill="#2563eb" stroke="white" strokeWidth={2} />
-              ))}
-            </svg>
+                {wallDrawingPoints.map((p, i) => (
+                  <circle key={i} cx={p.x} cy={p.y} r={5} fill="#2563eb" stroke="white" strokeWidth={2} />
+                ))}
+              </svg>
+            )}
 
             {/* Wall corner handles (when selected) */}
             {selectedWallId && (plan.walls ?? []).filter(w => w.id === selectedWallId).map(wall =>
@@ -1786,7 +1786,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               ))
             )}
 
-            {/* Layer 3: Counter */}
+            {/* Layer 3: Counter (with surface treatment) */}
             {plan.counter && (() => {
               const c = plan.counter!;
               const isSel = selectedElement?.type === 'counter';
@@ -1794,18 +1794,20 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 <div
                   style={{
                     position: 'absolute', left: c.x, top: c.y, width: c.width, height: c.height,
-                    background: 'repeating-linear-gradient(45deg, #6b7280, #6b7280 2px, #9ca3af 2px, #9ca3af 6px)',
                     borderRadius: 6, border: isSel ? '2px solid #2563eb' : '2px solid #4b5563',
                     zIndex: 1, cursor: mode === 'select' ? (draggingId === 'counter' ? 'grabbing' : 'grab') : 'default',
                     touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: isSel ? '0 0 0 3px rgba(37,99,235,0.2)' : '0 2px 6px rgba(0,0,0,0.1)',
+                    boxShadow: isSel ? '0 0 0 3px rgba(37,99,235,0.2)' : '0 2px 6px rgba(0,0,0,0.12)',
+                    overflow: 'hidden',
                   }}
                   onPointerDown={e => handlePointerDown(e, 'counter', c.x, c.y)}
                   onPointerMove={e => handlePointerMove(e, 'counter', c.width, c.height)}
                   onPointerUp={e => handlePointerUp(e, 'counter', () => { deselectAll(); setSelectedElement({ type: 'counter', id: 'counter' }); })}
                   onContextMenu={e => handleContextMenu(e, 'counter', 'counter')}
                 >
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.4)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Counter</span>
+                  <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(45deg, #6b7280, #6b7280 2px, #9ca3af 2px, #9ca3af 6px)' }} />
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(to bottom, rgba(255,255,255,0.3), transparent)', borderRadius: '4px 4px 0 0' }} />
+                  <span style={{ position: 'relative', fontSize: 12, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.4)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Counter</span>
                   {isSel && (['nw','ne','sw','se'] as const).map(h => (
                     <div
                       key={h}
@@ -1847,6 +1849,9 @@ export default function FloorPlanEditor({ restaurant }: Props) {
               );
             })}
 
+            {/* Decorative: Door arc sweeps (behind interactive handles) */}
+            <DoorArcsSvgLayer doors={plan.doors ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} />
+
             {/* Layer 5: Labels */}
             {plan.labels.map(label => (
               <LabelElement
@@ -1859,6 +1864,9 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 onContextMenu={e => handleContextMenu(e, label.id, 'label')}
               />
             ))}
+
+            {/* Decorative: Chairs around tables */}
+            <ChairsSvgLayer tables={plan.tables} canvasW={CANVAS_W} canvasH={CANVAS_H} />
 
             {/* Layer 6: Merge group backgrounds */}
             <MergeGroupBackgrounds tables={plan.tables} tableStatusMap={tableStatusMap} />
@@ -2661,9 +2669,10 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
       }}
       className="bg-white"
     >
-      {/* Zones */}
+      {/* Zones (with outdoor pattern) */}
       {(plan.zones ?? []).map(zone => {
         const zc = ZONE_COLORS_MAP[zone.color];
+        const outdoor = isOutdoorZone(zone.name);
         return (
           <div
             key={zone.id}
@@ -2671,6 +2680,7 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
               position: 'absolute', left: zone.x, top: zone.y, width: zone.width, height: zone.height,
               background: zc.bg, border: `1.5px dashed ${zc.border}`, borderRadius: 8,
               zIndex: 0, pointerEvents: 'none',
+              ...(outdoor ? OUTDOOR_PATTERN_CSS : {}),
             }}
           >
             <span style={{ position: 'absolute', top: 6, left: 10, fontSize: 11, fontWeight: 600, color: zc.text, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{zone.name}</span>
@@ -2678,59 +2688,22 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
         );
       })}
 
-      {/* Walls */}
-      {(plan.walls ?? []).length > 0 && (
-        <svg width={CANVAS_W} height={CANVAS_H} style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, pointerEvents: 'none' }}>
-          {(plan.walls ?? []).map(wall => (
-            <polygon
-              key={wall.id}
-              points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
-              fill="none"
-              stroke="#1f2937"
-              strokeWidth={7}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          ))}
-        </svg>
-      )}
+      {/* Walls (decorated with shadows) */}
+      <WallsSvgLayer walls={plan.walls ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} />
 
-      {/* Counter */}
+      {/* Counter (with surface treatment) */}
       {plan.counter && (
-        <div
-          style={{
-            position: 'absolute', left: plan.counter.x, top: plan.counter.y,
-            width: plan.counter.width, height: plan.counter.height,
-            background: 'repeating-linear-gradient(45deg, #6b7280, #6b7280 2px, #9ca3af 2px, #9ca3af 6px)',
-            borderRadius: 6, border: '2px solid #4b5563',
-            zIndex: 1, pointerEvents: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-          }}
-        >
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.4)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Counter</span>
-        </div>
+        <CounterElement counter={plan.counter} />
       )}
 
-      {/* Doors */}
-      {(plan.doors ?? []).map(door => (
-        <div
-          key={door.id}
-          style={{
-            position: 'absolute', left: door.x - 18, top: door.y - 18, width: 36, height: 36,
-            background: 'rgba(255,255,255,0.9)',
-            border: '1.5px solid #6b7280', borderRadius: 8,
-            zIndex: 1, pointerEvents: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-          }}
-        >
-          <DoorOpen className="w-5 h-5 text-gray-600" />
-        </div>
-      ))}
+      {/* Doors (architectural arc sweeps) */}
+      <DoorArcsSvgLayer doors={plan.doors ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} />
 
       {/* Labels */}
       {plan.labels.map(l => <LabelElement key={l.id} label={l} viewOnly />)}
+
+      {/* Chairs (decorative) */}
+      <ChairsSvgLayer tables={plan.tables} canvasW={CANVAS_W} canvasH={CANVAS_H} />
 
       {/* Merge group backgrounds */}
       <MergeGroupBackgrounds tables={plan.tables} tableStatusMap={tableStatusMap} />
@@ -2831,13 +2804,14 @@ function TableElement({
         background: bg,
         border: `2px solid ${border}`,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        filter: TABLE_DROP_SHADOW,
         boxShadow: isDragging
           ? '0 8px 24px rgba(79,70,229,0.25)'
           : isSelected
             ? '0 0 0 3px rgba(37,99,235,0.2), 0 2px 8px rgba(0,0,0,0.12)'
             : needsAttention
               ? '0 0 0 3px rgba(239,68,68,0.25)'
-              : '0 2px 6px rgba(0,0,0,0.08)',
+              : undefined,
         transition: isDragging ? 'none' : 'box-shadow 0.15s, background 0.25s, border-color 0.25s',
         padding: '0 4px',
       }}>
