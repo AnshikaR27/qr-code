@@ -864,7 +864,7 @@ function StaffFloorCanvas({
         : window.innerHeight - rect.top - (window.innerWidth < 768 ? 76 : 12);
       const scaleX = availW / contentW;
       const scaleY = Math.max(100, availH) / contentH;
-      setDims({ scale: Math.min(scaleX, scaleY), containerW: availW, containerH: availH });
+      setDims({ scale: isFullscreen ? Math.min(scaleX, scaleY) : scaleX, containerW: availW, containerH: availH });
     }
 
     update();
