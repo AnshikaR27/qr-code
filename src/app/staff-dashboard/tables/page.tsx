@@ -40,8 +40,9 @@ import type {
 const GRID = 20;
 const CANVAS_W = 1400;
 const CANVAS_H = 900;
-const CONTENT_PAD = 50;
+const CONTENT_PAD = 35;
 const DOOR_LEN = 28;
+const ZONE_EXPAND = 12;
 
 const TIMER_AMBER_MINUTES = 60;
 const TIMER_RED_MINUTES = 120;
@@ -123,10 +124,12 @@ function getStatusSummary(tableOrders: Order[]): string {
   return parts.join(', ') || 'Placed';
 }
 
-function getTableAtPoint(x: number, y: number, tables: FloorTable[]): FloorTable | null {
+function getTableAtPoint(x: number, y: number, tables: FloorTable[], boost = 1): FloorTable | null {
   for (const t of tables) {
-    const { w, h } = tableSize(t.capacity);
-    if (x >= t.x && x <= t.x + w && y >= t.y && y <= t.y + h) return t;
+    const { w: bw, h: bh } = tableSize(t.capacity);
+    const w = bw * boost, h = bh * boost;
+    const ox = t.x - (w - bw) / 2, oy = t.y - (h - bh) / 2;
+    if (x >= ox && x <= ox + w && y >= oy && y <= oy + h) return t;
   }
   return null;
 }
@@ -878,6 +881,8 @@ function StaffFloorCanvas({
 
   const topOffset = isFullscreen ? Math.max(0, (dims.containerH - contentH * dims.scale) / 2) : 0;
 
+  const tableBoost = dims.scale > 1 ? Math.min(1.35, 1 + (dims.scale - 1) * 0.3) : 1;
+
   function screenToCanvas(screenX: number, screenY: number): { x: number; y: number } | null {
     const el = containerRef.current;
     if (!el) return null;
@@ -902,7 +907,7 @@ function StaffFloorCanvas({
     if (!dragState) return;
     const pt = screenToCanvas(e.clientX, e.clientY);
     if (pt) {
-      const target = getTableAtPoint(pt.x, pt.y, plan.tables);
+      const target = getTableAtPoint(pt.x, pt.y, plan.tables, tableBoost);
       if (target && target.id !== dragState.sourceTable.id) {
         onDragEnd(target);
         return;
@@ -958,7 +963,7 @@ function StaffFloorCanvas({
           userSelect: 'none',
         }}
       >
-      {/* Layer 1: Zones — with outdoor pattern */}
+      {/* Layer 1: Zones — expanded to fill closer to walls */}
       {(plan.zones ?? []).map(zone => {
         const zc = ZONE_COLORS_MAP[zone.color];
         const outdoor = isOutdoorZone(zone.name);
@@ -966,19 +971,21 @@ function StaffFloorCanvas({
           <div
             key={zone.id}
             style={{
-              position: 'absolute', left: zone.x, top: zone.y, width: zone.width, height: zone.height,
+              position: 'absolute',
+              left: zone.x - ZONE_EXPAND, top: zone.y - ZONE_EXPAND,
+              width: zone.width + ZONE_EXPAND * 2, height: zone.height + ZONE_EXPAND * 2,
               background: zc.bg, border: `1.5px dashed ${zc.border}`, borderRadius: 8,
               zIndex: 0, pointerEvents: 'none',
               ...(outdoor ? OUTDOOR_PATTERN_CSS : {}),
             }}
           >
-            <span style={{ position: 'absolute', top: 6, left: 10, fontSize: 11, fontWeight: 600, color: zc.text, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{zone.name}</span>
+            <span style={{ position: 'absolute', top: 6 + ZONE_EXPAND, left: 10 + ZONE_EXPAND, fontSize: 11, fontWeight: 600, color: zc.text, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{zone.name}</span>
           </div>
         );
       })}
 
       {/* Layer 2: Architectural walls */}
-      <WallsSvgLayer walls={plan.walls ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} />
+      <WallsSvgLayer walls={plan.walls ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} strokeScale={0.35} />
 
       {/* Layer 3: Counter with surface treatment */}
       {plan.counter && <CounterElement counter={plan.counter} />}
@@ -1035,6 +1042,7 @@ function StaffFloorCanvas({
             isSeatValid={isSeatValid}
             isSeatRecommended={isSeatRecommended}
             isSeatDimmed={!!isSeatDimmed}
+            sizeBoost={tableBoost}
             onOccupiedClick={() => {
               if (info.hasWaiterCall) onDismissWaiterCall(table.table_number);
               onOccupiedTableClick(table, dbId, info);
@@ -1110,6 +1118,7 @@ function StaffTableElement({
   isSeatValid,
   isSeatRecommended,
   isSeatDimmed,
+  sizeBoost,
   onOccupiedClick,
   onAvailableClick,
   canDrag,
@@ -1131,6 +1140,7 @@ function StaffTableElement({
   isSeatValid: boolean;
   isSeatRecommended: boolean;
   isSeatDimmed: boolean;
+  sizeBoost: number;
   onOccupiedClick: () => void;
   onAvailableClick: () => void;
   canDrag: boolean;
@@ -1140,7 +1150,9 @@ function StaffTableElement({
   onMouseLeave: () => void;
   onMouseMove: (e: React.MouseEvent) => void;
 }) {
-  const { w, h } = tableSize(table.capacity);
+  const { w: baseW, h: baseH } = tableSize(table.capacity);
+  const w = Math.round(baseW * sizeBoost);
+  const h = Math.round(baseH * sizeBoost);
   const isRound = table.shape === 'round';
   const colors = STATUS_COLORS[status];
   const customerNames = [...new Set(
@@ -1221,8 +1233,8 @@ function StaffTableElement({
 
   const positionStyle: React.CSSProperties = {
     position: 'absolute',
-    left: table.x,
-    top: table.y,
+    left: table.x - (w - baseW) / 2,
+    top: table.y - (h - baseH) / 2,
     width: w,
     height: h,
     cursor: isDragSource ? 'grabbing' : 'pointer',

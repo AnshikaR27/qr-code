@@ -16,33 +16,38 @@ export function WallsSvgLayer({
   canvasW,
   canvasH,
   selectedWallId,
+  strokeScale = 1,
 }: {
   walls: FloorWall[];
   canvasW: number;
   canvasH: number;
   selectedWallId?: string | null;
+  strokeScale?: number;
 }) {
   if (walls.length === 0) return null;
+  const thin = strokeScale < 1;
   return (
     <svg
       width={canvasW}
       height={canvasH}
       style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, pointerEvents: 'none' }}
     >
-      <defs>
-        <filter id="wall-shadow" x="-10%" y="-10%" width="130%" height="130%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.12" />
-        </filter>
-      </defs>
+      {!thin && (
+        <defs>
+          <filter id="wall-shadow" x="-10%" y="-10%" width="130%" height="130%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.12" />
+          </filter>
+        </defs>
+      )}
       {walls.map(wall => {
         const isSel = selectedWallId === wall.id;
         return (
-          <g key={wall.id} filter={isSel ? undefined : 'url(#wall-shadow)'}>
+          <g key={wall.id} filter={isSel || thin ? undefined : 'url(#wall-shadow)'}>
             <polygon
               points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
               fill="none"
               stroke={isSel ? '#2563eb' : '#374151'}
-              strokeWidth={isSel ? 10 : 9}
+              strokeWidth={(isSel ? 10 : 9) * strokeScale}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
@@ -50,7 +55,7 @@ export function WallsSvgLayer({
               points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
               fill="none"
               stroke={isSel ? '#3b82f6' : '#1f2937'}
-              strokeWidth={isSel ? 6 : 5}
+              strokeWidth={(isSel ? 6 : 5) * strokeScale}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
