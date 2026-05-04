@@ -40,6 +40,8 @@ import type {
 const GRID = 20;
 const CANVAS_W = 1400;
 const CANVAS_H = 900;
+const CONTENT_PAD = 50;
+const DOOR_LEN = 28;
 
 const TIMER_AMBER_MINUTES = 60;
 const TIMER_RED_MINUTES = 120;
@@ -127,6 +129,46 @@ function getTableAtPoint(x: number, y: number, tables: FloorTable[]): FloorTable
     if (x >= t.x && x <= t.x + w && y >= t.y && y <= t.y + h) return t;
   }
   return null;
+}
+
+function computeContentBounds(plan: FloorPlan): { minX: number; minY: number; maxX: number; maxY: number } {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  function expand(x: number, y: number, w = 0, h = 0) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w);
+    maxY = Math.max(maxY, y + h);
+  }
+
+  for (const t of plan.tables) {
+    const s = tableSize(t.capacity);
+    expand(t.x, t.y, s.w, s.h + 22);
+  }
+
+  for (const w of plan.walls ?? []) {
+    for (const p of w.points) expand(p.x, p.y);
+  }
+
+  if (plan.counter) {
+    const c = plan.counter;
+    expand(c.x, c.y, c.width, c.height);
+  }
+
+  for (const z of plan.zones ?? []) {
+    expand(z.x, z.y, z.width, z.height);
+  }
+
+  for (const d of plan.doors ?? []) {
+    expand(d.x - DOOR_LEN, d.y - DOOR_LEN, DOOR_LEN * 2, DOOR_LEN * 2);
+  }
+
+  for (const l of plan.labels) {
+    expand(l.x, l.y, 120, 30);
+  }
+
+  if (minX === Infinity) return { minX: 0, minY: 0, maxX: CANVAS_W, maxY: CANVAS_H };
+  return { minX, minY, maxX, maxY };
 }
 
 // ─── Status types ────────────────────────────────────────────────────────────
@@ -795,6 +837,10 @@ function StaffFloorCanvas({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ scale: 1, containerW: CANVAS_W, containerH: CANVAS_H });
 
+  const contentBounds = useMemo(() => computeContentBounds(plan), [plan]);
+  const contentW = contentBounds.maxX - contentBounds.minX + CONTENT_PAD * 2;
+  const contentH = contentBounds.maxY - contentBounds.minY + CONTENT_PAD * 2;
+
   // Feature 4: Hover peek
   const [peekTable, setPeekTable] = useState<{ table: FloorTable; orders: Order[]; screenX: number; screenY: number } | null>(null);
   const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -813,9 +859,9 @@ function StaffFloorCanvas({
       const availH = isFullscreen
         ? rect.height
         : window.innerHeight - rect.top - (window.innerWidth < 768 ? 76 : 12);
-      const scaleX = availW / CANVAS_W;
-      const scaleY = Math.max(100, availH) / CANVAS_H;
-      setDims({ scale: Math.min(1, scaleX, scaleY), containerW: availW, containerH: availH });
+      const scaleX = availW / contentW;
+      const scaleY = Math.max(100, availH) / contentH;
+      setDims({ scale: Math.min(scaleX, scaleY), containerW: availW, containerH: availH });
     }
 
     update();
@@ -823,17 +869,22 @@ function StaffFloorCanvas({
     observer.observe(el);
     window.addEventListener('resize', update);
     return () => { observer.disconnect(); window.removeEventListener('resize', update); };
-  }, [isFullscreen]);
+  }, [isFullscreen, contentW, contentH]);
 
-  const leftOffset = Math.max(0, (dims.containerW - CANVAS_W * dims.scale) / 2);
+  const leftOffset = Math.max(0, (dims.containerW - contentW * dims.scale) / 2);
+
+  const contentOffsetX = -contentBounds.minX + CONTENT_PAD;
+  const contentOffsetY = -contentBounds.minY + CONTENT_PAD;
+
+  const topOffset = isFullscreen ? Math.max(0, (dims.containerH - contentH * dims.scale) / 2) : 0;
 
   function screenToCanvas(screenX: number, screenY: number): { x: number; y: number } | null {
-    const el = canvasRef.current;
+    const el = containerRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     return {
-      x: (screenX - rect.left) / dims.scale,
-      y: (screenY - rect.top) / dims.scale,
+      x: (screenX - rect.left - leftOffset) / dims.scale - contentOffsetX,
+      y: (screenY - rect.top - topOffset) / dims.scale - contentOffsetY,
     };
   }
 
@@ -885,7 +936,7 @@ function StaffFloorCanvas({
       ref={containerRef}
       style={{
         overflow: 'hidden',
-        height: isFullscreen ? '100%' : CANVAS_H * dims.scale,
+        height: isFullscreen ? '100%' : contentH * dims.scale,
         position: 'relative',
         ...(isFullscreen ? floorBg : {}),
       }}
@@ -900,8 +951,8 @@ function StaffFloorCanvas({
           height: CANVAS_H,
           position: 'absolute',
           left: leftOffset,
-          top: isFullscreen ? Math.max(0, (dims.containerH - CANVAS_H * dims.scale) / 2) : 0,
-          transform: `scale(${dims.scale})`,
+          top: topOffset,
+          transform: `scale(${dims.scale}) translate(${contentOffsetX}px, ${contentOffsetY}px)`,
           transformOrigin: 'top left',
           ...(isFullscreen ? {} : floorBg),
           userSelect: 'none',
