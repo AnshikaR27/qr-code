@@ -610,7 +610,7 @@ export default function StaffTablesPage() {
   const header = (
     <div className={cn(
       'flex flex-wrap items-center justify-between gap-x-4 gap-y-1',
-      isFullscreen ? 'px-4 py-2 bg-white/90 backdrop-blur-sm border-b' : 'mb-2',
+      isFullscreen ? 'px-4 py-2 bg-white/90 backdrop-blur-sm border-b' : 'px-4 sm:px-6 mb-1',
     )}>
       <div className="flex items-center gap-2">
         <h1 className="text-lg font-semibold">Tables</h1>
@@ -755,13 +755,10 @@ export default function StaffTablesPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 pb-20 md:pb-2">
+    <div className="pt-2 pb-20 md:pb-2">
       <style dangerouslySetInnerHTML={{ __html: INJECTED_STYLES }} />
       {header}
-
-      <div className="rounded-xl border shadow-sm bg-white overflow-hidden">
-        {canvas}
-      </div>
+      {canvas}
 
       {selectedTable && (
         <TableOrdersModal
