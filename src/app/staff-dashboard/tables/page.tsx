@@ -838,8 +838,9 @@ function StaffFloorCanvas({
   const [dims, setDims] = useState({ scale: 1, containerW: CANVAS_W, containerH: CANVAS_H });
 
   const contentBounds = useMemo(() => computeContentBounds(plan), [plan]);
-  const contentW = contentBounds.maxX - contentBounds.minX + CONTENT_PAD * 2;
-  const contentH = contentBounds.maxY - contentBounds.minY + CONTENT_PAD * 2;
+  const pad = isFullscreen ? 10 : CONTENT_PAD;
+  const contentW = contentBounds.maxX - contentBounds.minX + pad * 2;
+  const contentH = contentBounds.maxY - contentBounds.minY + pad * 2;
 
   // Feature 4: Hover peek
   const [peekTable, setPeekTable] = useState<{ table: FloorTable; orders: Order[]; screenX: number; screenY: number } | null>(null);
@@ -861,7 +862,7 @@ function StaffFloorCanvas({
         : window.innerHeight - rect.top - (window.innerWidth < 768 ? 76 : 12);
       const scaleX = availW / contentW;
       const scaleY = Math.max(100, availH) / contentH;
-      setDims({ scale: isFullscreen ? Math.max(scaleX, scaleY) : scaleX, containerW: availW, containerH: availH });
+      setDims({ scale: isFullscreen ? Math.min(scaleX, scaleY) : scaleX, containerW: availW, containerH: availH });
     }
 
     update();
@@ -873,10 +874,10 @@ function StaffFloorCanvas({
 
   const leftOffset = Math.max(0, (dims.containerW - contentW * dims.scale) / 2);
 
-  const contentOffsetX = -contentBounds.minX + CONTENT_PAD;
-  const contentOffsetY = -contentBounds.minY + CONTENT_PAD;
+  const contentOffsetX = -contentBounds.minX + pad;
+  const contentOffsetY = -contentBounds.minY + pad;
 
-  const topOffset = 0;
+  const topOffset = isFullscreen ? Math.max(0, (dims.containerH - contentH * dims.scale) / 2) : 0;
 
   const tableBoost = dims.scale > 1 ? Math.min(1.35, 1 + (dims.scale - 1) * 0.3) : 1;
 
