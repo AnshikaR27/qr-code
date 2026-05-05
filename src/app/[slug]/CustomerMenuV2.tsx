@@ -18,6 +18,7 @@ import DishDetailSheetV2 from '@/components/menu/DishDetailSheetV2';
 import CartBarV2 from '@/components/menu/CartBarV2';
 import CartSheetV2 from '@/components/menu/CartSheetV2';
 import YourOrdersSheet from '@/components/menu/YourOrdersSheet';
+import FloatingOrderStatus from '@/components/menu/FloatingOrderStatus';
 import AddonSheet from '@/components/menu/AddonSheet';
 import { useCart } from '@/hooks/useCart';
 import type { AddonGroup, CartItem, Category, Product, Restaurant } from '@/types';
@@ -680,7 +681,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
         />
       )}
 
-      {/* ── Floating "Your Orders" pill ── */}
+      {/* TEMP: replaced by <FloatingOrderStatus />. Remove after verifying in prod.
       {trackedOrderCount > 0 && (
         <button
           onClick={() => setOrdersSheetOpen(true)}
@@ -705,6 +706,14 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
           </span>
         </button>
       )}
+      */}
+
+      {/* ── Floating draggable order bell ── */}
+      <FloatingOrderStatus
+        slug={restaurant.slug}
+        onTap={() => setOrdersSheetOpen(true)}
+        refreshKey={trackedOrderCount}
+      />
 
       {/* ── Cart Bar — always visible ── */}
       <CartBarV2
