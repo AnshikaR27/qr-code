@@ -755,7 +755,7 @@ export default function StaffTablesPage() {
   }
 
   return (
-    <div className="pt-2 pb-20 md:pb-2">
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen overflow-hidden">
       <style dangerouslySetInnerHTML={{ __html: INJECTED_STYLES }} />
       {header}
       {canvas}
@@ -857,12 +857,10 @@ function StaffFloorCanvas({
     function update() {
       const rect = el.getBoundingClientRect();
       const availW = rect.width;
-      const availH = isFullscreen
-        ? rect.height
-        : window.innerHeight - rect.top - (window.innerWidth < 768 ? 76 : 12);
+      const availH = rect.height;
       const scaleX = availW / contentW;
       const scaleY = Math.max(100, availH) / contentH;
-      setDims({ scale: isFullscreen ? Math.min(scaleX, scaleY) : scaleX, containerW: availW, containerH: availH });
+      setDims({ scale: Math.min(scaleX, scaleY), containerW: availW, containerH: availH });
     }
 
     update();
@@ -877,7 +875,7 @@ function StaffFloorCanvas({
   const contentOffsetX = -contentBounds.minX + pad;
   const contentOffsetY = -contentBounds.minY + pad;
 
-  const topOffset = isFullscreen ? Math.max(0, (dims.containerH - contentH * dims.scale) / 2) : 0;
+  const topOffset = Math.max(0, (dims.containerH - contentH * dims.scale) / 2);
 
   const tableBoost = dims.scale > 1 ? Math.min(1.35, 1 + (dims.scale - 1) * 0.3) : 1;
 
@@ -939,7 +937,8 @@ function StaffFloorCanvas({
       ref={containerRef}
       style={{
         overflow: 'hidden',
-        height: isFullscreen ? '100%' : contentH * dims.scale,
+        height: '100%',
+        flex: 1,
         position: 'relative',
         ...(isFullscreen ? floorBg : {}),
       }}
