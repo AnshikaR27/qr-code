@@ -861,7 +861,7 @@ function StaffFloorCanvas({
         : window.innerHeight - rect.top - (window.innerWidth < 768 ? 76 : 12);
       const scaleX = availW / contentW;
       const scaleY = Math.max(100, availH) / contentH;
-      setDims({ scale: isFullscreen ? Math.min(scaleX, scaleY) : scaleX, containerW: availW, containerH: availH });
+      setDims({ scale: scaleX, containerW: availW, containerH: availH });
     }
 
     update();
@@ -876,7 +876,7 @@ function StaffFloorCanvas({
   const contentOffsetX = -contentBounds.minX + CONTENT_PAD;
   const contentOffsetY = -contentBounds.minY + CONTENT_PAD;
 
-  const topOffset = isFullscreen ? Math.max(0, (dims.containerH - contentH * dims.scale) / 2) : 0;
+  const topOffset = 0;
 
   const tableBoost = dims.scale > 1 ? Math.min(1.35, 1 + (dims.scale - 1) * 0.3) : 1;
 
@@ -937,7 +937,7 @@ function StaffFloorCanvas({
     <div
       ref={containerRef}
       style={{
-        overflow: 'hidden',
+        overflow: isFullscreen ? 'auto' : 'hidden',
         height: isFullscreen ? '100%' : contentH * dims.scale,
         position: 'relative',
         ...(isFullscreen ? floorBg : {}),

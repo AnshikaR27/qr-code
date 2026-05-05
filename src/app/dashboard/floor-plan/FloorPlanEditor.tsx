@@ -35,7 +35,6 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Minimize2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -1675,20 +1674,13 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         </div>
 
         {/* ── Canvas scroll area ── */}
-        <div ref={scrollContainerRef} className={cn(
-          "overflow-auto bg-gray-100 relative",
-          zoom > 1 ? "fixed inset-0 z-[200] p-2" : "flex-1 p-4"
-        )}>
+        <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 bg-gray-100 relative">
           {/* Zoom controls */}
           <div className="sticky top-2 left-2 z-[100] inline-flex items-center gap-1 bg-white/90 backdrop-blur-sm border rounded-lg px-1.5 py-1 shadow-sm mb-2">
             <button onClick={() => setZoom(z => Math.max(0.3, Math.round((z - 0.1) * 10) / 10))} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="Zoom out"><ZoomOut className="w-4 h-4" /></button>
             <span className="text-xs font-medium text-gray-600 w-10 text-center select-none">{Math.round(zoom * 100)}%</span>
             <button onClick={() => setZoom(z => Math.min(3, Math.round((z + 0.1) * 10) / 10))} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="Zoom in"><ZoomIn className="w-4 h-4" /></button>
-            {zoom > 1 ? (
-              <button onClick={() => setZoom(1)} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="Exit fullscreen"><Minimize2 className="w-3.5 h-3.5" /></button>
-            ) : (
-              <button onClick={() => setZoom(1)} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="Reset zoom"><Maximize2 className="w-3.5 h-3.5" /></button>
-            )}
+            <button onClick={() => setZoom(1)} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="Reset zoom"><Maximize2 className="w-3.5 h-3.5" /></button>
           </div>
           <div style={{ width: CANVAS_W * zoom, height: CANVAS_H * zoom }}>
           <div
