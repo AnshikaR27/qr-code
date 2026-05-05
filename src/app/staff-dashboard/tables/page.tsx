@@ -861,7 +861,7 @@ function StaffFloorCanvas({
         : window.innerHeight - rect.top - (window.innerWidth < 768 ? 76 : 12);
       const scaleX = availW / contentW;
       const scaleY = Math.max(100, availH) / contentH;
-      setDims({ scale: scaleX, containerW: availW, containerH: availH });
+      setDims({ scale: isFullscreen ? Math.max(scaleX, scaleY) : scaleX, containerW: availW, containerH: availH });
     }
 
     update();
@@ -937,7 +937,7 @@ function StaffFloorCanvas({
     <div
       ref={containerRef}
       style={{
-        overflow: isFullscreen ? 'auto' : 'hidden',
+        overflow: 'hidden',
         height: isFullscreen ? '100%' : contentH * dims.scale,
         position: 'relative',
         ...(isFullscreen ? floorBg : {}),
