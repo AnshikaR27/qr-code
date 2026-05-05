@@ -1681,7 +1681,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
           {/* Floor styles popup */}
           {showFloorStyles && (
-            <div className="absolute left-[60px] top-[320px] z-50 w-48 bg-white border rounded-xl shadow-xl p-3" onClick={e => e.stopPropagation()}>
+            <div className="absolute left-[60px] bottom-4 z-50 w-48 bg-white border rounded-xl shadow-xl p-3 max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <p className="text-[10px] font-semibold text-gray-400 mb-2 uppercase tracking-wider">Floor Texture</p>
               {FLOOR_STYLE_OPTIONS.map(s => (
                 <button
