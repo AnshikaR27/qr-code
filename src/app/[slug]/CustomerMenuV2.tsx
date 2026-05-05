@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { X, ChevronUp, RotateCcw, ChevronRight } from 'lucide-react';
+import { X, ChevronUp, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatPrice, cdnImg } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -470,41 +470,6 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
 
               {/* Scrolling content */}
               <div style={{ paddingBottom: `calc(${sizeScale.cartBarH} + env(safe-area-inset-bottom, 0px) + 24px)` }}>
-                {/* Active order banner — tap to open Your Orders sheet */}
-                {trackedOrderCount > 0 && (
-                  <button
-                    onClick={() => setOrdersSheetOpen(true)}
-                    className="mt-3 flex items-center gap-2.5 w-auto border-none cursor-pointer"
-                    style={{
-                      marginLeft: spacingScale.px,
-                      marginRight: spacingScale.px,
-                      padding: spacingScale.cardPad,
-                      borderRadius: 'var(--sunday-radius, 12px)',
-                      backgroundColor: 'color-mix(in srgb, var(--sunday-accent, #b12d00) 8%, var(--sunday-card-bg, #FFFFFF))',
-                      border: '1px solid color-mix(in srgb, var(--sunday-accent, #b12d00) 25%, transparent)',
-                      boxShadow: 'var(--sunday-shadow-sm)',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <span className="text-xl shrink-0">🧾</span>
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className="font-bold m-0"
-                        style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
-                      >
-                        {trackedOrderCount === 1 ? '1 order placed' : `${trackedOrderCount} orders placed`}
-                      </p>
-                      <p
-                        className="mt-0.5 m-0"
-                        style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
-                      >
-                        Tap to see your orders
-                      </p>
-                    </div>
-                    <ChevronRight size={18} className="shrink-0" style={{ color: 'var(--sunday-text-muted, #7A6040)' }} />
-                  </button>
-                )}
-
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div
@@ -713,6 +678,32 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
           message={toastMessage}
           onClose={() => setToastMessage(null)}
         />
+      )}
+
+      {/* ── Floating "Your Orders" pill ── */}
+      {trackedOrderCount > 0 && (
+        <button
+          onClick={() => setOrdersSheetOpen(true)}
+          className="fixed z-40 flex items-center gap-2 border-none cursor-pointer active:scale-95"
+          style={{
+            top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
+            right: 12,
+            padding: '6px 14px',
+            borderRadius: 'calc(var(--sunday-radius, 12px) * 2)',
+            backgroundColor: 'var(--sunday-primary, #361f1a)',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+            transition: 'transform 150ms ease',
+            fontFamily: 'var(--sunday-font-body)',
+          }}
+        >
+          <span style={{ fontSize: 14 }}>🧾</span>
+          <span
+            className="font-semibold"
+            style={{ fontSize: typeScale.xs, color: '#FFFFFF' }}
+          >
+            {trackedOrderCount === 1 ? '1 Order' : `${trackedOrderCount} Orders`}
+          </span>
+        </button>
       )}
 
       {/* ── Cart Bar — always visible ── */}
