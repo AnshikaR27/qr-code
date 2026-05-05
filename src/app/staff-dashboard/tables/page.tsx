@@ -178,11 +178,18 @@ function computeContentBounds(plan: FloorPlan): { minX: number; minY: number; ma
 
 type TableLiveStatus = 'available' | 'occupied' | 'ready_to_bill' | 'needs_attention';
 
-const STATUS_COLORS: Record<TableLiveStatus, { bg: string; border: string; text: string; sub: string }> = {
+const STATUS_COLORS_LIGHT: Record<TableLiveStatus, { bg: string; border: string; text: string; sub: string }> = {
   available:       { bg: 'rgba(34,197,94,0.12)',  border: '#22c55e', text: '#15803d', sub: '#16a34a' },
   occupied:        { bg: 'rgba(245,158,11,0.15)', border: '#f59e0b', text: '#b45309', sub: '#d97706' },
   ready_to_bill:   { bg: 'rgba(139,92,246,0.12)', border: '#8b5cf6', text: '#6d28d9', sub: '#7c3aed' },
   needs_attention: { bg: 'rgba(239,68,68,0.15)',  border: '#ef4444', text: '#b91c1c', sub: '#dc2626' },
+};
+
+const STATUS_COLORS_DARK: Record<TableLiveStatus, { bg: string; border: string; text: string; sub: string }> = {
+  available:       { bg: 'rgba(34,197,94,0.20)',  border: '#22c55e', text: '#86efac', sub: '#4ade80' },
+  occupied:        { bg: 'rgba(245,158,11,0.22)', border: '#f59e0b', text: '#fde68a', sub: '#fbbf24' },
+  ready_to_bill:   { bg: 'rgba(139,92,246,0.20)', border: '#a78bfa', text: '#c4b5fd', sub: '#a78bfa' },
+  needs_attention: { bg: 'rgba(239,68,68,0.22)',  border: '#f87171', text: '#fca5a5', sub: '#f87171' },
 };
 
 const INJECTED_STYLES = `
@@ -225,13 +232,25 @@ const INJECTED_STYLES = `
 }
 `;
 
-const ZONE_COLORS_MAP: Record<ZoneColor, { bg: string; border: string; text: string }> = {
+const ZONE_COLORS_LIGHT: Record<ZoneColor, { bg: string; border: string; text: string }> = {
   blue:   { bg: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.30)', text: '#3b82f6' },
   green:  { bg: 'rgba(34,197,94,0.10)',   border: 'rgba(34,197,94,0.30)',  text: '#22c55e' },
   orange: { bg: 'rgba(249,115,22,0.10)',  border: 'rgba(249,115,22,0.30)', text: '#f97316' },
   purple: { bg: 'rgba(168,85,247,0.10)',  border: 'rgba(168,85,247,0.30)', text: '#a855f7' },
   pink:   { bg: 'rgba(236,72,153,0.10)',  border: 'rgba(236,72,153,0.30)', text: '#ec4899' },
 };
+
+const ZONE_COLORS_DARK: Record<ZoneColor, { bg: string; border: string; text: string }> = {
+  blue:   { bg: 'rgba(59,130,246,0.15)',  border: 'rgba(96,165,250,0.35)', text: '#93bbfd' },
+  green:  { bg: 'rgba(34,197,94,0.15)',   border: 'rgba(74,222,128,0.35)', text: '#86efac' },
+  orange: { bg: 'rgba(249,115,22,0.15)',  border: 'rgba(251,146,60,0.35)', text: '#fdba74' },
+  purple: { bg: 'rgba(168,85,247,0.15)',  border: 'rgba(196,181,253,0.35)', text: '#c4b5fd' },
+  pink:   { bg: 'rgba(236,72,153,0.15)',  border: 'rgba(244,114,182,0.35)', text: '#f9a8d4' },
+};
+
+function isDarkFloor(style?: FloorStyle): boolean {
+  return style === 'darkwood' || style === 'charcoal' || style === 'midnight';
+}
 
 function getFloorBackground(style?: FloorStyle): React.CSSProperties {
   switch (style) {
@@ -253,6 +272,26 @@ function getFloorBackground(style?: FloorStyle): React.CSSProperties {
       return { backgroundColor: '#ffffff' };
     case 'grey':
       return { backgroundColor: '#f3f4f6' };
+    case 'darkwood':
+      return {
+        backgroundColor: '#2a1f17',
+        backgroundImage: [
+          'repeating-linear-gradient(90deg, transparent, transparent 22px, rgba(210,160,100,0.06) 22px, rgba(210,160,100,0.06) 23px)',
+          'repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(210,160,100,0.04) 5px, rgba(210,160,100,0.04) 6px)',
+        ].join(', '),
+      };
+    case 'charcoal':
+      return {
+        backgroundColor: '#1a1a1a',
+        backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+      };
+    case 'midnight':
+      return {
+        backgroundColor: '#0f172a',
+        backgroundImage: 'radial-gradient(circle, rgba(148,163,184,0.12) 1px, transparent 1px)',
+        backgroundSize: `${GRID}px ${GRID}px`,
+      };
     case 'dots':
     default:
       return {
@@ -930,6 +969,9 @@ function StaffFloorCanvas({
     if (peekTable) setPeekTable(prev => prev ? { ...prev, screenX: e.clientX, screenY: e.clientY } : null);
   }
 
+  const dark = isDarkFloor(plan.floorStyle);
+  const STATUS_COLORS = dark ? STATUS_COLORS_DARK : STATUS_COLORS_LIGHT;
+  const ZONE_COLORS_MAP = dark ? ZONE_COLORS_DARK : ZONE_COLORS_LIGHT;
   const floorBg = getFloorBackground(plan.floorStyle);
 
   return (
@@ -940,7 +982,7 @@ function StaffFloorCanvas({
         height: '100%',
         flex: 1,
         position: 'relative',
-        ...(isFullscreen ? floorBg : {}),
+        ...floorBg,
       }}
       onPointerMove={handleCanvasPointerMove}
       onPointerUp={handleCanvasPointerUp}
@@ -956,7 +998,6 @@ function StaffFloorCanvas({
           top: topOffset,
           transform: `scale(${dims.scale}) translate(${contentOffsetX}px, ${contentOffsetY}px)`,
           transformOrigin: 'top left',
-          ...(isFullscreen ? {} : floorBg),
           userSelect: 'none',
         }}
       >
@@ -982,13 +1023,13 @@ function StaffFloorCanvas({
       })}
 
       {/* Layer 2: Architectural walls */}
-      <WallsSvgLayer walls={plan.walls ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} strokeScale={0.35} />
+      <WallsSvgLayer walls={plan.walls ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} strokeScale={0.35} dark={dark} />
 
       {/* Layer 3: Counter with surface treatment */}
       {plan.counter && <CounterElement counter={plan.counter} />}
 
       {/* Layer 4: Architectural door arcs */}
-      <DoorArcsSvgLayer doors={plan.doors ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} />
+      <DoorArcsSvgLayer doors={plan.doors ?? []} canvasW={CANVAS_W} canvasH={CANVAS_H} dark={dark} />
 
       {/* Layer 5: Labels */}
       {plan.labels.map((label) => (
@@ -999,8 +1040,9 @@ function StaffFloorCanvas({
           <div
             style={{
               padding: '4px 12px', borderRadius: 5,
-              background: 'rgba(0,0,0,0.05)', border: '1.5px dashed #94a3b8',
-              fontSize: 13, fontWeight: 600, color: '#475569',
+              background: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+              border: `1.5px dashed ${dark ? 'rgba(148,163,184,0.4)' : '#94a3b8'}`,
+              fontSize: 13, fontWeight: 600, color: dark ? '#94a3b8' : '#475569',
               whiteSpace: 'nowrap', letterSpacing: '0.03em', textTransform: 'uppercase',
             }}
           >
@@ -1061,6 +1103,7 @@ function StaffFloorCanvas({
             onMouseEnter={e => info.orders.length > 0 ? handleTableMouseEnter(table, info.orders, e) : undefined}
             onMouseLeave={handleTableMouseLeave}
             onMouseMove={handleTableMouseMove}
+            dark={dark}
           />
         );
       })}
@@ -1124,6 +1167,7 @@ function StaffTableElement({
   onMouseEnter,
   onMouseLeave,
   onMouseMove,
+  dark,
 }: {
   table: FloorTable;
   status: TableLiveStatus;
@@ -1146,12 +1190,13 @@ function StaffTableElement({
   onMouseEnter: (e: React.MouseEvent) => void;
   onMouseLeave: () => void;
   onMouseMove: (e: React.MouseEvent) => void;
+  dark?: boolean;
 }) {
   const { w: baseW, h: baseH } = tableSize(table.capacity);
   const w = Math.round(baseW * sizeBoost);
   const h = Math.round(baseH * sizeBoost);
   const isRound = table.shape === 'round';
-  const colors = STATUS_COLORS[status];
+  const colors = (dark ? STATUS_COLORS_DARK : STATUS_COLORS_LIGHT)[status];
   const customerNames = [...new Set(
     tableOrders.map(o => o.customer_name).filter((n): n is string => !!n),
   )];
@@ -1281,7 +1326,7 @@ function StaffTableElement({
 
   const seatRecommendRing = isSeatRecommended && !reducedMotion ? (
     <div style={{ position: 'absolute', inset: -5, borderRadius: isRound ? '50%' : 15, animation: 'recommendPulse 1s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }}>
-      <span style={{ position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: 'white', padding: '1px 5px', borderRadius: 4, border: '1px solid #93c5fd' }}>
+      <span style={{ position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 700, color: dark ? '#93c5fd' : '#2563eb', whiteSpace: 'nowrap', background: dark ? '#1e293b' : 'white', padding: '1px 5px', borderRadius: 4, border: `1px solid ${dark ? '#3b82f6' : '#93c5fd'}` }}>
         Best fit
       </span>
     </div>
@@ -1352,7 +1397,7 @@ function StaffTableElement({
             transform: 'translateX(-50%)',
             fontSize: 14,
             fontWeight: 700,
-            color: '#44403c',
+            color: dark ? '#d6d3d1' : '#44403c',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',

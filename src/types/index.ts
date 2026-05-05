@@ -148,7 +148,7 @@ export interface FloorZone {
   color: ZoneColor;
 }
 
-export type FloorStyle = 'dots' | 'wood' | 'tile' | 'white' | 'grey';
+export type FloorStyle = 'dots' | 'wood' | 'tile' | 'white' | 'grey' | 'darkwood' | 'charcoal' | 'midnight';
 
 export interface FloorPlan {
   tables: FloorTable[];

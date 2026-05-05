@@ -17,12 +17,14 @@ export function WallsSvgLayer({
   canvasH,
   selectedWallId,
   strokeScale = 1,
+  dark,
 }: {
   walls: FloorWall[];
   canvasW: number;
   canvasH: number;
   selectedWallId?: string | null;
   strokeScale?: number;
+  dark?: boolean;
 }) {
   if (walls.length === 0) return null;
   const thin = strokeScale < 1;
@@ -35,7 +37,7 @@ export function WallsSvgLayer({
       {!thin && (
         <defs>
           <filter id="wall-shadow" x="-10%" y="-10%" width="130%" height="130%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.12" />
+            <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor={dark ? '#000' : '#000'} floodOpacity={dark ? 0.4 : 0.12} />
           </filter>
         </defs>
       )}
@@ -46,7 +48,7 @@ export function WallsSvgLayer({
             <polygon
               points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
               fill="none"
-              stroke={isSel ? '#2563eb' : '#374151'}
+              stroke={isSel ? '#2563eb' : dark ? '#9ca3af' : '#374151'}
               strokeWidth={(isSel ? 10 : 9) * strokeScale}
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -54,7 +56,7 @@ export function WallsSvgLayer({
             <polygon
               points={wall.points.map(p => `${p.x},${p.y}`).join(' ')}
               fill="none"
-              stroke={isSel ? '#3b82f6' : '#1f2937'}
+              stroke={isSel ? '#3b82f6' : dark ? '#d1d5db' : '#1f2937'}
               strokeWidth={(isSel ? 6 : 5) * strokeScale}
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -141,10 +143,12 @@ export function DoorArcsSvgLayer({
   doors,
   canvasW,
   canvasH,
+  dark,
 }: {
   doors: FloorDoor[];
   canvasW: number;
   canvasH: number;
+  dark?: boolean;
 }) {
   if (doors.length === 0) return null;
   const DOOR_LEN = 28;
@@ -156,23 +160,20 @@ export function DoorArcsSvgLayer({
     >
       {doors.map(door => (
         <g key={door.id} transform={`translate(${door.x}, ${door.y}) rotate(${door.rotation})`}>
-          {/* Door panel */}
           <line
             x1={0} y1={0} x2={DOOR_LEN} y2={0}
-            stroke="#4b5563"
+            stroke={dark ? '#9ca3af' : '#4b5563'}
             strokeWidth={3}
             strokeLinecap="round"
           />
-          {/* Swing arc (quarter circle) */}
           <path
             d={`M ${DOOR_LEN} 0 A ${DOOR_LEN} ${DOOR_LEN} 0 0 1 0 ${DOOR_LEN}`}
             fill="none"
-            stroke="#9ca3af"
+            stroke={dark ? '#6b7280' : '#9ca3af'}
             strokeWidth={1.5}
             strokeDasharray="4 3"
           />
-          {/* Pivot point */}
-          <circle cx={0} cy={0} r={2.5} fill="#4b5563" />
+          <circle cx={0} cy={0} r={2.5} fill={dark ? '#9ca3af' : '#4b5563'} />
         </g>
       ))}
     </svg>

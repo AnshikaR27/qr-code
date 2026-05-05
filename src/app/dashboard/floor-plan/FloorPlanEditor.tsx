@@ -199,6 +199,26 @@ function getFloorBackground(style?: FloorStyle): React.CSSProperties {
       return { backgroundColor: '#ffffff' };
     case 'grey':
       return { backgroundColor: '#f3f4f6' };
+    case 'darkwood':
+      return {
+        backgroundColor: '#2a1f17',
+        backgroundImage: [
+          'repeating-linear-gradient(90deg, transparent, transparent 22px, rgba(210,160,100,0.06) 22px, rgba(210,160,100,0.06) 23px)',
+          'repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(210,160,100,0.04) 5px, rgba(210,160,100,0.04) 6px)',
+        ].join(', '),
+      };
+    case 'charcoal':
+      return {
+        backgroundColor: '#1a1a1a',
+        backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+      };
+    case 'midnight':
+      return {
+        backgroundColor: '#0f172a',
+        backgroundImage: 'radial-gradient(circle, rgba(148,163,184,0.12) 1px, transparent 1px)',
+        backgroundSize: `${GRID}px ${GRID}px`,
+      };
     case 'dots':
     default:
       return {
@@ -229,6 +249,9 @@ const FLOOR_STYLE_OPTIONS: { value: FloorStyle; label: string }[] = [
   { value: 'tile', label: 'Tile' },
   { value: 'white', label: 'Plain White' },
   { value: 'grey', label: 'Light Grey' },
+  { value: 'darkwood', label: 'Dark Wood' },
+  { value: 'charcoal', label: 'Charcoal' },
+  { value: 'midnight', label: 'Midnight' },
 ];
 
 function distToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
