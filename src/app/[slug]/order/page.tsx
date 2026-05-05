@@ -9,6 +9,7 @@ import { buildMenuTokens } from '@/lib/tokens';
 import { typeScale, spacingScale } from '@/lib/sunday-scale';
 import { useCart } from '@/hooks/useCart';
 import { getActiveOrder, setActiveOrder } from '@/lib/active-order';
+import { addTrackedOrder } from '@/lib/tracked-orders';
 
 interface PendingItem {
   product_id: string;
@@ -115,6 +116,16 @@ export default function OrderReviewPage() {
       if (isAddOn) {
         toast.success('Added to your order!');
       }
+
+      addTrackedOrder({
+        orderId: data.orderId,
+        orderNumber: data.orderNumber,
+        customerName: order.customer_name ?? null,
+        items: order.items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
+        total: order.items.reduce((s, i) => s + i.price * i.quantity, 0),
+        status: 'placed',
+        placedAt: new Date().toISOString(),
+      });
 
       router.replace(`/${slug}/order/${data.orderId}`);
     } catch (err: unknown) {

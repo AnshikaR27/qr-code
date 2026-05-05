@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { X, ChevronUp, RotateCcw, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatPrice, cdnImg } from '@/lib/utils';
@@ -10,6 +9,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { buildMenuTokens } from '@/lib/tokens';
 import { typeScale, sizeScale, spacingScale } from '@/lib/sunday-scale';
 import { getActiveOrder, clearActiveOrder } from '@/lib/active-order';
+import { getTrackedOrders } from '@/lib/tracked-orders';
 import WelcomeScreenV2 from '@/components/menu/WelcomeScreenV2';
 import MenuNavbarV2 from '@/components/menu/MenuNavbarV2';
 import CategoryTabsV2 from '@/components/menu/CategoryTabsV2';
@@ -17,6 +17,7 @@ import DishCardV2 from '@/components/menu/DishCardV2';
 import DishDetailSheetV2 from '@/components/menu/DishDetailSheetV2';
 import CartBarV2 from '@/components/menu/CartBarV2';
 import CartSheetV2 from '@/components/menu/CartSheetV2';
+import YourOrdersSheet from '@/components/menu/YourOrdersSheet';
 import AddonSheet from '@/components/menu/AddonSheet';
 import { useCart } from '@/hooks/useCart';
 import type { AddonGroup, CartItem, Category, Product, Restaurant } from '@/types';
@@ -152,6 +153,14 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
   // Repeat last order
   const [repeatOrder, setRepeatOrder] = useState<{ items: Omit<CartItem, 'name_hindi'>[]; total: number } | null>(null);
   const [showRepeat, setShowRepeat] = useState(false);
+
+  // Your Orders sheet
+  const [ordersSheetOpen, setOrdersSheetOpen] = useState(false);
+  const trackedOrderCount = useMemo(() => {
+    if (typeof window === 'undefined') return 0;
+    return getTrackedOrders().length;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartOpen, ordersSheetOpen]);
 
   // Active order tracking
   const [activeOrder, setActiveOrderState] = useState<{ orderId: string; orderNumber: number } | null>(null);
@@ -461,11 +470,11 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
 
               {/* Scrolling content */}
               <div style={{ paddingBottom: `calc(${sizeScale.cartBarH} + env(safe-area-inset-bottom, 0px) + 24px)` }}>
-                {/* Active order banner */}
-                {activeOrder && (
-                  <Link
-                    href={`/${restaurant.slug}/order/${activeOrder.orderId}`}
-                    className="mt-3 flex items-center gap-2.5 no-underline"
+                {/* Active order banner — tap to open Your Orders sheet */}
+                {trackedOrderCount > 0 && (
+                  <button
+                    onClick={() => setOrdersSheetOpen(true)}
+                    className="mt-3 flex items-center gap-2.5 w-auto border-none cursor-pointer"
                     style={{
                       marginLeft: spacingScale.px,
                       marginRight: spacingScale.px,
@@ -474,25 +483,26 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
                       backgroundColor: 'color-mix(in srgb, var(--sunday-accent, #b12d00) 8%, var(--sunday-card-bg, #FFFFFF))',
                       border: '1px solid color-mix(in srgb, var(--sunday-accent, #b12d00) 25%, transparent)',
                       boxShadow: 'var(--sunday-shadow-sm)',
+                      textAlign: 'left',
                     }}
                   >
-                    <span className="text-xl shrink-0">🍳</span>
+                    <span className="text-xl shrink-0">🧾</span>
                     <div className="flex-1 min-w-0">
                       <p
                         className="font-bold m-0"
                         style={{ fontSize: typeScale.body, color: 'var(--sunday-text, #1c1c17)', fontFamily: 'var(--sunday-font-body)' }}
                       >
-                        Order #{activeOrder.orderNumber} in progress
+                        {trackedOrderCount === 1 ? '1 order placed' : `${trackedOrderCount} orders placed`}
                       </p>
                       <p
                         className="mt-0.5 m-0"
                         style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}
                       >
-                        Kitchen is on it · Tap to track
+                        Tap to see your orders
                       </p>
                     </div>
                     <ChevronRight size={18} className="shrink-0" style={{ color: 'var(--sunday-text-muted, #7A6040)' }} />
-                  </Link>
+                  </button>
                 )}
 
                 {/* Repeat order banner */}
@@ -686,6 +696,13 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
                 product={addonProduct}
                 preloadedGroups={addonProduct ? (addonGroupMap[addonProduct.id] ?? []) : undefined}
                 onClose={() => setAddonProduct(null)}
+              />
+
+              {/* Your Orders sheet */}
+              <YourOrdersSheet
+                open={ordersSheetOpen}
+                onClose={() => setOrdersSheetOpen(false)}
+                slug={restaurant.slug}
               />
             </>
           )}
