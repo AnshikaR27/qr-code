@@ -82,7 +82,7 @@ export default function YourOrdersSheet({ open, onClose, slug }: Props) {
 
   if (!mounted) return null;
 
-  const animClass = exiting ? 'sheet-exit' : 'sheet-enter';
+  const animClass = exiting ? 'orders-sheet-exit' : 'orders-sheet-enter';
   const activeOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
   const pastOrders = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
 
@@ -93,8 +93,8 @@ export default function YourOrdersSheet({ open, onClose, slug }: Props) {
         @keyframes sheetSlideDown { from { transform: translateY(0); } to { transform: translateY(100%); } }
         @keyframes sheetFadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes sheetFadeOut { from { opacity: 1; } to { opacity: 0; } }
-        .sheet-enter { animation: sheetSlideUp 300ms cubic-bezier(0.32,0.72,0,1) both; }
-        .sheet-exit { animation: sheetSlideDown 300ms cubic-bezier(0.32,0.72,0,1) both; }
+        .orders-sheet-enter { animation: sheetSlideUp 300ms cubic-bezier(0.32,0.72,0,1) both; }
+        .orders-sheet-exit { animation: sheetSlideDown 300ms cubic-bezier(0.32,0.72,0,1) both; }
         .backdrop-enter { animation: sheetFadeIn 200ms ease both; }
         .backdrop-exit { animation: sheetFadeOut 200ms ease both; }
       `}</style>
@@ -114,8 +114,8 @@ export default function YourOrdersSheet({ open, onClose, slug }: Props) {
         className={animClass}
         style={{
           position: 'fixed',
-          bottom: 0, left: '50%',
-          transform: 'translateX(-50%)',
+          bottom: 0, left: 0, right: 0,
+          margin: '0 auto',
           width: '100%', maxWidth: 480,
           maxHeight: '80dvh',
           zIndex: 51,

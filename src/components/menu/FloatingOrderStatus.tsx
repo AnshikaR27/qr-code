@@ -6,11 +6,28 @@ import { getTrackedOrders, type TrackedOrder } from '@/lib/tracked-orders';
 import type { OrderStatus } from '@/types';
 
 const SIZE = 56;
+const MARGIN = 12;
 const SNAP_DURATION = 200;
 const TAP_THRESHOLD = 6;
 const LS_KEY_PREFIX = 'sunday:floating-order-pos:';
 
 interface SavedPos { x: number; y: number; edge: 'left' | 'right' }
+
+function clampPos(x: number, y: number): { x: number; y: number } {
+  const maxX = window.innerWidth - SIZE - MARGIN;
+  const maxY = window.innerHeight - SIZE - MARGIN;
+  return {
+    x: Math.min(Math.max(x, MARGIN), maxX),
+    y: Math.min(Math.max(y, MARGIN), maxY),
+  };
+}
+
+function defaultPos(): { x: number; y: number } {
+  return clampPos(
+    window.innerWidth - SIZE - MARGIN,
+    window.innerHeight - SIZE - MARGIN - 80,
+  );
+}
 
 function getAggregateStatus(orders: TrackedOrder[]): OrderStatus | null {
   if (orders.some(o => o.status === 'ready')) return 'ready';
@@ -50,40 +67,31 @@ export default function FloatingOrderStatus({ slug, onTap, refreshKey }: Props) 
   const startPointer = useRef({ x: 0, y: 0 });
   const startPos = useRef({ x: 0, y: 0 });
   const moved = useRef(false);
-
-  const getDefaultPos = useCallback(() => {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const safeBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0', 10) || 0;
-    return {
-      x: vw - SIZE - 16,
-      y: vh - SIZE - 24 - safeBottom - 80,
-    };
-  }, []);
-
-  const clamp = useCallback((x: number, y: number) => {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    return {
-      x: Math.max(8, Math.min(x, vw - SIZE - 8)),
-      y: Math.max(8, Math.min(y, vh - SIZE - 8)),
-    };
-  }, []);
+  const posRef = useRef(pos);
+  posRef.current = pos;
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(lsKey);
       if (raw) {
         const saved: SavedPos = JSON.parse(raw);
-        const clamped = clamp(saved.x, saved.y);
-        setPos(clamped);
+        setPos(clampPos(saved.x, saved.y));
         setReady(true);
         return;
       }
     } catch { /* ignore */ }
-    setPos(getDefaultPos());
+    setPos(defaultPos());
     setReady(true);
-  }, [lsKey, clamp, getDefaultPos]);
+  }, [lsKey]);
+
+  useEffect(() => {
+    function handleResize() {
+      if (dragging.current) return;
+      setPos(prev => clampPos(prev.x, prev.y));
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const savePos = useCallback((x: number, y: number, edge: 'left' | 'right') => {
     try { localStorage.setItem(lsKey, JSON.stringify({ x, y, edge })); } catch { /* ignore */ }
@@ -92,13 +100,13 @@ export default function FloatingOrderStatus({ slug, onTap, refreshKey }: Props) 
   const snapToEdge = useCallback((cx: number, cy: number) => {
     const vw = window.innerWidth;
     const nearLeft = cx + SIZE / 2 < vw / 2;
-    const snapX = nearLeft ? 8 : vw - SIZE - 8;
-    const final = clamp(snapX, cy);
+    const snapX = nearLeft ? MARGIN : vw - SIZE - MARGIN;
+    const final = clampPos(snapX, cy);
     setSnapping(true);
     setPos(final);
     savePos(final.x, final.y, nearLeft ? 'left' : 'right');
     setTimeout(() => setSnapping(false), SNAP_DURATION);
-  }, [clamp, savePos]);
+  }, [savePos]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -106,9 +114,9 @@ export default function FloatingOrderStatus({ slug, onTap, refreshKey }: Props) 
     dragging.current = true;
     moved.current = false;
     startPointer.current = { x: e.clientX, y: e.clientY };
-    startPos.current = { ...pos };
+    startPos.current = { ...posRef.current };
     setSnapping(false);
-  }, [pos]);
+  }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return;
@@ -118,20 +126,19 @@ export default function FloatingOrderStatus({ slug, onTap, refreshKey }: Props) 
       moved.current = true;
     }
     if (moved.current) {
-      const next = clamp(startPos.current.x + dx, startPos.current.y + dy);
-      setPos(next);
+      setPos(clampPos(startPos.current.x + dx, startPos.current.y + dy));
     }
-  }, [clamp]);
+  }, []);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     dragging.current = false;
     if (moved.current) {
-      snapToEdge(pos.x, pos.y);
+      snapToEdge(posRef.current.x, posRef.current.y);
     } else {
       onTap();
     }
-  }, [pos, snapToEdge, onTap]);
+  }, [snapToEdge, onTap]);
 
   if (count === 0 || !ready) return null;
 
