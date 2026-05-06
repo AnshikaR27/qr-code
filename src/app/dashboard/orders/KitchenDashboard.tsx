@@ -780,7 +780,27 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
         onOpenChange={setVoidDialogOpen}
         orderId={voidOrder?.id ?? ''}
         item={voidItem}
-        onVoided={() => refreshOrders()}
+        onVoided={(info) => {
+          refreshOrders();
+          if (voidItem && voidOrder) {
+            import('@/lib/kot-print').then(({ printModificationKOT }) => {
+              printModificationKOT(
+                {
+                  type: 'item_cancelled',
+                  order_number: voidOrder.order_number,
+                  order_type: voidOrder.order_type,
+                  table: voidOrder.table,
+                  customer_name: voidOrder.customer_name,
+                  items: [{ name: voidItem.name, quantity: voidItem.quantity, notes: voidItem.notes, selected_addons: voidItem.selected_addons }],
+                  reason: info.reason,
+                  created_at: new Date().toISOString(),
+                },
+                restaurant.name,
+                restaurant.printer_config,
+              ).catch(() => {});
+            });
+          }
+        }}
       />
 
       {/* ── Completed order detail modal (counter role) ── */}
