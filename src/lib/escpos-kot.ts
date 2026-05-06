@@ -226,13 +226,16 @@ export function buildModificationKOTTicket(
 
   p.dashLine(lineWidth);
 
-  // Items
+  // Items — rendered with strikethrough-style dashes to indicate cancellation
   p.alignLeft();
   for (const item of data.items) {
-    p.bold(true)
-      .text(`${item.quantity}x `)
+    const label = `${item.quantity}x ${item.name}`;
+    const struck = `--${label}--`;
+    p.underline(true)
+      .bold(true)
+      .text(struck.slice(0, lineWidth))
       .bold(false)
-      .text(item.name.slice(0, lineWidth - 3))
+      .underline(false)
       .newLine();
 
     for (const addon of item.selected_addons ?? []) {
