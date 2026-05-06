@@ -231,11 +231,9 @@ export function buildModificationKOTTicket(
   for (const item of data.items) {
     const label = `${item.quantity}x ${item.name}`;
     const struck = `--${label}--`;
-    p.underline(true)
-      .bold(true)
+    p.bold(true)
       .text(struck.slice(0, lineWidth))
       .bold(false)
-      .underline(false)
       .newLine();
 
     for (const addon of item.selected_addons ?? []) {
