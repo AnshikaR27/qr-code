@@ -152,7 +152,7 @@ export default function FloatingOrderStatus({ slug, onTap, refreshKey }: Props) 
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       aria-label={`${count} active order${count !== 1 ? 's' : ''}`}
-      className="fixed z-40 flex items-center justify-center rounded-full border-none cursor-grab active:cursor-grabbing"
+      className="fixed z-50 flex items-center justify-center rounded-full border-none cursor-grab active:cursor-grabbing"
       style={{
         width: SIZE,
         height: SIZE,
