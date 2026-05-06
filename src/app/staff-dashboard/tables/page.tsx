@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import {
   X, Clock, CheckCheck, PlusCircle, IndianRupee, ReceiptText, Loader2, Bell,
-  Search, Users, ArrowRight, Maximize2, Minimize2,
+  Search, Users, ArrowRight, Maximize2, Minimize2, XCircle,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
@@ -17,6 +17,7 @@ import { playWaiterCall } from '@/lib/sounds';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import { buildCombinedBillData } from '@/lib/billing';
 import NewOrderDrawer from '@/components/dashboard/NewOrderDrawer';
+import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
 import {
   WallsSvgLayer,
   CounterElement,
@@ -31,6 +32,7 @@ import type {
   FloorStyle,
   FloorTable,
   Order,
+  OrderItem,
   WaiterCall,
   ZoneColor,
 } from '@/types';
@@ -1688,6 +1690,10 @@ function TableOrdersModal({
 }) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [billingOrders, setBillingOrders] = useState<Order[] | null>(null);
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [voidOrderId, setVoidOrderId] = useState('');
+  const [voidItem, setVoidItem] = useState<OrderItem | null>(null);
+  const { refreshOrders } = useOrders();
 
   const totalAmount = table.orders.reduce((sum, o) => sum + o.total, 0);
   const totalItems = table.orders.reduce(
@@ -1858,6 +1864,54 @@ function TableOrdersModal({
     }
   }
 
+  async function handleCancelOrder(order: Order) {
+    const reason = prompt(`Cancel order #${order.order_number}?\nEnter reason:`);
+    if (!reason) return;
+    setUpdating(order.id);
+    try {
+      const res = await fetch(`/api/staff/orders/${order.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled', reason }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to cancel order');
+      }
+      toast.success(`Order #${order.order_number} cancelled`);
+      const activeItems = (order.items ?? []).filter(i => i.status !== 'voided');
+      if (activeItems.length > 0) {
+        import('@/lib/kot-print').then(({ printModificationKOT }) => {
+          printModificationKOT(
+            {
+              type: 'order_cancelled',
+              order_number: order.order_number,
+              order_type: order.order_type,
+              table: order.table,
+              customer_name: order.customer_name,
+              items: activeItems.map(i => ({ name: i.name, quantity: i.quantity, notes: i.notes, selected_addons: i.selected_addons })),
+              reason,
+              created_at: new Date().toISOString(),
+            },
+            restaurant.name,
+            restaurant.printer_config,
+          ).catch(() => {});
+        });
+      }
+      refreshOrders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  function openVoidDialog(orderId: string, item: OrderItem) {
+    setVoidOrderId(orderId);
+    setVoidItem(item);
+    setVoidDialogOpen(true);
+  }
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1923,12 +1977,21 @@ function TableOrdersModal({
                       const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
                       return (
                         <div key={item.id}>
-                          <div className="flex justify-between gap-2">
+                          <div className="flex justify-between gap-2 items-start">
                             <span className="text-sm">
                               <span className="font-semibold">{item.quantity}×</span> {item.name}
                             </span>
-                            <span className="text-xs text-muted-foreground flex-shrink-0">
-                              {formatPrice((item.price + addonTotal) * item.quantity)}
+                            <span className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className="text-xs text-muted-foreground">
+                                {formatPrice((item.price + addonTotal) * item.quantity)}
+                              </span>
+                              <button
+                                onClick={() => openVoidDialog(order.id, item)}
+                                className="p-0.5 text-red-400 hover:text-red-600 transition-colors"
+                                title="Void item"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                              </button>
                             </span>
                           </div>
                           {(item.selected_addons ?? []).map((addon, ai) => (
@@ -1946,6 +2009,14 @@ function TableOrdersModal({
                       );
                     })}
                   </div>
+                  <button
+                    onClick={() => handleCancelOrder(order)}
+                    disabled={!!updating}
+                    className="mt-1.5 flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Cancel #{order.order_number}
+                  </button>
                 </div>
               );
             })}
@@ -2016,6 +2087,37 @@ function TableOrdersModal({
         restaurant={restaurant}
         onConfirm={handleBillingConfirm}
         onClose={() => setBillingOrders(null)}
+      />
+
+      <VoidItemDialog
+        open={voidDialogOpen}
+        onOpenChange={setVoidDialogOpen}
+        orderId={voidOrderId}
+        item={voidItem}
+        onVoided={(info) => {
+          refreshOrders();
+          if (voidItem && voidOrderId) {
+            const order = table.orders.find(o => o.id === voidOrderId);
+            if (order) {
+              import('@/lib/kot-print').then(({ printModificationKOT }) => {
+                printModificationKOT(
+                  {
+                    type: 'item_cancelled',
+                    order_number: order.order_number,
+                    order_type: order.order_type,
+                    table: order.table,
+                    customer_name: order.customer_name,
+                    items: [{ name: voidItem.name, quantity: voidItem.quantity, notes: voidItem.notes, selected_addons: voidItem.selected_addons }],
+                    reason: info.reason,
+                    created_at: new Date().toISOString(),
+                  },
+                  restaurant.name,
+                  restaurant.printer_config,
+                ).catch(() => {});
+              });
+            }
+          }
+        }}
       />
     </>
   );
