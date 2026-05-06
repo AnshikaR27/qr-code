@@ -664,14 +664,15 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
                 onClose={() => setAddonProduct(null)}
               />
 
-              {/* Your Orders sheet */}
-              <YourOrdersSheet
-                open={ordersSheetOpen}
-                onClose={() => setOrdersSheetOpen(false)}
-                slug={restaurant.slug}
-              />
             </>
           )}
+
+      {/* Your Orders sheet — outside view gate so it works from welcome screen too */}
+      <YourOrdersSheet
+        open={ordersSheetOpen}
+        onClose={() => setOrdersSheetOpen(false)}
+        slug={restaurant.slug}
+      />
 
       {/* ── Custom Toast ── */}
       {toastMessage && (
