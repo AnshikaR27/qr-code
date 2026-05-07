@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   const { data: orders, error: fetchError } = await admin
     .from('orders')
-    .select('id, restaurant_id, order_number, table_id, merge_group_id, status')
+    .select('id, restaurant_id, order_number, table_id, merge_group_id, status, payment_status')
     .in('id', body.order_ids);
 
   if (fetchError || !orders || orders.length !== body.order_ids.length) {
@@ -51,7 +51,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const notBillable = orders.filter(o => o.status !== 'placed' && o.status !== 'ready');
+  // OLD: const notBillable = orders.filter(o => o.status !== 'placed' && o.status !== 'ready');
+  const notBillable = orders.filter(o => o.payment_status !== 'unpaid' || o.status === 'cancelled');
   if (notBillable.length > 0) {
     return NextResponse.json({
       error: 'One or more orders are not billable (may have been cancelled or already billed)',
@@ -61,11 +62,12 @@ export async function POST(req: NextRequest) {
 
   const isMergedBilling = orders.some(o => o.merge_group_id);
 
+  // OLD: auto-advance violated the axis split. Self-service uses ready as terminal instead.
   for (const id of body.order_ids) {
     const { error } = await admin
       .from('orders')
       .update({
-        status: 'delivered',
+        payment_status: 'paid',
         payment_method: body.payment_method,
         payment_methods: body.payment_methods ?? null,
         discount_amount: body.discount_amount ?? null,

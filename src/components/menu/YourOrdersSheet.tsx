@@ -7,22 +7,27 @@ import { formatPrice } from '@/lib/utils';
 import { typeScale, spacingScale } from '@/lib/sunday-scale';
 import { getTrackedOrders, updateTrackedOrderStatus, type TrackedOrder } from '@/lib/tracked-orders';
 import { createClient } from '@/lib/supabase/client';
+import { isTerminal as isTerminalStatus, isActive } from '@/lib/order-status';
+import type { ServiceMode } from '@/lib/order-status';
 import type { OrderStatus } from '@/types';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   slug: string;
+  serviceMode?: ServiceMode;
 }
 
+// OLD: split delivered into served + payment_status
 const STATUS_CONFIG: Record<OrderStatus, { label: string; icon: typeof Clock; color: string }> = {
-  placed:    { label: 'Preparing',  icon: Clock,        color: 'var(--sunday-accent, #b12d00)' },
-  ready:     { label: 'Ready',      icon: PackageCheck,  color: 'var(--sunday-veg, #0F8A00)' },
-  delivered: { label: 'Served',     icon: CheckCircle2,  color: 'var(--sunday-veg, #0F8A00)' },
-  cancelled: { label: 'Cancelled',  icon: XCircle,       color: '#dc2626' },
+  placed:    { label: 'Order received', icon: Clock,        color: 'var(--sunday-text-muted, #9ca3af)' },
+  preparing: { label: 'Being prepared', icon: Clock,        color: 'var(--sunday-accent, #b12d00)' },
+  ready:     { label: 'Ready',          icon: PackageCheck,  color: 'var(--sunday-veg, #0F8A00)' },
+  served:    { label: 'Served',         icon: CheckCircle2,  color: 'var(--sunday-veg, #0F8A00)' },
+  cancelled: { label: 'Cancelled',      icon: XCircle,       color: '#dc2626' },
 };
 
-export default function YourOrdersSheet({ open, onClose, slug }: Props) {
+export default function YourOrdersSheet({ open, onClose, slug, serviceMode = 'self_service' }: Props) {
   const [orders, setOrders] = useState<TrackedOrder[]>([]);
   const [mounted, setMounted] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -83,8 +88,8 @@ export default function YourOrdersSheet({ open, onClose, slug }: Props) {
   if (!mounted) return null;
 
   const animClass = exiting ? 'orders-sheet-exit' : 'orders-sheet-enter';
-  const activeOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
-  const pastOrders = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
+  const activeOrders = orders.filter(o => isActive(o.status, serviceMode));
+  const pastOrders = orders.filter(o => isTerminalStatus(o.status, serviceMode));
 
   return (
     <>
@@ -166,7 +171,7 @@ export default function YourOrdersSheet({ open, onClose, slug }: Props) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {activeOrders.length > 0 && activeOrders.map(order => (
-                <OrderCard key={order.orderId} order={order} slug={slug} />
+                <OrderCard key={order.orderId} order={order} slug={slug} serviceMode={serviceMode} />
               ))}
 
               {pastOrders.length > 0 && (
@@ -184,7 +189,7 @@ export default function YourOrdersSheet({ open, onClose, slug }: Props) {
                     </p>
                   )}
                   {pastOrders.map(order => (
-                    <OrderCard key={order.orderId} order={order} slug={slug} />
+                    <OrderCard key={order.orderId} order={order} slug={slug} serviceMode={serviceMode} />
                   ))}
                 </>
               )}
@@ -196,10 +201,10 @@ export default function YourOrdersSheet({ open, onClose, slug }: Props) {
   );
 }
 
-function OrderCard({ order, slug }: { order: TrackedOrder; slug: string }) {
+function OrderCard({ order, slug, serviceMode }: { order: TrackedOrder; slug: string; serviceMode: ServiceMode }) {
   const config = STATUS_CONFIG[order.status];
   const Icon = config.icon;
-  const isDone = order.status === 'delivered' || order.status === 'cancelled';
+  const isDone = isTerminalStatus(order.status, serviceMode);
 
   return (
     <Link

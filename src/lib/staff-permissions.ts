@@ -2,9 +2,12 @@ import type { StaffRole } from '@/types';
 
 export type Permission =
   | 'order:view'
+  | 'order:set_preparing'
   | 'order:set_ready'
-  | 'order:set_delivered'
+  | 'order:set_served'
   | 'order:cancel'
+  | 'order:cancel_ready'
+  | 'order:void_item'
   | 'order:merge'
   | 'order:record_payment'
   | 'order:comp_refund'
@@ -19,22 +22,26 @@ export type Permission =
 
 const FLOOR: Set<Permission> = new Set([
   'order:view',
-  'order:set_delivered',
+  'order:set_served',
   'waiter_call:dismiss',
   'table:assign',
 ]);
 
 const KITCHEN: Set<Permission> = new Set([
   'order:view',
+  'order:set_preparing',
   'order:set_ready',
+  'order:void_item',
   'menu:mark_out_of_stock',
 ]);
 
 const COUNTER: Set<Permission> = new Set([
   'order:view',
+  'order:set_preparing',
   'order:set_ready',
-  'order:set_delivered',
+  'order:set_served',
   'order:cancel',
+  'order:void_item',
   'order:merge',
   'order:record_payment',
   'order:comp_refund',
@@ -47,9 +54,12 @@ const COUNTER: Set<Permission> = new Set([
 
 const MANAGER: Set<Permission> = new Set([
   'order:view',
+  'order:set_preparing',
   'order:set_ready',
-  'order:set_delivered',
+  'order:set_served',
   'order:cancel',
+  'order:cancel_ready',
+  'order:void_item',
   'order:merge',
   'order:record_payment',
   'order:comp_refund',

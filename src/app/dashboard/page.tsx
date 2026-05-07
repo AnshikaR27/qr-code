@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { ShoppingBag, TrendingUp, Clock, Star } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
+import { isActive } from '@/lib/order-status';
+import type { OrderStatus } from '@/types';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -24,15 +26,18 @@ export default async function DashboardPage() {
   // Fetch today's orders
   const { data: todayOrders } = await supabase
     .from('orders')
-    .select('id, total, status')
+    .select('id, total, status, payment_status')
     .eq('restaurant_id', restaurant.id)
     .gte('created_at', today.toISOString())
     .neq('status', 'cancelled');
 
   const orders = todayOrders ?? [];
   const totalOrders = orders.length;
-  const revenue = orders.reduce((s, o) => s + (o.total ?? 0), 0);
-  const activeOrders = orders.filter((o) => o.status === 'placed').length;
+  const revenue = orders
+    .filter((o: Record<string, unknown>) => o.payment_status !== 'refunded' && o.payment_status !== 'comped')
+    .reduce((s, o) => s + ((o as { total?: number }).total ?? 0), 0);
+  const serviceMode = restaurant.service_mode ?? 'self_service';
+  const activeOrders = orders.filter((o) => isActive(o.status as OrderStatus, serviceMode)).length;
 
   // Most ordered dish today
   const { data: topItems } = await supabase

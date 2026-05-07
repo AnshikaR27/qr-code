@@ -14,9 +14,10 @@ import { useOrders } from '@/contexts/OrdersContext';
 import PrintOrderDialog from '@/components/dashboard/PrintOrderDialog';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
+import CancelOrderDialog from '@/components/dashboard/CancelOrderDialog';
 import CompletedOrderModal from '@/components/dashboard/CompletedOrderModal';
 import { logOwnerActivity } from '@/lib/log-client';
-import { hasPermission } from '@/lib/staff-permissions';
+import { hasPermission, type Permission } from '@/lib/staff-permissions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
 import { buildCombinedBillData } from '@/lib/billing';
+import { isTerminal as isTerminalStatus } from '@/lib/order-status';
+import type { ServiceMode } from '@/lib/order-status';
 import type { Order, OrderItem, OrderStatus, Restaurant, PrinterDevice, StaffSession, BillingConfig } from '@/types';
 
 interface Props {
@@ -35,12 +38,22 @@ interface Props {
 
 type FilterTab = 'active' | 'all' | 'completed';
 
-const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
-  placed:    'ready',
-  ready:     'delivered',
-  delivered: null,
-  cancelled: null,
-};
+// OLD: split delivered into served + payment_status
+// const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
+//   placed:    'ready',
+//   ready:     'delivered',
+//   delivered: null,
+//   cancelled: null,
+// };
+function getStatusFlow(serviceMode: ServiceMode): Record<OrderStatus, OrderStatus | null> {
+  return {
+    placed:    'preparing',
+    preparing: 'ready',
+    ready:     serviceMode === 'self_service' ? null : 'served',
+    served:    null,
+    cancelled: null,
+  };
+}
 
 const STALE_PLACED_WARN_MINS = 15;
 const STALE_PLACED_CRIT_MINS = 30;
@@ -48,7 +61,7 @@ const STALE_READY_CRIT_MINS = 20;
 
 function staleTimestampClass(order: Order): string {
   const mins = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60_000);
-  if (order.status === 'placed' && !order.payment_method) {
+  if ((order.status === 'placed' || order.status === 'preparing') && !order.payment_method) {
     if (mins >= STALE_PLACED_CRIT_MINS) return 'text-red-600 font-semibold';
     if (mins >= STALE_PLACED_WARN_MINS) return 'text-orange-600 font-semibold';
   }
@@ -59,11 +72,14 @@ function staleTimestampClass(order: Order): string {
   return 'text-muted-foreground';
 }
 
+// OLD: split delivered into served + payment_status
+// function getStatusLabels(...) { placed: 'Food Ready', ready: 'Record Payment', ... }
 function getStatusLabels(serviceMode: 'self_service' | 'table_service'): Record<OrderStatus, string> {
   return {
-    placed:    serviceMode === 'table_service' ? 'Send to Table' : 'Food Ready',
-    ready:     'Record Payment',
-    delivered: 'Delivered',
+    placed:    'Start',
+    preparing: serviceMode === 'table_service' ? 'Send to Table' : 'Food Ready',
+    ready:     'Served',
+    served:    'Done',
     cancelled: 'Cancelled',
   };
 }
@@ -112,6 +128,9 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
   const [voidItem, setVoidItem]       = useState<OrderItem | null>(null);
   const [voidDialogOpen, setVoidDialogOpen] = useState(false);
 
+  // Cancel order dialog state
+  const [cancelDialogOrder, setCancelDialogOrder] = useState<Order | null>(null);
+
   // USB printer connection state
   const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
   const [connectingUSB, setConnectingUSB]     = useState<string | null>(null);
@@ -157,11 +176,9 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
 
   // ── Status helpers ─────────────────────────────────────────────────────────
   async function advanceStatus(order: Order) {
-    if (order.status === 'ready') {
-      setPaymentOrder(order);
-      return;
-    }
-    const nextStatus = STATUS_FLOW[order.status];
+    // OLD: ready triggered payment dialog. Now ready → served is a normal food transition.
+    // Payment is recorded separately via the billing sheet.
+    const nextStatus = getStatusFlow(restaurant.service_mode ?? 'self_service')[order.status];
     if (!nextStatus) return;
     setUpdating(order.id);
     try {
@@ -243,12 +260,13 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
           throw new Error(d.error || 'Failed to record payment');
         }
       } else {
+        // OLD: auto-advance violated the axis split. Self-service uses ready as terminal instead.
         const supabase = createClient();
         for (const id of orderIds) {
           const { error } = await supabase
             .from('orders')
             .update({
-              status: 'delivered' as OrderStatus,
+              payment_status: 'paid' as const,
               payment_method: data.payment_method,
               payment_methods: data.payment_methods,
               discount_amount: data.discount_amount,
@@ -310,15 +328,15 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
     }
   }
 
-  async function cancelOrder(order: Order) {
-    if (!confirm(`Cancel order #${order.order_number}?`)) return;
+  async function cancelOrder(order: Order, reason: string) {
+    const previousStatus = order.status;
     setUpdating(order.id);
     try {
       if (staffSession) {
         const res = await fetch(`/api/staff/orders/${order.id}/status`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'cancelled' }),
+          body: JSON.stringify({ status: 'cancelled', reason, confirmed: true }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -331,8 +349,31 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
           .update({ status: 'cancelled' })
           .eq('id', order.id);
         if (error) throw error;
-        logOwnerActivity('order.cancelled', 'order', order.id, { order_number: order.order_number });
+        logOwnerActivity('order.cancelled', 'order', order.id, { order_number: order.order_number, reason });
         supabase.from('push_subscriptions').delete().eq('order_id', order.id).then(() => {});
+      }
+      toast.success(`Order #${order.order_number} cancelled`);
+
+      const activeItems = (order.items ?? []).filter(i => i.status !== 'voided');
+      if (activeItems.length > 0) {
+        import('@/lib/kot-print').then(({ printModificationKOT }) => {
+          printModificationKOT(
+            {
+              type: 'order_cancelled',
+              order_number: order.order_number,
+              order_type: order.order_type,
+              table: order.table,
+              customer_name: order.customer_name,
+              items: activeItems.map(i => ({ name: i.name, quantity: i.quantity, notes: i.notes, selected_addons: i.selected_addons })),
+              reason,
+              created_at: new Date().toISOString(),
+              previous_status: previousStatus,
+              cancelled_by: staffSession?.name ?? 'Owner',
+            },
+            restaurant.name,
+            restaurant.printer_config,
+          ).catch(() => {});
+        });
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel order');
@@ -436,7 +477,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
     if (!sourceOrder || !targetOrder) return;
 
     const bothEligible = [sourceOrder, targetOrder].every(
-      o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method,
+      o => (o.status === 'placed' || o.status === 'preparing' || o.status === 'ready') && !o.payment_method,
     );
     if (!bothEligible) {
       toast.error('Cannot merge — both orders must be active and unpaid');
@@ -585,10 +626,10 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
           <span>Auto-print is <span className="font-semibold">ON</span> — orders are accepted and printed automatically</span>
         </div>
       )} */}
-      {restaurant.printer_config?.kot_print_trigger !== 'on_order' && orders.some(o => o.status === 'placed' && !o.payment_method) && (
+      {restaurant.printer_config?.kot_print_trigger !== 'on_order' && orders.some(o => (o.status === 'placed' || o.status === 'preparing') && !o.payment_method) && (
         <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600" />
-          <span>Auto-print is <span className="font-semibold">OFF</span> — {orders.filter(o => o.status === 'placed' && !o.payment_method).length} order{orders.filter(o => o.status === 'placed' && !o.payment_method).length !== 1 ? 's' : ''} may need manual printing</span>
+          <span>Auto-print is <span className="font-semibold">OFF</span> — {orders.filter(o => (o.status === 'placed' || o.status === 'preparing') && !o.payment_method).length} order{orders.filter(o => (o.status === 'placed' || o.status === 'preparing') && !o.payment_method).length !== 1 ? 's' : ''} may need manual printing</span>
         </div>
       )}
 
@@ -720,7 +761,8 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
                 allOrders={orders}
                 staffSession={staffSession}
                 onAdvance={() => advanceStatus(item.order)}
-                onCancel={() => cancelOrder(item.order)}
+                onBill={() => setPaymentOrder(item.order)}
+                onCancel={() => setCancelDialogOrder(item.order)}
                 onReprint={() => openReprintDialog(item.order)}
                 onPrintBill={() => handlePrintBillAction(item.order)}
                 onVoidItem={(orderItem) => { setVoidOrder(item.order); setVoidItem(orderItem); setVoidDialogOpen(true); }}
@@ -780,6 +822,7 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
         onOpenChange={setVoidDialogOpen}
         orderId={voidOrder?.id ?? ''}
         item={voidItem}
+        orderStatus={voidOrder?.status}
         onVoided={(info) => {
           refreshOrders();
           if (voidItem && voidOrder) {
@@ -794,12 +837,26 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
                   items: [{ name: voidItem.name, quantity: voidItem.quantity, notes: voidItem.notes, selected_addons: voidItem.selected_addons }],
                   reason: info.reason,
                   created_at: new Date().toISOString(),
+                  previous_status: voidOrder.status,
+                  cancelled_by: staffSession?.name ?? 'Owner',
                 },
                 restaurant.name,
                 restaurant.printer_config,
               ).catch(() => {});
             });
           }
+        }}
+      />
+
+      {/* ── Cancel order dialog ── */}
+      <CancelOrderDialog
+        open={!!cancelDialogOrder}
+        onOpenChange={(open) => { if (!open) setCancelDialogOrder(null); }}
+        orderNumber={cancelDialogOrder?.order_number ?? 0}
+        orderStatus={cancelDialogOrder?.status ?? 'placed'}
+        onConfirmed={(reason) => {
+          if (cancelDialogOrder) cancelOrder(cancelDialogOrder, reason);
+          setCancelDialogOrder(null);
         }}
       />
 
@@ -885,14 +942,17 @@ function MergedOrderCard({
               <p className="text-xs font-semibold text-gray-500">
                 Table {order.table?.display_name?.trim() || order.table?.table_number} · #{order.order_number}{order.customer_name ? ` · ${order.customer_name}` : ''}
               </p>
-              {order.status === 'placed' && (
+              {(order.status === 'placed' || order.status === 'preparing') && (
                 <button
                   onClick={() => onAdvanceOrder(order)}
                   disabled={updatingId === order.id}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-0.5 rounded-lg text-white text-xs font-semibold disabled:opacity-50 transition-colors',
+                    order.status === 'placed' ? 'bg-gray-500 hover:bg-gray-600' : 'bg-green-500 hover:bg-green-600',
+                  )}
                 >
-                  <CheckCheck className="w-3 h-3" />
-                  {STATUS_LABELS.placed}
+                  {order.status === 'placed' ? <ChefHat className="w-3 h-3" /> : <CheckCheck className="w-3 h-3" />}
+                  {STATUS_LABELS[order.status]}
                 </button>
               )}
               {order.status === 'ready' && (
@@ -1000,6 +1060,7 @@ interface OrderCardProps {
   allOrders: Order[];
   staffSession?: StaffSession | null;
   onAdvance: () => void;
+  onBill: () => void;
   onCancel: () => void;
   onReprint: () => void;
   onPrintBill: () => void;
@@ -1016,13 +1077,13 @@ interface OrderCardProps {
 }
 
 function OrderCard({
-  order, restaurant, allOrders, staffSession, onAdvance, onCancel, onReprint, onPrintBill, onVoidItem,
+  order, restaurant, allOrders, staffSession, onAdvance, onBill, onCancel, onReprint, onPrintBill, onVoidItem,
   onViewDetail, isUpdating,
   draggingOrderId, dropTargetOrderId, onDragStart, onDragOver, onDragDrop, onDragCancel,
 }: OrderCardProps) {
   const statusMeta  = ORDER_STATUSES.find((s) => s.value === order.status);
   const STATUS_LABELS = getStatusLabels(restaurant.service_mode ?? 'self_service');
-  const isTerminal  = order.status === 'delivered' || order.status === 'cancelled';
+  const isTerminal  = isTerminalStatus(order.status, restaurant.service_mode ?? 'self_service');
 
   // Drag state
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -1132,9 +1193,10 @@ function OrderCard({
       onClick={isTerminal && onViewDetail ? onViewDetail : undefined}
       className={cn(
         'bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden relative',
-        order.status === 'placed'    && 'border-amber-300',
+        order.status === 'placed'    && 'border-gray-300',
+        order.status === 'preparing' && 'border-amber-300',
         order.status === 'ready'     && 'border-green-400',
-        order.status === 'delivered' && 'border-gray-200 opacity-70',
+        order.status === 'served'    && 'border-gray-200 opacity-70',
         order.status === 'cancelled' && 'border-red-200 opacity-60',
         isDropTarget && 'outline outline-2 outline-dashed outline-violet-500 outline-offset-2',
         isTerminal && onViewDetail && 'cursor-pointer hover:opacity-90 hover:shadow-md transition-all',
@@ -1251,36 +1313,52 @@ function OrderCard({
 
       {/* ── Action buttons ── */}
       {!isTerminal && (() => {
-        const nextStatus = order.status === 'ready' ? 'delivered' : STATUS_FLOW[order.status];
-        const permMap: Record<string, 'order:set_ready' | 'order:set_delivered'> = {
-          ready: 'order:set_ready', delivered: 'order:set_delivered',
+        const STATUS_FLOW = getStatusFlow(restaurant.service_mode ?? 'self_service');
+        const nextStatus = STATUS_FLOW[order.status];
+        const permMap: Record<string, Permission> = {
+          preparing: 'order:set_preparing', ready: 'order:set_ready',
+          served: 'order:set_served',
         };
         const canAdvance = !staffSession || (nextStatus && hasPermission(staffSession.role, permMap[nextStatus]));
-        const canBill = (order.status === 'placed' || order.status === 'ready') && (!staffSession || hasPermission(staffSession.role, 'order:record_payment'));
+        const canBill = order.payment_status === 'unpaid' && order.status !== 'cancelled' && (!staffSession || hasPermission(staffSession.role, 'order:record_payment'));
         const canCancel = !staffSession || hasPermission(staffSession.role, 'order:cancel');
 
         return (canAdvance || canBill || canCancel) ? (
           <div className="px-4 pb-4 pt-2 flex gap-2">
-            {(canAdvance || canBill) && (
+            {canAdvance && (
               <button
                 onClick={onAdvance}
                 disabled={isUpdating}
                 className={cn(
                   'flex-1 py-2 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-50',
-                  order.status === 'placed' && 'bg-green-500 hover:bg-green-600',
-                  order.status === 'ready'  && 'bg-indigo-600 hover:bg-indigo-700',
+                  order.status === 'placed'    && 'bg-gray-500 hover:bg-gray-600',
+                  order.status === 'preparing' && 'bg-green-500 hover:bg-green-600',
+                  order.status === 'ready'     && 'bg-blue-500 hover:bg-blue-600',
                 )}
               >
                 {isUpdating ? '…' : (
                   <span className="flex items-center justify-center gap-1.5">
-                    {order.status === 'placed' && <CheckCheck className="w-4 h-4" />}
-                    {order.status === 'ready'  && <IndianRupee className="w-4 h-4" />}
+                    {order.status === 'placed'    && <ChefHat className="w-4 h-4" />}
+                    {order.status === 'preparing' && <CheckCheck className="w-4 h-4" />}
+                    {order.status === 'ready'     && <CheckCheck className="w-4 h-4" />}
                     {STATUS_LABELS[order.status]}
                   </span>
                 )}
               </button>
             )}
-            {canCancel && order.status === 'placed' && (
+            {canBill && (
+              <button
+                onClick={onBill}
+                disabled={isUpdating}
+                className="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-opacity disabled:opacity-50"
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  <IndianRupee className="w-4 h-4" />
+                  Pay
+                </span>
+              </button>
+            )}
+            {canCancel && (order.status === 'placed' || order.status === 'preparing') && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button

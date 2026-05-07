@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { getTrackedOrders, type TrackedOrder } from '@/lib/tracked-orders';
+import { isTerminal } from '@/lib/order-status';
+import type { ServiceMode } from '@/lib/order-status';
 import type { OrderStatus } from '@/types';
 
 const SIZE = 56;
@@ -29,15 +31,18 @@ function defaultPos(): { x: number; y: number } {
   );
 }
 
+// OLD: only checked placed/ready. Now includes preparing.
 function getAggregateStatus(orders: TrackedOrder[]): OrderStatus | null {
   if (orders.some(o => o.status === 'ready')) return 'ready';
+  if (orders.some(o => o.status === 'preparing')) return 'preparing';
   if (orders.some(o => o.status === 'placed')) return 'placed';
   return null;
 }
 
 function statusDotColor(status: OrderStatus | null): string {
   if (status === 'ready') return 'var(--sunday-veg, #16a34a)';
-  if (status === 'placed') return 'var(--sunday-accent, #d97706)';
+  if (status === 'preparing') return 'var(--sunday-accent, #d97706)';
+  if (status === 'placed') return 'var(--sunday-text-muted, #9ca3af)';
   return 'var(--sunday-text-muted, #9ca3af)';
 }
 
@@ -45,14 +50,15 @@ interface Props {
   slug: string;
   onTap: () => void;
   refreshKey?: number;
+  serviceMode?: ServiceMode;
 }
 
-export default function FloatingOrderStatus({ slug, onTap, refreshKey }: Props) {
+export default function FloatingOrderStatus({ slug, onTap, refreshKey, serviceMode = 'self_service' }: Props) {
   const [orders, setOrders] = useState<TrackedOrder[]>([]);
 
   useEffect(() => {
-    setOrders(getTrackedOrders().filter(o => o.status !== 'delivered' && o.status !== 'cancelled'));
-  }, [refreshKey]);
+    setOrders(getTrackedOrders().filter(o => !isTerminal(o.status, serviceMode)));
+  }, [refreshKey, serviceMode]);
 
   const count = orders.length;
   const aggStatus = getAggregateStatus(orders);

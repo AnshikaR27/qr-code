@@ -180,6 +180,8 @@ export interface ModificationKOTData {
   items: { name: string; quantity: number; notes?: string | null; selected_addons?: { name: string; price?: number }[] }[];
   reason: string;
   created_at: string;
+  previous_status?: string;
+  cancelled_by?: string;
 }
 
 export function buildModificationKOTTicket(
@@ -239,6 +241,10 @@ export function buildModificationKOTTicket(
     for (const addon of item.selected_addons ?? []) {
       p.text(`   + ${addon.name}`.slice(0, lineWidth)).newLine();
     }
+
+    if (data.previous_status) {
+      p.text(`   Was: ${data.previous_status.toUpperCase()}`.slice(0, lineWidth)).newLine();
+    }
   }
 
   p.dashLine(lineWidth);
@@ -251,7 +257,14 @@ export function buildModificationKOTTicket(
     .bold(false);
   p.wrapText(data.reason, lineWidth);
 
-  p.dashLine(lineWidth);
+  if (data.cancelled_by) {
+    p.alignLeft()
+      .text(`Cancelled by: ${data.cancelled_by}`.slice(0, lineWidth))
+      .newLine();
+    p.dashLine(lineWidth);
+  } else {
+    p.dashLine(lineWidth);
+  }
 
   // Footer
   p.alignCenter()

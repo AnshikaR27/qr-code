@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   const { data: order, error: fetchError } = await admin
     .from('orders')
-    .select('id, restaurant_id, order_number, status, payment_method')
+    .select('id, restaurant_id, order_number, status, payment_method, payment_status')
     .eq('id', body.order_id)
     .single();
 
@@ -41,15 +41,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.type === 'comp') {
-    if (order.payment_method) {
+    if (order.payment_status !== 'unpaid') {
       return NextResponse.json({ error: 'Order already has a payment recorded' }, { status: 409 });
     }
 
+    // OLD: status: 'delivered', payment_method: 'comp'
+    // payment_method is an enum (cash|upi|card) — 'comp' is not a valid value.
+    // payment_status now carries the comp/refund semantics.
     const { error } = await admin
       .from('orders')
       .update({
-        status: 'delivered',
-        payment_method: 'comp',
+        payment_status: 'comped',
         discount_amount: 100,
         discount_type: 'percentage',
         discount_before_tax: true,
@@ -58,16 +60,23 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: 'Failed to comp order' }, { status: 500 });
   } else {
-    if (!order.payment_method || order.payment_method === 'comp') {
+    if (order.payment_status !== 'paid') {
       return NextResponse.json({ error: 'Order has no payment to refund' }, { status: 409 });
+    }
+
+    // OLD: status: 'cancelled', payment_method: 'refund'
+    // Refund on a served order: only change payment_status (food was eaten).
+    // Refund on an unserved order: also cancel (stop food prep).
+    const updateData: Record<string, unknown> = {
+      payment_status: 'refunded',
+    };
+    if (order.status !== 'served') {
+      updateData.status = 'cancelled';
     }
 
     const { error } = await admin
       .from('orders')
-      .update({
-        status: 'cancelled',
-        payment_method: 'refund',
-      })
+      .update(updateData)
       .eq('id', body.order_id);
 
     if (error) return NextResponse.json({ error: 'Failed to refund order' }, { status: 500 });

@@ -215,6 +215,9 @@ function buildModificationTicketHtml(data: ModificationKOTData, restaurantName: 
     for (const addon of item.selected_addons ?? []) {
       itemsHtml += `<div style="padding-left:20px;font-size:11px;color:#333;">+ ${addon.name}</div>`;
     }
+    if (data.previous_status) {
+      itemsHtml += `<div style="padding-left:20px;font-size:10px;color:#666;">Was: ${data.previous_status.toUpperCase()}</div>`;
+    }
   }
 
   return `
@@ -239,6 +242,11 @@ function buildModificationTicketHtml(data: ModificationKOTData, restaurantName: 
   <div style="font-size:11px;margin:3px 0;">
     <strong>REASON:</strong> ${data.reason}
   </div>
+
+  ${data.cancelled_by ? `
+  <div style="border-top:1px dashed #000;margin:4px 0;"></div>
+  <div style="font-size:11px;margin:3px 0;">Cancelled by: ${data.cancelled_by}</div>
+  ` : ''}
 
   <div style="border-top:2px solid #000;margin:4px 0;"></div>
   <div style="text-align:center;font-size:10px;">

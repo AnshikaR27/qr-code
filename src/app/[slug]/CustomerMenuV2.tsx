@@ -672,6 +672,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
         open={ordersSheetOpen}
         onClose={() => setOrdersSheetOpen(false)}
         slug={restaurant.slug}
+        serviceMode={restaurant.service_mode ?? 'self_service'}
       />
 
       {/* ── Custom Toast ── */}
@@ -714,6 +715,7 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
         slug={restaurant.slug}
         onTap={() => setOrdersSheetOpen(true)}
         refreshKey={trackedOrderCount}
+        serviceMode={restaurant.service_mode ?? 'self_service'}
       />
 
       {/* ── Cart Bar — always visible ── */}

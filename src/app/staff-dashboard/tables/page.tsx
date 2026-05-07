@@ -12,12 +12,14 @@ import { useStaff } from '@/contexts/StaffContext';
 import { useOrders } from '@/contexts/OrdersContext';
 import { hasPermission } from '@/lib/staff-permissions';
 import { cn, formatPrice } from '@/lib/utils';
+import { isActive } from '@/lib/order-status';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { playWaiterCall } from '@/lib/sounds';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import { buildCombinedBillData } from '@/lib/billing';
 import NewOrderDrawer from '@/components/dashboard/NewOrderDrawer';
 import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
+import CancelOrderDialog from '@/components/dashboard/CancelOrderDialog';
 import {
   WallsSvgLayer,
   CounterElement,
@@ -118,12 +120,14 @@ function shortName(full: string): string {
 
 function getStatusSummary(tableOrders: Order[]): string {
   const placed = tableOrders.filter(o => o.status === 'placed').length;
+  const preparing = tableOrders.filter(o => o.status === 'preparing').length;
   const ready = tableOrders.filter(o => o.status === 'ready').length;
-  if (placed === 0 && ready > 0) return 'All ready';
+  if (placed === 0 && preparing === 0 && ready > 0) return 'All ready';
   const parts: string[] = [];
-  if (placed > 0) parts.push(`${placed} preparing`);
+  if (placed > 0) parts.push(`${placed} placed`);
+  if (preparing > 0) parts.push(`${preparing} preparing`);
   if (ready > 0) parts.push(`${ready} ready`);
-  return parts.join(', ') || 'Placed';
+  return parts.join(', ') || 'Active';
 }
 
 function getTableAtPoint(x: number, y: number, tables: FloorTable[], boost = 1): FloorTable | null {
@@ -463,8 +467,9 @@ export default function StaffTablesPage() {
     return () => clearInterval(id);
   }, []);
 
+  const serviceMode = restaurant.service_mode ?? 'self_service';
   const activeOrders = orders.filter(
-    (o) => o.status !== 'delivered' && o.status !== 'cancelled' && !o.payment_method
+    (o) => isActive(o.status, serviceMode) && !o.payment_method
   );
 
   const waiterCallTableNumbers = new Set(
@@ -1693,7 +1698,9 @@ function TableOrdersModal({
   const [voidDialogOpen, setVoidDialogOpen] = useState(false);
   const [voidOrderId, setVoidOrderId] = useState('');
   const [voidItem, setVoidItem] = useState<OrderItem | null>(null);
+  const [cancelDialogOrder, setCancelDialogOrder] = useState<Order | null>(null);
   const { refreshOrders } = useOrders();
+  const { staff } = useStaff();
 
   const totalAmount = table.orders.reduce((sum, o) => sum + o.total, 0);
   const totalItems = table.orders.reduce(
@@ -1702,8 +1709,8 @@ function TableOrdersModal({
   );
 
   const allReady = table.orders.every(o => o.status === 'ready');
-  const somePrepping = table.orders.some(o => o.status === 'placed');
-  const preppingOrders = table.orders.filter(o => o.status === 'placed');
+  const somePrepping = table.orders.some(o => o.status === 'placed' || o.status === 'preparing');
+  const preppingOrders = table.orders.filter(o => o.status === 'placed' || o.status === 'preparing');
 
   const sortedOrders = [...table.orders].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -1864,15 +1871,14 @@ function TableOrdersModal({
     }
   }
 
-  async function handleCancelOrder(order: Order) {
-    const reason = prompt(`Cancel order #${order.order_number}?\nEnter reason:`);
-    if (!reason) return;
+  async function handleCancelOrder(order: Order, reason: string) {
+    const previousStatus = order.status;
     setUpdating(order.id);
     try {
       const res = await fetch(`/api/staff/orders/${order.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled', reason }),
+        body: JSON.stringify({ status: 'cancelled', reason, confirmed: true }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -1892,6 +1898,8 @@ function TableOrdersModal({
               items: activeItems.map(i => ({ name: i.name, quantity: i.quantity, notes: i.notes, selected_addons: i.selected_addons })),
               reason,
               created_at: new Date().toISOString(),
+              previous_status: previousStatus,
+              cancelled_by: staff.name,
             },
             restaurant.name,
             restaurant.printer_config,
@@ -2010,7 +2018,7 @@ function TableOrdersModal({
                     })}
                   </div>
                   <button
-                    onClick={() => handleCancelOrder(order)}
+                    onClick={() => setCancelDialogOrder(order)}
                     disabled={!!updating}
                     className="mt-1.5 flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
                   >
@@ -2094,6 +2102,7 @@ function TableOrdersModal({
         onOpenChange={setVoidDialogOpen}
         orderId={voidOrderId}
         item={voidItem}
+        orderStatus={table.orders.find(o => o.id === voidOrderId)?.status}
         onVoided={(info) => {
           refreshOrders();
           if (voidItem && voidOrderId) {
@@ -2110,6 +2119,8 @@ function TableOrdersModal({
                     items: [{ name: voidItem.name, quantity: voidItem.quantity, notes: voidItem.notes, selected_addons: voidItem.selected_addons }],
                     reason: info.reason,
                     created_at: new Date().toISOString(),
+                    previous_status: order.status,
+                    cancelled_by: staff.name,
                   },
                   restaurant.name,
                   restaurant.printer_config,
@@ -2117,6 +2128,17 @@ function TableOrdersModal({
               });
             }
           }
+        }}
+      />
+
+      <CancelOrderDialog
+        open={!!cancelDialogOrder}
+        onOpenChange={(open) => { if (!open) setCancelDialogOrder(null); }}
+        orderNumber={cancelDialogOrder?.order_number ?? 0}
+        orderStatus={cancelDialogOrder?.status ?? 'placed'}
+        onConfirmed={(reason) => {
+          if (cancelDialogOrder) handleCancelOrder(cancelDialogOrder, reason);
+          setCancelDialogOrder(null);
         }}
       />
     </>

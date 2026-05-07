@@ -39,6 +39,8 @@ import {
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@/lib/utils';
+import { isTerminal as isTerminalStatus } from '@/lib/order-status';
+import type { ServiceMode } from '@/lib/order-status';
 import {
   Dialog,
   DialogContent,
@@ -264,15 +266,21 @@ function distToSegment(px: number, py: number, ax: number, ay: number, bx: numbe
 
 // ─── Live status ──────────────────────────────────────────────────────────────
 
-const ORDER_STATUS_FLOW: Partial<Record<OrderStatus, OrderStatus>> = {
-  placed: 'ready',
-  ready:  'delivered',
-};
+function getOrderStatusFlow(serviceMode: ServiceMode): Partial<Record<OrderStatus, OrderStatus>> {
+  return {
+    placed:    'preparing',
+    preparing: 'ready',
+    ...(serviceMode === 'table_service' ? { ready: 'served' as const } : {}),
+  };
+}
 
-const ORDER_ACTION_LABELS: Partial<Record<OrderStatus, string>> = {
-  placed: 'Food Ready',
-  ready:  'Record Payment',
-};
+function getOrderActionLabels(serviceMode: ServiceMode): Partial<Record<OrderStatus, string>> {
+  return {
+    placed:    'Start',
+    preparing: 'Food Ready',
+    ...(serviceMode === 'table_service' ? { ready: 'Served' } : {}),
+  };
+}
 
 type TableLiveStatus = 'available' | 'occupied' | 'needs_attention';
 
@@ -719,9 +727,10 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         .map(o => o.id);
       if (orderIds.length === 0) { setSheetTableId(null); return; }
       const supabase = createClient();
+      // OLD: status: 'delivered' — now mark served + paid
       const { error } = await supabase
         .from('orders')
-        .update({ status: 'delivered' })
+        .update({ status: 'served', payment_status: 'paid' })
         .in('id', orderIds);
       if (error) { toast.error('Failed to clear table'); return; }
 
@@ -768,7 +777,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       const order = activeOrders.find((o) => o.id === orderId);
       if (order) { setPaymentOrder(order); return; }
     }
-    const nextStatus = ORDER_STATUS_FLOW[currentStatus];
+    const nextStatus = getOrderStatusFlow(restaurant.service_mode ?? 'self_service')[currentStatus];
     if (!nextStatus) return;
     const supabase = createClient();
     const { error } = await supabase
@@ -783,11 +792,12 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     setPaymentOrder(null);
     setBillingOrders(null);
     const supabase = createClient();
+    // OLD: auto-advance violated the axis split. Self-service uses ready as terminal instead.
     for (const id of orderIds) {
       const { error } = await supabase
         .from('orders')
         .update({
-          status: 'delivered' as OrderStatus,
+          payment_status: 'paid' as const,
           payment_method: data.payment_method,
           payment_methods: data.payment_methods,
           discount_amount: data.discount_amount,
@@ -1150,7 +1160,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       .eq('restaurant_id', restaurant.id)
       .in('table_id', dbIds)
       .is('payment_method', null)
-      .or('status.eq.placed,status.eq.ready');
+      .or('status.eq.placed,status.eq.preparing,status.eq.ready');
     await supabase
       .from('tables')
       .update({ merge_group_id: groupId, merged_with: dbIds })
@@ -1194,7 +1204,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         .update({ merge_group_id: null })
         .eq('restaurant_id', restaurant.id)
         .in('table_id', dbIds)
-        .or('status.eq.placed,status.eq.ready');
+        .or('status.eq.placed,status.eq.preparing,status.eq.ready');
       await supabase
         .from('tables')
         .update({ merge_group_id: null, merged_with: null })
@@ -1474,6 +1484,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           onGenerateBill={(tableOrders) => { setSheetTableId(null); setBillingOrders(tableOrders); }}
           onMergeTables={mergeTables}
           onUnmergeGroup={unmergeGroup}
+          serviceMode={restaurant.service_mode ?? 'self_service'}
         />
       </div>
     );
@@ -2099,6 +2110,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         onAdvanceStatus={advanceOrderStatus}
         onMergeTables={mergeTables}
         onUnmergeGroup={unmergeGroup}
+        serviceMode={restaurant.service_mode ?? 'self_service'}
       />
 
       {/* ── Billing sheet ── */}
@@ -2261,6 +2273,7 @@ interface TableDetailSheetProps {
   onGenerateBill: (orders: Order[]) => void;
   onMergeTables: (tableIds: string[]) => void;
   onUnmergeGroup: (mergeGroupId: string) => void;
+  serviceMode?: ServiceMode;
 }
 
 function TableDetailSheet({
@@ -2279,6 +2292,7 @@ function TableDetailSheet({
   onGenerateBill,
   onMergeTables,
   onUnmergeGroup,
+  serviceMode = 'self_service',
 }: TableDetailSheetProps) {
   const [showMergePicker, setShowMergePicker] = useState(false);
   const [mergeSelection, setMergeSelection] = useState<Set<string>>(new Set());
@@ -2455,7 +2469,7 @@ function TableDetailSheet({
                   <p className="text-sm font-semibold mb-3">Active Orders ({statusInfo.orders.length})</p>
                   <div className="space-y-3">
                     {statusInfo.orders.map(order => (
-                      <OrderCard key={order.id} order={order} onRefresh={onRefresh} onAdvanceStatus={onAdvanceStatus} />
+                      <OrderCard key={order.id} order={order} onRefresh={onRefresh} onAdvanceStatus={onAdvanceStatus} serviceMode={serviceMode} />
                     ))}
                   </div>
                 </div>
@@ -2522,10 +2536,12 @@ function TableDetailSheet({
 
 // ─── OrderCard ────────────────────────────────────────────────────────────────
 
+// OLD: split delivered into served + payment_status
 const ORDER_STATUS_STYLE: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  placed:    { bg: '#fef9c3', text: '#854d0e', border: '#fde047', label: 'Placed'    },
+  placed:    { bg: '#f3f4f6', text: '#374151', border: '#d1d5db', label: 'Placed'    },
+  preparing: { bg: '#fef9c3', text: '#854d0e', border: '#fde047', label: 'Preparing' },
   ready:     { bg: '#dcfce7', text: '#15803d', border: '#86efac', label: 'Ready'     },
-  delivered: { bg: '#f3f4f6', text: '#374151', border: '#d1d5db', label: 'Delivered' },
+  served:    { bg: '#f3f4f6', text: '#374151', border: '#d1d5db', label: 'Served'    },
   cancelled: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5', label: 'Cancelled' },
 };
 
@@ -2533,17 +2549,19 @@ function OrderCard({
   order,
   onRefresh,
   onAdvanceStatus,
+  serviceMode = 'self_service',
 }: {
   order: Order;
   onRefresh: () => void;
   onAdvanceStatus: (orderId: string, currentStatus: OrderStatus) => Promise<void>;
+  serviceMode?: ServiceMode;
 }) {
   const st = ORDER_STATUS_STYLE[order.status] ?? ORDER_STATUS_STYLE.placed;
   const [noteText, setNoteText]   = useState('');
   const [saving, setSaving]       = useState(false);
   const [advancing, setAdvancing] = useState(false);
 
-  const nextActionLabel = ORDER_ACTION_LABELS[order.status];
+  const nextActionLabel = getOrderActionLabels(serviceMode)[order.status];
 
   async function handleAdvance() {
     setAdvancing(true);

@@ -29,15 +29,16 @@ function isIOS() {
 }
 
 const STEPS_SELF: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
-  { status: 'placed',    label: 'Order Placed',    icon: Clock        },
-  { status: 'ready',     label: 'Ready to Collect', icon: PackageCheck },
-  { status: 'delivered', label: 'Picked Up',        icon: CheckCircle2 },
+  { status: 'placed',    label: 'Order Placed',     icon: Clock        },
+  { status: 'preparing', label: 'Being Prepared',   icon: Clock        },
+  { status: 'ready',     label: 'Pick Up at Counter', icon: PackageCheck },
 ];
 
 const STEPS_TABLE: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
-  { status: 'placed',    label: 'Order Placed', icon: Clock           },
-  { status: 'ready',     label: 'On its Way',   icon: UtensilsCrossed },
-  { status: 'delivered', label: 'Served',       icon: CheckCircle2    },
+  { status: 'placed',    label: 'Order Placed',   icon: Clock           },
+  { status: 'preparing', label: 'Being Prepared', icon: Clock           },
+  { status: 'ready',     label: 'On its Way',     icon: UtensilsCrossed },
+  { status: 'served',    label: 'Served',         icon: CheckCircle2    },
 ];
 
 function statusIndex(s: OrderStatus, steps: typeof STEPS_SELF) {
@@ -210,7 +211,8 @@ export default function OrderStatusPage() {
               navigator.vibrate?.([400, 150, 400, 150, 400]);
             } catch { /* audio/vibrate may fail after tab restore */ }
           }
-          if (newStatus === 'delivered') {
+          const celebrationStatus = serviceModeRef.current === 'self_service' ? 'ready' : 'served';
+          if (newStatus === celebrationStatus) {
             setShowCelebration(true);
             setTimeout(() => setShowCelebration(false), 5000);
           }
@@ -233,7 +235,8 @@ export default function OrderStatusPage() {
             clearActiveOrder(tableId);
           }
           setPrevStatus((prev) => {
-            if (newStatus === 'delivered' && prev !== 'delivered') {
+            const celebrationStatus = serviceModeRef.current === 'self_service' ? 'ready' : 'served';
+            if (newStatus === celebrationStatus && prev !== celebrationStatus) {
               setShowCelebration(true);
               setTimeout(() => setShowCelebration(false), 5000);
             }
@@ -317,7 +320,7 @@ export default function OrderStatusPage() {
   const isTableService = serviceMode === 'table_service';
   const STEPS = isTableService ? STEPS_TABLE : STEPS_SELF;
   const currentIdx = statusIndex(order.status, STEPS);
-  const isCompleted = order.status === 'delivered';
+  const isCompleted = isTableService ? order.status === 'served' : order.status === 'ready';
   const isCancelled = order.status === 'cancelled';
   const isReady     = order.status === 'ready';
   const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -340,7 +343,7 @@ export default function OrderStatusPage() {
     alignItems: 'center',
     gap: '12px',
     textAlign: 'center',
-    ...(order.status === 'placed'
+    ...((order.status === 'placed' || order.status === 'preparing')
       ? {
           backgroundColor: 'var(--sunday-surface-low, #f6f2e9)',
           borderColor: 'var(--sunday-border, #E8D5B0)',
@@ -447,12 +450,12 @@ export default function OrderStatusPage() {
                 animation: 'celebPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both',
               }}
             >
-              <div style={{ fontSize: 56, marginBottom: 12 }}>🎉</div>
+              <div style={{ fontSize: 56, marginBottom: 12 }}>{isTableService ? '🎉' : '🔔'}</div>
               <p className="font-bold m-0" style={{ fontSize: typeScale['2xl'], color: 'var(--sunday-text, #1D1208)', fontFamily: 'var(--sunday-font-heading)' }}>
-                Enjoy your meal!
+                {isTableService ? 'Enjoy your meal!' : 'Pick up at the counter!'}
               </p>
               <p className="m-0 mt-1" style={{ fontSize: typeScale.sm, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
-                Thank you for dining with us
+                {isTableService ? 'Thank you for dining with us' : 'Your order is ready — come collect it now'}
               </p>
             </div>
           </div>
@@ -467,7 +470,7 @@ export default function OrderStatusPage() {
             {isCancelled
               ? '❌ Order Cancelled'
               : isCompleted
-              ? '✅ Enjoy your meal!'
+              ? (isTableService ? '✅ Enjoy your meal!' : '🔔 Pick up at the counter!')
               : isReady
               ? (isTableService ? '🍽️ On its way!' : '🔔 Ready to collect!')
               : 'Order placed!'}
@@ -529,11 +532,11 @@ export default function OrderStatusPage() {
         {/* ── Animated status card ── */}
         {!isCancelled && !isCompleted && (
           <div style={statusCardStyle}>
-            {order.status === 'placed' && (
+            {(order.status === 'placed' || order.status === 'preparing') && (
               <>
                 <div style={{ fontSize: 48, animation: 'cookingBounce 1.2s ease-in-out infinite', display: 'inline-block' }}>🍳</div>
                 <p className="font-semibold m-0" style={{ fontSize: typeScale.md, color: 'var(--sunday-text, #1D1208)', fontFamily: 'var(--sunday-font-body)' }}>
-                  The kitchen is cooking your order!
+                  {order.status === 'preparing' ? 'The kitchen is cooking your order!' : 'Your order has been received!'}
                 </p>
                 <p className="m-0" style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
                   Estimated wait: ~{EST_MINUTES} min

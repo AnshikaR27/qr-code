@@ -1,10 +1,18 @@
 import type { OrderStatus, SpiceLevel } from '@/types';
 
+// OLD: see refactor for delivered → served + payment_status split
+// export const ORDER_STATUSES: { value: OrderStatus; label: string; color: string }[] = [
+//   { value: 'placed',    label: 'Placed',    color: 'bg-yellow-100 text-yellow-800' },
+//   { value: 'ready',     label: 'Ready',     color: 'bg-green-100 text-green-800'  },
+//   { value: 'delivered', label: 'Delivered',  color: 'bg-gray-100 text-gray-800'    },
+//   { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800'      },
+// ];
 export const ORDER_STATUSES: { value: OrderStatus; label: string; color: string }[] = [
-  { value: 'placed',    label: 'Placed',    color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'ready',     label: 'Ready',     color: 'bg-green-100 text-green-800'  },
-  { value: 'delivered', label: 'Delivered',  color: 'bg-gray-100 text-gray-800'    },
-  { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800'      },
+  { value: 'placed',    label: 'Placed',    color: 'bg-gray-100 text-gray-800'     },
+  { value: 'preparing', label: 'Preparing', color: 'bg-amber-100 text-amber-800'   },
+  { value: 'ready',     label: 'Ready',     color: 'bg-green-100 text-green-800'   },
+  { value: 'served',    label: 'Served',    color: 'bg-slate-100 text-slate-600'   },
+  { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800'       },
 ];
 
 export const SPICE_LEVELS: { value: SpiceLevel; label: string; emoji: string }[] = [

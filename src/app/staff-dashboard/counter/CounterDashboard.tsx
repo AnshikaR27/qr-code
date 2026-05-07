@@ -7,12 +7,14 @@ import { toast } from 'sonner';
 import { useOrders } from '@/contexts/OrdersContext';
 import { useStaff } from '@/contexts/StaffContext';
 import { cn, formatPrice } from '@/lib/utils';
+import { isActive } from '@/lib/order-status';
 import { hasPermission } from '@/lib/staff-permissions';
 import { createClient } from '@/lib/supabase/client';
 import { broadcastPrintBill } from '@/lib/bill-print-broadcast';
 import { buildCombinedBillData } from '@/lib/billing';
 import BillingSheet, { type BillingConfirmData } from '@/components/dashboard/BillingSheet';
 import VoidItemDialog from '@/components/dashboard/VoidItemDialog';
+import CancelOrderDialog from '@/components/dashboard/CancelOrderDialog';
 import CompletedOrderModal from '@/components/dashboard/CompletedOrderModal';
 import ItemAvailabilityModal from '@/components/dashboard/ItemAvailabilityModal';
 import type { Order, OrderItem, PrinterDevice } from '@/types';
@@ -47,6 +49,7 @@ export default function CounterDashboard() {
   const [voidDialogOpen, setVoidDialogOpen] = useState(false);
   const [voidOrderId, setVoidOrderId] = useState<string>('');
   const [voidItem, setVoidItem] = useState<OrderItem | null>(null);
+  const [cancelDialogOrder, setCancelDialogOrder] = useState<Order | null>(null);
   const can86 = hasPermission(staff.role, 'menu:mark_out_of_stock');
   const canMerge = hasPermission(staff.role, 'order:merge');
 
@@ -97,12 +100,13 @@ export default function CounterDashboard() {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayMs = todayStart.getTime();
+    const serviceMode = restaurant.service_mode ?? 'self_service';
     return orders.filter(
-      o => (o.status === 'placed' || o.status === 'ready' || o.status === 'delivered') &&
+      o => isActive(o.status, serviceMode) &&
         !o.payment_method &&
         new Date(o.created_at).getTime() >= todayMs,
     );
-  }, [orders]);
+  }, [orders, restaurant.service_mode]);
 
   const completedOrders = useMemo(() => {
     const todayStart = new Date();
@@ -166,7 +170,8 @@ export default function CounterDashboard() {
         ...groupOrders.map(o => new Date(o.updated_at ?? o.created_at).getTime())
       );
 
-      const readyToBill = groupOrders.every(o => o.status === 'ready' || o.status === 'delivered');
+      // OLD: 'delivered' → 'served'
+      const readyToBill = groupOrders.every(o => o.status === 'ready' || o.status === 'served');
 
       result.push({
         key,
@@ -309,7 +314,7 @@ export default function CounterDashboard() {
   }
 
   const handleMarkReady = useCallback(async (group: TableGroup) => {
-    const pending = group.orders.filter(o => o.status === 'placed');
+    const pending = group.orders.filter(o => o.status === 'placed' || o.status === 'preparing');
     if (pending.length === 0) return;
     setUpdating(pending[0].id);
     try {
@@ -351,15 +356,14 @@ export default function CounterDashboard() {
     }
   }, [restaurant.service_mode, restaurant.slug]);
 
-  async function handleCancelOrder(order: Order) {
-    const reason = prompt(`Cancel order #${order.order_number}?\nEnter reason:`);
-    if (!reason) return;
+  async function handleCancelOrder(order: Order, reason: string) {
+    const previousStatus = order.status;
     setUpdating(order.id);
     try {
       const res = await fetch(`/api/staff/orders/${order.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled', reason }),
+        body: JSON.stringify({ status: 'cancelled', reason, confirmed: true }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -367,7 +371,6 @@ export default function CounterDashboard() {
       }
       toast.success(`Order #${order.order_number} cancelled`);
 
-      // KOT reprint for cancelled order
       const activeItems = (order.items ?? []).filter(i => i.status !== 'voided');
       if (activeItems.length > 0) {
         import('@/lib/kot-print').then(({ printModificationKOT }) => {
@@ -381,6 +384,8 @@ export default function CounterDashboard() {
               items: activeItems.map(i => ({ name: i.name, quantity: i.quantity, notes: i.notes, selected_addons: i.selected_addons })),
               reason,
               created_at: new Date().toISOString(),
+              previous_status: previousStatus,
+              cancelled_by: staff.name,
             },
             restaurant.name,
             restaurant.printer_config,
@@ -424,7 +429,7 @@ export default function CounterDashboard() {
   async function mergeGroups(sourceGroup: TableGroup, targetGroup: TableGroup) {
     const allOrderIds = [...sourceGroup.orders, ...targetGroup.orders].map(o => o.id);
     const allEligible = [...sourceGroup.orders, ...targetGroup.orders].every(
-      o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method,
+      o => (o.status === 'placed' || o.status === 'preparing' || o.status === 'ready') && !o.payment_method,
     );
     if (!allEligible) {
       toast.error('Cannot merge — all orders must be active and unpaid');
@@ -605,7 +610,7 @@ export default function CounterDashboard() {
                 onCollect={() => setBillingOrders(group.orders)}
                 onMarkReady={() => handleMarkReady(group)}
                 onDismiss={() => handleDismiss(group)}
-                onCancelOrder={handleCancelOrder}
+                onCancelOrder={(order) => setCancelDialogOrder(order)}
                 onVoidItem={openVoidDialog}
                 isUpdating={group.orders.some(o => updating === o.id)}
                 canMerge={canMerge}
@@ -698,6 +703,7 @@ export default function CounterDashboard() {
         onOpenChange={setVoidDialogOpen}
         orderId={voidOrderId}
         item={voidItem}
+        orderStatus={orders.find(o => o.id === voidOrderId)?.status}
         onVoided={(info) => {
           refreshOrders();
           if (voidItem && voidOrderId) {
@@ -714,6 +720,8 @@ export default function CounterDashboard() {
                     items: [{ name: voidItem.name, quantity: voidItem.quantity, notes: voidItem.notes, selected_addons: voidItem.selected_addons }],
                     reason: info.reason,
                     created_at: new Date().toISOString(),
+                    previous_status: order.status,
+                    cancelled_by: staff.name,
                   },
                   restaurant.name,
                   restaurant.printer_config,
@@ -721,6 +729,17 @@ export default function CounterDashboard() {
               });
             }
           }
+        }}
+      />
+
+      <CancelOrderDialog
+        open={!!cancelDialogOrder}
+        onOpenChange={(open) => { if (!open) setCancelDialogOrder(null); }}
+        orderNumber={cancelDialogOrder?.order_number ?? 0}
+        orderStatus={cancelDialogOrder?.status ?? 'placed'}
+        onConfirmed={(reason) => {
+          if (cancelDialogOrder) handleCancelOrder(cancelDialogOrder, reason);
+          setCancelDialogOrder(null);
         }}
       />
 
@@ -804,7 +823,7 @@ function TableCard({
         : `${group.customerNames.slice(0, 2).join(', ')} +${group.customerNames.length - 2} more`;
 
   const isMerged = group.key.startsWith('merge:');
-  const allEligible = group.orders.every(o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method);
+  const allEligible = group.orders.every(o => (o.status === 'placed' || o.status === 'preparing' || o.status === 'ready') && !o.payment_method);
   const dragEnabled = canMerge && allEligible && !isMerged;
 
   function handlePointerDown(e: React.PointerEvent) {
@@ -1122,7 +1141,7 @@ function MergeSearchDialog({
   const candidates = useMemo(() => {
     return allGroups.filter(g => {
       if (g.key === sourceGroup.key) return false;
-      const eligible = g.orders.every(o => (o.status === 'placed' || o.status === 'ready') && !o.payment_method);
+      const eligible = g.orders.every(o => (o.status === 'placed' || o.status === 'preparing' || o.status === 'ready') && !o.payment_method);
       if (!eligible) return false;
       if (!query.trim()) return true;
       const q = query.trim().toLowerCase();

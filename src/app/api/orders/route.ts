@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
       merge_group_id: mergeGroupId,
       total,
       status: 'placed',
+      payment_status: 'unpaid',
     })
     .select('id, order_number')
     .single();

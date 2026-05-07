@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import type { OrderItem } from '@/types';
+import type { OrderItem, OrderStatus } from '@/types';
 
 const QUICK_REASONS = [
   'Customer changed mind',
@@ -27,10 +27,11 @@ interface VoidItemDialogProps {
   onOpenChange: (open: boolean) => void;
   orderId: string;
   item: OrderItem | null;
+  orderStatus?: OrderStatus;
   onVoided: (info: { reason: string; action: 'void' | 'reduce'; new_quantity?: number }) => void;
 }
 
-export default function VoidItemDialog({ open, onOpenChange, orderId, item, onVoided }: VoidItemDialogProps) {
+export default function VoidItemDialog({ open, onOpenChange, orderId, item, orderStatus, onVoided }: VoidItemDialogProps) {
   const [action, setAction] = useState<'void' | 'reduce'>('void');
   const [reason, setReason] = useState('');
   const [newQuantity, setNewQuantity] = useState(1);
@@ -57,6 +58,7 @@ export default function VoidItemDialog({ open, onOpenChange, orderId, item, onVo
           order_item_id: item!.id,
           reason: reason.trim(),
           action,
+          confirmed: true,
           ...(action === 'reduce' ? { new_quantity: newQuantity } : {}),
         }),
       });
@@ -84,6 +86,16 @@ export default function VoidItemDialog({ open, onOpenChange, orderId, item, onVo
           <DialogTitle>Void / Modify: {item.name}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {orderStatus === 'preparing' && (
+            <p className="text-sm text-amber-700 bg-amber-50 rounded-md px-3 py-2">
+              This item is being prepared. Ingredients may be wasted.
+            </p>
+          )}
+          {orderStatus === 'ready' && (
+            <p className="text-sm text-red-700 bg-red-50 rounded-md px-3 py-2">
+              Food is already made. This will need to be discarded. Manager approval required.
+            </p>
+          )}
           <div className="space-y-2">
             <Label>Action</Label>
             <div className="flex gap-2">

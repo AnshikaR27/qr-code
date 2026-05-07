@@ -6,13 +6,20 @@ import { hasPermission } from '@/lib/staff-permissions';
 import type { OrderStatus } from '@/types';
 import type { Permission } from '@/lib/staff-permissions';
 
+// OLD: only ready, delivered, cancelled were allowed
+// const STATUS_PERMISSION: Record<string, Permission> = {
+//   ready: 'order:set_ready',
+//   delivered: 'order:set_delivered',
+//   cancelled: 'order:cancel',
+// };
 const STATUS_PERMISSION: Record<string, Permission> = {
+  preparing: 'order:set_preparing',
   ready: 'order:set_ready',
-  delivered: 'order:set_delivered',
+  served: 'order:set_served',
   cancelled: 'order:cancel',
 };
 
-const ALLOWED_STATUSES: OrderStatus[] = ['ready', 'delivered', 'cancelled'];
+const ALLOWED_STATUSES: OrderStatus[] = ['preparing', 'ready', 'served', 'cancelled'];
 
 export async function PATCH(
   req: NextRequest,
@@ -31,7 +38,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { status, reason } = body as { status?: string; reason?: string };
+  const { status, reason, confirmed } = body as { status?: string; reason?: string; confirmed?: boolean };
   if (!status || !ALLOWED_STATUSES.includes(status as OrderStatus)) {
     return NextResponse.json(
       { error: 'Invalid status', allowed: ALLOWED_STATUSES },
@@ -51,7 +58,7 @@ export async function PATCH(
 
   const { data: order, error: fetchError } = await admin
     .from('orders')
-    .select('id, restaurant_id, order_number')
+    .select('id, restaurant_id, order_number, status')
     .eq('id', orderId)
     .single();
 
@@ -62,6 +69,31 @@ export async function PATCH(
   if (order.restaurant_id !== session.restaurant_id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+
+  if (status === 'cancelled') {
+    if (order.status === 'served') {
+      return NextResponse.json(
+        { error: 'Cannot cancel a served order — use the refund/comp flow instead' },
+        { status: 400 },
+      );
+    }
+
+    if ((order.status === 'preparing' || order.status === 'ready') && !confirmed) {
+      return NextResponse.json(
+        { error: 'Confirmation required', requires_confirmation: true, order_status: order.status },
+        { status: 409 },
+      );
+    }
+
+    if (order.status === 'ready' && !hasPermission(session.role, 'order:cancel_ready')) {
+      return NextResponse.json(
+        { error: 'Manager approval required to cancel a ready order' },
+        { status: 403 },
+      );
+    }
+  }
+
+  const previousStatus = order.status;
 
   const { data: updated, error: updateError } = await admin
     .from('orders')
@@ -85,5 +117,5 @@ export async function PATCH(
     metadata: { order_number: order.order_number, status, ...(reason ? { reason } : {}) },
   });
 
-  return NextResponse.json(updated);
+  return NextResponse.json({ ...updated, previous_status: previousStatus });
 }

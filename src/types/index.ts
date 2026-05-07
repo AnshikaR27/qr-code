@@ -169,7 +169,9 @@ export interface OrderNote {
 }
 
 export type OrderType = 'dine_in' | 'parcel';
-export type OrderStatus = 'placed' | 'ready' | 'delivered' | 'cancelled';
+// OLD: export type OrderStatus = 'placed' | 'ready' | 'delivered' | 'cancelled';
+export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'served' | 'cancelled';
+export type PaymentStatus = 'unpaid' | 'paid' | 'refunded' | 'comped';
 export type PaymentMethod = 'cash' | 'upi' | 'card';
 export type SpiceLevel = 0 | 1 | 2 | 3;
 
@@ -248,6 +250,7 @@ export interface Order {
   customer_name: string | null;
   customer_phone: string | null;
   status: OrderStatus;
+  payment_status: PaymentStatus;
   payment_method: PaymentMethod | null;
   payment_methods: SplitPayment[] | null;
   discount_amount: number | null;

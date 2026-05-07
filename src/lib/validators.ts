@@ -60,9 +60,10 @@ export const placeOrderSchema = z.object({
   { message: 'Name is required for parcel orders', path: ['customer_name'] }
 );
 
+// OLD: status: z.enum(['placed', 'ready', 'delivered', 'cancelled']),
 export const updateOrderStatusSchema = z.object({
   order_id: z.string().uuid(),
-  status: z.enum(['placed', 'ready', 'delivered', 'cancelled']),
+  status: z.enum(['placed', 'preparing', 'ready', 'served', 'cancelled']),
 });
 
 export const staffLoginSchema = z.object({
@@ -89,6 +90,7 @@ export const voidItemSchema = z.object({
   reason: z.string().min(1).max(300),
   action: z.enum(['void', 'reduce']),
   new_quantity: z.number().int().positive().optional(),
+  confirmed: z.boolean().optional(),
 }).refine(
   (data) => data.action !== 'reduce' || (data.new_quantity !== undefined && data.new_quantity > 0),
   { message: 'new_quantity is required when reducing', path: ['new_quantity'] }

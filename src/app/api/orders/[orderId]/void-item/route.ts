@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { authenticateStaffOrOwner, getActorInfo } from '@/lib/staff-api';
+import { hasPermission } from '@/lib/staff-permissions';
 import { logActivity } from '@/lib/activity-logger';
 import { voidItemSchema } from '@/lib/validators';
 
@@ -27,7 +28,7 @@ export async function POST(
     return NextResponse.json({ error: 'Validation failed', issues: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { order_item_id, reason, action, new_quantity } = parsed.data;
+  const { order_item_id, reason, action, new_quantity, confirmed } = parsed.data;
   const admin = getSupabaseAdmin();
   const actor = getActorInfo(auth);
 
@@ -41,8 +42,23 @@ export async function POST(
     return NextResponse.json({ error: 'Order not found' }, { status: 404 });
   }
 
-  if (order.status === 'delivered' || order.status === 'cancelled') {
+  // Served-state voids are refund flows; kitchen has no action to take.
+  if (order.status === 'served' || order.status === 'cancelled') {
     return NextResponse.json({ error: 'Cannot void items on a completed order' }, { status: 400 });
+  }
+
+  if ((order.status === 'preparing' || order.status === 'ready') && !confirmed) {
+    return NextResponse.json(
+      { error: 'Confirmation required', requires_confirmation: true, order_status: order.status },
+      { status: 409 },
+    );
+  }
+
+  if (order.status === 'ready' && auth.type === 'staff' && !hasPermission(auth.session.role, 'order:cancel_ready')) {
+    return NextResponse.json(
+      { error: 'Manager approval required to void items from a ready order' },
+      { status: 403 },
+    );
   }
 
   const { data: item } = await admin
