@@ -56,6 +56,13 @@ const LONG_PRESS_MOVE_THRESHOLD = 10;
 const HOVER_DELAY_MS = 300;
 const SEAT_PARTY_TIMEOUT_MS = 30_000;
 
+const MOBILE_BREAKPOINT = 768;
+const TABLET_BREAKPOINT = 1024;
+const MOBILE_TABLE_MIN_SIZE = 44;
+const MOBILE_ZOOM_SCALE = 2.5;
+const DOUBLE_TAP_DELAY = 300;
+const DOUBLE_TAP_DISTANCE = 25;
+
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
 function tableLabelText(t: { table_number: number; display_name?: string | null }): string {
@@ -236,6 +243,23 @@ const INJECTED_STYLES = `
   0%   { transform: scale(0.9); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
 }
+@keyframes bottomSheetUp {
+  0%   { transform: translateY(100%); }
+  100% { transform: translateY(0); }
+}
+@keyframes bottomSheetDown {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(100%); }
+}
+@keyframes mobileOverlayIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes waiterPulseRingMobile {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  70%  { transform: scale(1.8); opacity: 0; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
 `;
 
 const ZONE_COLORS_LIGHT: Record<ZoneColor, { bg: string; border: string; text: string }> = {
@@ -398,6 +422,25 @@ export default function StaffTablesPage() {
   // Fullscreen
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Mobile detection
+  const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const isMobile = screenWidth < MOBILE_BREAKPOINT;
+  const isTablet = screenWidth >= MOBILE_BREAKPOINT && screenWidth < TABLET_BREAKPOINT;
+
+  useEffect(() => {
+    function handleResize() { setScreenWidth(window.innerWidth); }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Mobile zoom state — when set, canvas zooms to this table and bottom sheet opens
+  const [mobileZoomTable, setMobileZoomTable] = useState<{
+    table: FloorTable;
+    dbId: string;
+    orders: Order[];
+    label: string;
+  } | null>(null);
+
   // Feature 2/3: Drag state + merge dialog
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [mergeDialog, setMergeDialog] = useState<MergeDialogState | null>(null);
@@ -458,9 +501,10 @@ export default function StaffTablesPage() {
   useEffect(() => {
     if (waiterCalls.length > prevWaiterCallCount.current && prevWaiterCallCount.current >= 0) {
       playWaiterCall();
+      if (isMobile && navigator.vibrate) navigator.vibrate(200);
     }
     prevWaiterCallCount.current = waiterCalls.length;
-  }, [waiterCalls.length]);
+  }, [waiterCalls.length, isMobile]);
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 30_000);
@@ -497,6 +541,10 @@ export default function StaffTablesPage() {
 
   function handleTableClick(table: FloorTable, dbId: string, info: { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean }) {
     if (info.status === 'available') return;
+    if (isMobile) {
+      setMobileZoomTable({ table, dbId, orders: info.orders, label: tableLabelText(table) });
+      return;
+    }
     setSelectedTable({ dbId, label: tableLabelText(table), orders: info.orders });
   }
 
@@ -509,6 +557,19 @@ export default function StaffTablesPage() {
       setSelectedTable(null);
     } else {
       setSelectedTable(prev => prev ? { ...prev, orders: freshOrders } : null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders]);
+
+  useEffect(() => {
+    if (!mobileZoomTable) return;
+    const freshOrders = activeOrders.filter(
+      (o) => mobileZoomTable.orders.some(so => o.table_id === so.table_id)
+    );
+    if (freshOrders.length === 0) {
+      setMobileZoomTable(null);
+    } else {
+      setMobileZoomTable(prev => prev ? { ...prev, orders: freshOrders } : null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders]);
@@ -755,8 +816,39 @@ export default function StaffTablesPage() {
       searchMatchIds={searchTerm ? searchMatchIds : null}
       seatParty={seatParty}
       isFullscreen={isFullscreen}
+      isMobile={isMobile}
+      isTablet={isTablet}
+      mobileZoomTableId={mobileZoomTable?.table.id ?? null}
+      onMobileZoomDismiss={() => setMobileZoomTable(null)}
     />
   );
+
+  const tableModal = !isMobile && selectedTable ? (
+    <TableOrdersModal
+      table={selectedTable}
+      restaurant={restaurant}
+      onClose={() => setSelectedTable(null)}
+      onAddItems={(tableId, tableLabel, round) => setNewOrderTable({ dbId: tableId, label: tableLabel, round })}
+      mergeHistory={mergeHistoryRef.current}
+      allTables={plan.tables}
+      dbTableIds={dbTableIds}
+    />
+  ) : null;
+
+  const mobileSheet = isMobile && mobileZoomTable ? (
+    <MobileBottomSheet
+      table={{ dbId: mobileZoomTable.dbId, label: mobileZoomTable.label, orders: mobileZoomTable.orders }}
+      restaurant={restaurant}
+      onClose={() => setMobileZoomTable(null)}
+      onAddItems={(tableId, tableLabel, round) => {
+        setMobileZoomTable(null);
+        setNewOrderTable({ dbId: tableId, label: tableLabel, round });
+      }}
+      mergeHistory={mergeHistoryRef.current}
+      allTables={plan.tables}
+      dbTableIds={dbTableIds}
+    />
+  ) : null;
 
   if (isFullscreen) {
     return (
@@ -767,17 +859,8 @@ export default function StaffTablesPage() {
           {canvas}
         </div>
 
-        {selectedTable && (
-          <TableOrdersModal
-            table={selectedTable}
-            restaurant={restaurant}
-            onClose={() => setSelectedTable(null)}
-            onAddItems={(tableId, tableLabel, round) => setNewOrderTable({ dbId: tableId, label: tableLabel, round })}
-            mergeHistory={mergeHistoryRef.current}
-            allTables={plan.tables}
-            dbTableIds={dbTableIds}
-          />
-        )}
+        {tableModal}
+        {mobileSheet}
 
         {newOrderTable && (
           <NewOrderDrawer
@@ -806,17 +889,8 @@ export default function StaffTablesPage() {
       {header}
       {canvas}
 
-      {selectedTable && (
-        <TableOrdersModal
-          table={selectedTable}
-          restaurant={restaurant}
-          onClose={() => setSelectedTable(null)}
-          onAddItems={(tableId, tableLabel, round) => setNewOrderTable({ dbId: tableId, label: tableLabel, round })}
-          mergeHistory={mergeHistoryRef.current}
-          allTables={plan.tables}
-          dbTableIds={dbTableIds}
-        />
-      )}
+      {tableModal}
+      {mobileSheet}
 
       {newOrderTable && (
         <NewOrderDrawer
@@ -861,6 +935,10 @@ function StaffFloorCanvas({
   searchMatchIds,
   seatParty,
   isFullscreen,
+  isMobile,
+  isTablet,
+  mobileZoomTableId,
+  onMobileZoomDismiss,
 }: {
   plan: FloorPlan;
   getTableStatus: (tableNumber: number) => { status: TableLiveStatus; orders: Order[]; hasWaiterCall: boolean };
@@ -878,13 +956,17 @@ function StaffFloorCanvas({
   searchMatchIds: Set<string> | null;
   seatParty: SeatPartyState | null;
   isFullscreen?: boolean;
+  isMobile?: boolean;
+  isTablet?: boolean;
+  mobileZoomTableId?: string | null;
+  onMobileZoomDismiss?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ scale: 1, containerW: CANVAS_W, containerH: CANVAS_H });
 
   const contentBounds = useMemo(() => computeContentBounds(plan), [plan]);
-  const pad = isFullscreen ? 10 : CONTENT_PAD;
+  const pad = isFullscreen ? 10 : (isMobile ? 15 : CONTENT_PAD);
   const contentW = contentBounds.maxX - contentBounds.minX + pad * 2;
   const contentH = contentBounds.maxY - contentBounds.minY + pad * 2;
 
@@ -895,6 +977,11 @@ function StaffFloorCanvas({
   // Drag long-press
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressStart = useRef<{ x: number; y: number } | null>(null);
+
+  // Mobile: pinch-to-zoom state
+  const [manualZoom, setManualZoom] = useState<{ scale: number; x: number; y: number }>({ scale: 1, x: 0, y: 0 });
+  const pinchRef = useRef<{ initialDist: number; initialScale: number; midX: number; midY: number } | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -923,15 +1010,40 @@ function StaffFloorCanvas({
 
   const topOffset = Math.max(0, (dims.containerH - contentH * dims.scale) / 2);
 
-  const tableBoost = dims.scale > 1 ? Math.min(1.35, 1 + (dims.scale - 1) * 0.3) : 1;
+  const mobileBoost = isMobile ? 1.4 : (isTablet ? 1.15 : 1);
+  const tableBoost = (dims.scale > 1 ? Math.min(1.35, 1 + (dims.scale - 1) * 0.3) : 1) * mobileBoost;
+
+  // ── Mobile zoom: compute transform to focus on a table ────────────────────
+
+  const mobileZoomTransform = useMemo(() => {
+    if (!mobileZoomTableId || !isMobile) return null;
+    const table = plan.tables.find(t => t.id === mobileZoomTableId);
+    if (!table) return null;
+    const { w: tw, h: th } = tableSize(table.capacity);
+    const tableCenterX = leftOffset + (contentOffsetX + table.x + tw / 2) * dims.scale;
+    const tableCenterY = topOffset + (contentOffsetY + table.y + th / 2) * dims.scale;
+    const targetX = dims.containerW / 2;
+    const targetY = dims.containerH * 0.25;
+    const zf = MOBILE_ZOOM_SCALE;
+    return {
+      scale: zf,
+      x: targetX - tableCenterX * zf,
+      y: targetY - tableCenterY * zf,
+    };
+  }, [mobileZoomTableId, isMobile, plan.tables, leftOffset, topOffset, contentOffsetX, contentOffsetY, dims]);
+
+  const activeZoom = mobileZoomTransform ?? (manualZoom.scale !== 1 ? manualZoom : null);
 
   function screenToCanvas(screenX: number, screenY: number): { x: number; y: number } | null {
     const el = containerRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
+    const zs = activeZoom?.scale ?? 1;
+    const zx = activeZoom?.x ?? 0;
+    const zy = activeZoom?.y ?? 0;
     return {
-      x: (screenX - rect.left - leftOffset) / dims.scale - contentOffsetX,
-      y: (screenY - rect.top - topOffset) / dims.scale - contentOffsetY,
+      x: ((screenX - rect.left - zx) / zs - leftOffset) / dims.scale - contentOffsetX,
+      y: ((screenY - rect.top - zy) / zs - topOffset) / dims.scale - contentOffsetY,
     };
   }
 
@@ -958,10 +1070,89 @@ function StaffFloorCanvas({
     onDragCancel();
   }
 
+  // ── Mobile: pinch-to-zoom + double-tap handlers ──────────────────────────
+  // Use native event listeners for { passive: false } — required to preventDefault on touch moves
+
+  const manualZoomRef = useRef(manualZoom);
+  manualZoomRef.current = manualZoom;
+  const mobileZoomTableIdRef = useRef(mobileZoomTableId);
+  mobileZoomTableIdRef.current = mobileZoomTableId;
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    function onTouchStart(e: TouchEvent) {
+      if (mobileZoomTableIdRef.current) return;
+      if (e.touches.length === 2) {
+        const t1 = e.touches[0], t2 = e.touches[1];
+        pinchRef.current = {
+          initialDist: Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY),
+          initialScale: manualZoomRef.current.scale,
+          midX: (t1.clientX + t2.clientX) / 2,
+          midY: (t1.clientY + t2.clientY) / 2,
+        };
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (mobileZoomTableIdRef.current) return;
+      if (e.touches.length === 2 && pinchRef.current) {
+        e.preventDefault();
+        const t1 = e.touches[0], t2 = e.touches[1];
+        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const ratio = dist / pinchRef.current.initialDist;
+        const newScale = Math.min(4, Math.max(0.5, pinchRef.current.initialScale * ratio));
+        const midX = (t1.clientX + t2.clientX) / 2;
+        const midY = (t1.clientY + t2.clientY) / 2;
+        const rect = el!.getBoundingClientRect();
+        const ox = midX - rect.left;
+        const oy = midY - rect.top;
+        const prev = manualZoomRef.current;
+        setManualZoom({
+          scale: newScale,
+          x: ox - (ox - prev.x) * (newScale / prev.scale),
+          y: oy - (oy - prev.y) * (newScale / prev.scale),
+        });
+      }
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      if (e.touches.length < 2) pinchRef.current = null;
+      if (mobileZoomTableIdRef.current) return;
+      if (e.changedTouches.length === 1 && e.touches.length === 0) {
+        const touch = e.changedTouches[0];
+        const now = Date.now();
+        const last = lastTapRef.current;
+        if (last && now - last.time < DOUBLE_TAP_DELAY && Math.hypot(touch.clientX - last.x, touch.clientY - last.y) < DOUBLE_TAP_DISTANCE) {
+          setManualZoom({ scale: 1, x: 0, y: 0 });
+          lastTapRef.current = null;
+          return;
+        }
+        lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+      }
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isMobile]);
+
+  // Reset manual zoom when entering/exiting mobile zoom mode
+  useEffect(() => {
+    if (mobileZoomTableId) setManualZoom({ scale: 1, x: 0, y: 0 });
+  }, [mobileZoomTableId]);
+
   // ── Hover handlers (desktop) ──────────────────────────────────────────────
 
   function handleTableMouseEnter(table: FloorTable, orders: Order[], e: React.MouseEvent) {
-    if (dragState || window.innerWidth < 768) return;
+    if (dragState || isMobile) return;
     peekTimer.current = setTimeout(() => {
       setPeekTable({ table, orders, screenX: e.clientX, screenY: e.clientY });
     }, HOVER_DELAY_MS);
@@ -981,6 +1172,15 @@ function StaffFloorCanvas({
   const ZONE_COLORS_MAP = dark ? ZONE_COLORS_DARK : ZONE_COLORS_LIGHT;
   const floorBg = getFloorBackground(plan.floorStyle);
 
+  const zoomWrapperStyle: React.CSSProperties = activeZoom ? {
+    transform: `translate(${activeZoom.x}px, ${activeZoom.y}px) scale(${activeZoom.scale})`,
+    transformOrigin: '0 0',
+    transition: mobileZoomTableId ? 'transform 0.3s ease' : 'none',
+  } : {
+    transformOrigin: '0 0',
+    transition: isMobile ? 'transform 0.3s ease' : 'none',
+  };
+
   return (
     <div
       ref={containerRef}
@@ -989,12 +1189,15 @@ function StaffFloorCanvas({
         height: '100%',
         flex: 1,
         position: 'relative',
+        touchAction: isMobile ? 'none' : undefined,
         ...floorBg,
       }}
       onPointerMove={handleCanvasPointerMove}
       onPointerUp={handleCanvasPointerUp}
       onPointerLeave={() => { if (dragState) onDragCancel(); }}
     >
+    {/* Mobile zoom wrapper */}
+    <div style={isMobile ? zoomWrapperStyle : undefined}>
       <div
         ref={canvasRef}
         style={{
@@ -1072,6 +1275,7 @@ function StaffFloorCanvas({
         const isSeatValid = seatParty?.validIds.has(table.id) ?? false;
         const isSeatRecommended = seatParty?.recommendedId === table.id;
         const isSeatDimmed = seatParty && !isSeatValid;
+        const isMobileZoomDimmed = !!mobileZoomTableId && table.id !== mobileZoomTableId;
 
         return (
           <StaffTableElement
@@ -1088,6 +1292,7 @@ function StaffFloorCanvas({
             isSeatValid={isSeatValid}
             isSeatRecommended={isSeatRecommended}
             isSeatDimmed={!!isSeatDimmed}
+            isMobileZoomDimmed={isMobileZoomDimmed}
             sizeBoost={tableBoost}
             onOccupiedClick={() => {
               if (info.hasWaiterCall) onDismissWaiterCall(table.table_number);
@@ -1111,6 +1316,7 @@ function StaffFloorCanvas({
             onMouseLeave={handleTableMouseLeave}
             onMouseMove={handleTableMouseMove}
             dark={dark}
+            isMobile={!!isMobile}
           />
         );
       })}
@@ -1141,9 +1347,23 @@ function StaffFloorCanvas({
         </div>
       )}
       </div>
+      </div>{/* close zoom wrapper */}
+
+      {/* Mobile zoom overlay — tap to dismiss */}
+      {isMobile && mobileZoomTableId && (
+        <div
+          onClick={onMobileZoomDismiss}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 0,
+            background: 'transparent',
+          }}
+        />
+      )}
 
       {/* Feature 4: Quick peek card (fixed positioning, outside canvas) */}
-      {peekTable && <QuickPeekCard peek={peekTable} />}
+      {!isMobile && peekTable && <QuickPeekCard peek={peekTable} />}
     </div>
   );
 }
@@ -1165,6 +1385,7 @@ function StaffTableElement({
   isSeatValid,
   isSeatRecommended,
   isSeatDimmed,
+  isMobileZoomDimmed,
   sizeBoost,
   onOccupiedClick,
   onAvailableClick,
@@ -1175,6 +1396,7 @@ function StaffTableElement({
   onMouseLeave,
   onMouseMove,
   dark,
+  isMobile,
 }: {
   table: FloorTable;
   status: TableLiveStatus;
@@ -1188,6 +1410,7 @@ function StaffTableElement({
   isSeatValid: boolean;
   isSeatRecommended: boolean;
   isSeatDimmed: boolean;
+  isMobileZoomDimmed?: boolean;
   sizeBoost: number;
   onOccupiedClick: () => void;
   onAvailableClick: () => void;
@@ -1198,10 +1421,13 @@ function StaffTableElement({
   onMouseLeave: () => void;
   onMouseMove: (e: React.MouseEvent) => void;
   dark?: boolean;
+  isMobile?: boolean;
 }) {
   const { w: baseW, h: baseH } = tableSize(table.capacity);
-  const w = Math.round(baseW * sizeBoost);
-  const h = Math.round(baseH * sizeBoost);
+  const rawW = Math.round(baseW * sizeBoost);
+  const rawH = Math.round(baseH * sizeBoost);
+  const w = isMobile ? Math.max(MOBILE_TABLE_MIN_SIZE, rawW) : rawW;
+  const h = isMobile ? Math.max(MOBILE_TABLE_MIN_SIZE, rawH) : rawH;
   const isRound = table.shape === 'round';
   const colors = (dark ? STATUS_COLORS_DARK : STATUS_COLORS_LIGHT)[status];
   const customerNames = [...new Set(
@@ -1216,7 +1442,7 @@ function StaffTableElement({
   const isSmall = table.capacity <= 2;
 
   const progressColor = progress >= 1 ? '#22c55e' : '#f59e0b';
-  const dimmed = isSearchDimmed || isSeatDimmed;
+  const dimmed = isSearchDimmed || isSeatDimmed || isMobileZoomDimmed;
 
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const draggedRef = useRef(false);
@@ -1252,11 +1478,11 @@ function StaffTableElement({
       {hasWaiterCall && (
         <Bell
           className="absolute"
-          style={{ top: 3, right: isRound ? 8 : 4, width: 12, height: 12, color: '#ef4444' }}
+          style={{ top: 3, right: isRound ? 8 : 4, width: isMobile ? 14 : 12, height: isMobile ? 14 : 12, color: '#ef4444' }}
         />
       )}
 
-      <span style={{ fontWeight: 700, fontSize: 13, color: colors.text, lineHeight: 1 }}>
+      <span style={{ fontWeight: isMobile ? 800 : 700, fontSize: isMobile ? 14 : 13, color: colors.text, lineHeight: 1 }}>
         {tableLabelText(table)}
       </span>
 
@@ -1266,13 +1492,14 @@ function StaffTableElement({
         </span>
       ) : null}
 
-      {isOccupied && !isSmall && minutes > 0 && (
+      {/* On mobile: hide timer and price inside table — shown in bottom sheet on tap */}
+      {!isMobile && isOccupied && !isSmall && minutes > 0 && (
         <span style={{ fontSize: 10, fontWeight: 500, color: timerColor(minutes), marginTop: 1, lineHeight: 1 }}>
           {formatTimer(minutes)}
         </span>
       )}
 
-      {isOccupied && total > 0 && (
+      {!isMobile && isOccupied && total > 0 && (
         <span style={{ fontSize: 10, fontWeight: 600, color: colors.text, marginTop: 1, lineHeight: 1 }}>
           {formatPrice(total)}
         </span>
@@ -1290,8 +1517,8 @@ function StaffTableElement({
     zIndex: isDragSource ? 50 : 2,
     display: 'block',
     textDecoration: 'none',
-    opacity: dimmed ? 0.35 : 1,
-    transition: 'opacity 0.25s',
+    opacity: isMobileZoomDimmed ? 0.3 : dimmed ? 0.35 : 1,
+    transition: 'opacity 0.3s',
     overflow: 'visible',
     ...(canDrag && isOccupied ? { touchAction: 'none' as const, WebkitTouchCallout: 'none' as const } : {}),
   };
@@ -1321,10 +1548,12 @@ function StaffTableElement({
     </svg>
   ) : null;
 
+  const pulseAnim = isMobile ? 'waiterPulseRingMobile 1.5s ease-out infinite' : 'waiterPulseRing 1.5s ease-out infinite';
+  const pulseInset = isMobile ? -6 : -4;
   const waiterPulse = hasWaiterCall && !reducedMotion ? (
-    <div style={{ position: 'absolute', inset: -4, borderRadius: isRound ? '50%' : 14, border: '2px solid rgba(239,68,68,0.6)', animation: 'waiterPulseRing 1.5s ease-out infinite', pointerEvents: 'none', zIndex: 1 }} />
+    <div style={{ position: 'absolute', inset: pulseInset, borderRadius: isRound ? '50%' : 14, border: `2px solid rgba(239,68,68,0.6)`, animation: pulseAnim, pointerEvents: 'none', zIndex: 1 }} />
   ) : hasWaiterCall && reducedMotion ? (
-    <div style={{ position: 'absolute', inset: -4, borderRadius: isRound ? '50%' : 14, border: '2px solid rgba(239,68,68,0.6)', animation: 'waiterPulseRingReduced 2s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }} />
+    <div style={{ position: 'absolute', inset: pulseInset, borderRadius: isRound ? '50%' : 14, border: '2px solid rgba(239,68,68,0.6)', animation: 'waiterPulseRingReduced 2s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }} />
   ) : null;
 
   const dropTargetRing = isValidDropTarget && !reducedMotion ? (
@@ -1399,16 +1628,16 @@ function StaffTableElement({
           title={customerNames.join(', ')}
           style={{
             position: 'absolute',
-            top: h + 5,
+            top: h + (isMobile ? 3 : 5),
             left: w / 2,
             transform: 'translateX(-50%)',
-            fontSize: 14,
-            fontWeight: 700,
+            fontSize: isMobile ? 11 : 14,
+            fontWeight: isMobile ? 600 : 700,
             color: dark ? '#d6d3d1' : '#44403c',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            maxWidth: w + 40,
+            maxWidth: w + (isMobile ? 20 : 40),
             textAlign: 'center',
             pointerEvents: 'auto',
             lineHeight: 1.2,
@@ -2087,6 +2316,620 @@ function TableOrdersModal({
               Already settled — close table
             </button>
           </div>
+        </div>
+      </div>
+
+      <BillingSheet
+        orders={billingOrders}
+        restaurant={restaurant}
+        onConfirm={handleBillingConfirm}
+        onClose={() => setBillingOrders(null)}
+      />
+
+      <VoidItemDialog
+        open={voidDialogOpen}
+        onOpenChange={setVoidDialogOpen}
+        orderId={voidOrderId}
+        item={voidItem}
+        orderStatus={table.orders.find(o => o.id === voidOrderId)?.status}
+        onVoided={(info) => {
+          refreshOrders();
+          if (voidItem && voidOrderId) {
+            const order = table.orders.find(o => o.id === voidOrderId);
+            if (order) {
+              import('@/lib/kot-print').then(({ printModificationKOT }) => {
+                printModificationKOT(
+                  {
+                    type: 'item_cancelled',
+                    order_number: order.order_number,
+                    order_type: order.order_type,
+                    table: order.table,
+                    customer_name: order.customer_name,
+                    items: [{ name: voidItem.name, quantity: voidItem.quantity, notes: voidItem.notes, selected_addons: voidItem.selected_addons }],
+                    reason: info.reason,
+                    created_at: new Date().toISOString(),
+                    previous_status: order.status,
+                    cancelled_by: staff.name,
+                  },
+                  restaurant.name,
+                  restaurant.printer_config,
+                ).catch(() => {});
+              });
+            }
+          }
+        }}
+      />
+
+      <CancelOrderDialog
+        open={!!cancelDialogOrder}
+        onOpenChange={(open) => { if (!open) setCancelDialogOrder(null); }}
+        orderNumber={cancelDialogOrder?.order_number ?? 0}
+        orderStatus={cancelDialogOrder?.status ?? 'placed'}
+        onConfirmed={(reason) => {
+          if (cancelDialogOrder) handleCancelOrder(cancelDialogOrder, reason);
+          setCancelDialogOrder(null);
+        }}
+      />
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MOBILE BOTTOM SHEET
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function MobileBottomSheet({
+  table,
+  restaurant,
+  onClose,
+  onAddItems,
+  mergeHistory,
+  allTables,
+  dbTableIds,
+}: {
+  table: SelectedTable;
+  restaurant: import('@/types').Restaurant;
+  onClose: () => void;
+  onAddItems: (tableId: string, tableLabel: string, round: number) => void;
+  mergeHistory: Map<string, { tableId: string; tableNumber: number }>;
+  allTables: FloorTable[];
+  dbTableIds: Map<number, string>;
+}) {
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [billingOrders, setBillingOrders] = useState<Order[] | null>(null);
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [voidOrderId, setVoidOrderId] = useState('');
+  const [voidItem, setVoidItem] = useState<OrderItem | null>(null);
+  const [cancelDialogOrder, setCancelDialogOrder] = useState<Order | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const { refreshOrders } = useOrders();
+  const { staff } = useStaff();
+
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragStartY = useRef<number | null>(null);
+  const dragCurrentY = useRef<number>(0);
+  const [dragOffset, setDragOffset] = useState(0);
+
+  const totalAmount = table.orders.reduce((sum, o) => sum + o.total, 0);
+  const totalItems = table.orders.reduce(
+    (sum, o) => sum + (o.items ?? []).filter(i => i.status !== 'voided').reduce((s, i) => s + i.quantity, 0),
+    0,
+  );
+  const allReady = table.orders.every(o => o.status === 'ready');
+  const somePrepping = table.orders.some(o => o.status === 'placed' || o.status === 'preparing');
+  const preppingOrders = table.orders.filter(o => o.status === 'placed' || o.status === 'preparing');
+  const minutes = getOccupancyMinutes(table.orders);
+  const statusSummary = getStatusSummary(table.orders);
+
+  const sortedOrders = [...table.orders].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+  const mergedOrderIds = table.orders.filter(o => mergeHistory.has(o.id)).map(o => o.id);
+  const canUnmerge = mergedOrderIds.length > 0;
+
+  // ── Touch drag to dismiss / expand ──
+  function handleTouchStart(e: React.TouchEvent) {
+    dragStartY.current = e.touches[0].clientY;
+    dragCurrentY.current = 0;
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (dragStartY.current === null) return;
+    const dy = e.touches[0].clientY - dragStartY.current;
+    dragCurrentY.current = dy;
+    if (!expanded && dy < -30) {
+      setExpanded(true);
+      dragStartY.current = null;
+      setDragOffset(0);
+      return;
+    }
+    if (dy > 0) {
+      setDragOffset(dy);
+    }
+  }
+
+  function handleTouchEnd() {
+    if (dragCurrentY.current > 80) {
+      onClose();
+    } else if (dragCurrentY.current < -60 && !expanded) {
+      setExpanded(true);
+    }
+    dragStartY.current = null;
+    dragCurrentY.current = 0;
+    setDragOffset(0);
+  }
+
+  // ── Actions (same as TableOrdersModal) ──
+  async function handleMarkAllReady() {
+    setUpdating('all');
+    try {
+      await Promise.all(
+        preppingOrders.map(order =>
+          fetch(`/api/staff/orders/${order.id}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'ready' }),
+          }),
+        ),
+      );
+      toast.success(totalItems === 1 ? 'Order marked ready' : 'All items marked ready');
+      const isTableService = restaurant.service_mode === 'table_service';
+      preppingOrders.forEach(order => {
+        fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order.id,
+            title: isTableService ? 'Your food is on its way!' : 'Your order is ready!',
+            body: isTableService
+              ? `Order #${order.order_number} — your food is being brought to your table.`
+              : `Order #${order.order_number} — please collect from the counter`,
+            url: `/${restaurant.slug}/order/${order.id}`,
+          }),
+        }).catch(() => {});
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function handleBillingConfirm(orderIds: string[], data: BillingConfirmData) {
+    setBillingOrders(null);
+    setUpdating(orderIds[0]);
+    try {
+      const res = await fetch('/api/staff/orders/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_ids: orderIds,
+          payment_method: data.payment_method,
+          payment_methods: data.payment_methods,
+          discount_amount: data.discount_amount,
+          discount_type: data.discount_type,
+          discount_before_tax: data.discount_before_tax,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to record payment');
+      }
+      toast.success(`Payment recorded — ${data.payment_method.toUpperCase()}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to record payment');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function handleCloseTable() {
+    const orderIds = table.orders.map(o => o.id);
+    setUpdating(orderIds[0]);
+    try {
+      const res = await fetch('/api/staff/orders/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ids: orderIds, payment_method: 'cash' }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to close table');
+      }
+      toast.success(`Table ${table.label} closed`);
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to close table');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function handleUnmerge() {
+    const supabase = createClient();
+    setUpdating('unmerge');
+    try {
+      const groups = new Map<string, string[]>();
+      for (const oid of mergedOrderIds) {
+        const orig = mergeHistory.get(oid);
+        if (!orig) continue;
+        const list = groups.get(orig.tableId) ?? [];
+        list.push(oid);
+        groups.set(orig.tableId, list);
+      }
+      for (const [origTableId, orderIds] of groups) {
+        const { error } = await supabase
+          .from('orders')
+          .update({ table_id: origTableId })
+          .in('id', orderIds);
+        if (error) throw error;
+        for (const oid of orderIds) mergeHistory.delete(oid);
+      }
+      toast.success('Tables unmerged');
+    } catch {
+      toast.error('Failed to unmerge');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function handleCancelOrder(order: Order, reason: string) {
+    const previousStatus = order.status;
+    setUpdating(order.id);
+    try {
+      const res = await fetch(`/api/staff/orders/${order.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled', reason, confirmed: true }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to cancel order');
+      }
+      toast.success(`Order #${order.order_number} cancelled`);
+      const activeItems = (order.items ?? []).filter(i => i.status !== 'voided');
+      if (activeItems.length > 0) {
+        import('@/lib/kot-print').then(({ printModificationKOT }) => {
+          printModificationKOT(
+            {
+              type: 'order_cancelled',
+              order_number: order.order_number,
+              order_type: order.order_type,
+              table: order.table,
+              customer_name: order.customer_name,
+              items: activeItems.map(i => ({ name: i.name, quantity: i.quantity, notes: i.notes, selected_addons: i.selected_addons })),
+              reason,
+              created_at: new Date().toISOString(),
+              previous_status: previousStatus,
+              cancelled_by: staff.name,
+            },
+            restaurant.name,
+            restaurant.printer_config,
+          ).catch(() => {});
+        });
+      }
+      refreshOrders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  function openVoidDialog(orderId: string, item: OrderItem) {
+    setVoidOrderId(orderId);
+    setVoidItem(item);
+    setVoidDialogOpen(true);
+  }
+
+  const sheetHeight = expanded ? '92vh' : '55vh';
+
+  return (
+    <>
+      {/* Bottom sheet */}
+      <div
+        ref={sheetRef}
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: sheetHeight,
+          maxHeight: '92vh',
+          zIndex: 50,
+          background: 'white',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'bottomSheetUp 0.3s ease-out',
+          transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined,
+          transition: dragOffset > 0 ? 'none' : 'height 0.3s ease, transform 0.3s ease',
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px' }}>
+          <div style={{
+            width: 36,
+            height: 4,
+            borderRadius: 2,
+            background: '#d1d5db',
+          }} />
+        </div>
+
+        {/* Header */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 16px 12px',
+          borderBottom: '1px solid #f3f4f6',
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 18 }}>Table {table.label}</span>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: 12,
+                background: allReady ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.15)',
+                color: allReady ? '#15803d' : '#b45309',
+              }}>
+                {statusSummary}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 13, color: '#6b7280' }}>
+              <span>{totalItems} item{totalItems !== 1 ? 's' : ''}</span>
+              <span>·</span>
+              <span style={{ fontWeight: 600, color: '#111827' }}>{formatPrice(totalAmount)}</span>
+              {minutes > 0 && (
+                <>
+                  <span>·</span>
+                  <span style={{ color: timerColor(minutes), display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <Clock style={{ width: 13, height: 13 }} />
+                    {formatTimer(minutes)}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              padding: 8,
+              borderRadius: 8,
+              border: 'none',
+              background: '#f3f4f6',
+              cursor: 'pointer',
+            }}
+          >
+            <X style={{ width: 18, height: 18 }} />
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', WebkitOverflowScrolling: 'touch' }}>
+          {sortedOrders.map((order, idx) => {
+            const activeItems = (order.items ?? []).filter(i => i.status !== 'voided');
+            if (activeItems.length === 0) return null;
+            const isReady = order.status === 'ready';
+            const roundNum = idx + 1;
+            const fromMerge = mergeHistory.has(order.id);
+
+            return (
+              <div key={order.id} style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Round {roundNum}
+                  </span>
+                  {order.customer_name && (
+                    <span style={{ fontSize: 11, color: '#9ca3af' }}>· {order.customer_name}</span>
+                  )}
+                  {fromMerge && (
+                    <span style={{ fontSize: 10, color: '#8b5cf6', fontWeight: 500 }}>merged</span>
+                  )}
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    borderRadius: 10,
+                    marginLeft: 'auto',
+                    background: isReady ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)',
+                    color: isReady ? '#15803d' : '#b45309',
+                  }}>
+                    {isReady ? 'READY' : 'PREP'}
+                  </span>
+                </div>
+                {activeItems.map((item) => {
+                  const addonTotal = (item.selected_addons ?? []).reduce((s, a) => s + (a.price ?? 0), 0);
+                  return (
+                    <div key={item.id} style={{ marginBottom: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 8 }}>
+                        <span style={{ fontSize: 14 }}>
+                          <span style={{ fontWeight: 600 }}>{item.quantity}×</span> {item.name}
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <span style={{ fontSize: 12, color: '#6b7280' }}>
+                            {formatPrice((item.price + addonTotal) * item.quantity)}
+                          </span>
+                          <button
+                            onClick={() => openVoidDialog(order.id, item)}
+                            style={{ padding: 2, color: '#f87171', border: 'none', background: 'none', cursor: 'pointer' }}
+                          >
+                            <XCircle style={{ width: 14, height: 14 }} />
+                          </button>
+                        </span>
+                      </div>
+                      {(item.selected_addons ?? []).map((addon, ai) => (
+                        <div key={ai} style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 20, gap: 8 }}>
+                          <span style={{ fontSize: 12, color: '#9ca3af' }}>+ {addon.name}</span>
+                          {addon.price > 0 && (
+                            <span style={{ fontSize: 12, color: '#9ca3af', flexShrink: 0 }}>+{formatPrice(addon.price)}</span>
+                          )}
+                        </div>
+                      ))}
+                      {item.notes && (
+                        <p style={{ fontSize: 12, color: '#dc2626', fontWeight: 500, fontStyle: 'italic', paddingLeft: 20, marginTop: 2 }}>
+                          &ldquo;{item.notes}&rdquo;
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  onClick={() => setCancelDialogOrder(order)}
+                  disabled={!!updating}
+                  style={{
+                    marginTop: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 12,
+                    color: '#ef4444',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    opacity: updating ? 0.5 : 1,
+                  }}
+                >
+                  <XCircle style={{ width: 14, height: 14 }} />
+                  Cancel #{order.order_number}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Action buttons — full-width for thumb tapping */}
+        <div style={{
+          padding: '12px 16px',
+          paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+          borderTop: '1px solid #f3f4f6',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}>
+          {somePrepping && (
+            <button
+              onClick={handleMarkAllReady}
+              disabled={!!updating}
+              style={{
+                width: '100%',
+                padding: '14px 0',
+                borderRadius: 14,
+                border: 'none',
+                fontWeight: 700,
+                fontSize: 15,
+                color: 'white',
+                background: '#22c55e',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                opacity: updating ? 0.5 : 1,
+              }}
+            >
+              {updating === 'all' ? (
+                <Loader2 style={{ width: 20, height: 20, animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <CheckCheck style={{ width: 20, height: 20 }} />
+              )}
+              {totalItems === 1 ? 'Mark Ready' : 'Mark All Ready'}
+            </button>
+          )}
+          <button
+            onClick={() => setBillingOrders(table.orders)}
+            disabled={!!updating || !allReady}
+            style={{
+              width: '100%',
+              padding: '14px 0',
+              borderRadius: 14,
+              border: allReady ? 'none' : '1px solid #ddd6fe',
+              fontWeight: 700,
+              fontSize: 15,
+              color: allReady ? 'white' : '#a78bfa',
+              background: allReady ? '#7c3aed' : '#f5f3ff',
+              cursor: allReady ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              opacity: updating ? 0.5 : 1,
+            }}
+          >
+            <IndianRupee style={{ width: 20, height: 20 }} />
+            Collect {formatPrice(totalAmount)}
+          </button>
+          <button
+            onClick={() => { onClose(); onAddItems(table.dbId, table.label, table.orders.length + 1); }}
+            style={{
+              width: '100%',
+              padding: '14px 0',
+              borderRadius: 14,
+              border: 'none',
+              fontWeight: 700,
+              fontSize: 15,
+              color: 'white',
+              background: '#2563eb',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <PlusCircle style={{ width: 20, height: 20 }} />
+            Add items · Round {table.orders.length + 1}
+          </button>
+
+          {canUnmerge && (
+            <button
+              onClick={handleUnmerge}
+              disabled={!!updating}
+              style={{
+                width: '100%',
+                padding: '10px 0',
+                borderRadius: 14,
+                border: '1px solid #ddd6fe',
+                fontWeight: 500,
+                fontSize: 13,
+                color: '#7c3aed',
+                background: 'transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+                opacity: updating ? 0.5 : 1,
+              }}
+            >
+              {updating === 'unmerge' && <Loader2 style={{ width: 14, height: 14, animation: 'spin 1s linear infinite' }} />}
+              Unmerge tables
+            </button>
+          )}
+
+          <button
+            onClick={handleCloseTable}
+            disabled={!!updating}
+            style={{
+              width: '100%',
+              padding: '8px 0',
+              border: 'none',
+              background: 'transparent',
+              fontSize: 13,
+              color: '#9ca3af',
+              cursor: 'pointer',
+              opacity: updating ? 0.5 : 1,
+            }}
+          >
+            Already settled — close table
+          </button>
         </div>
       </div>
 
