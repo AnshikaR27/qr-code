@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { formatDistanceToNow, format } from 'date-fns';
 import {
   ChefHat, CheckCheck, Clock, Flame, Volume2, VolumeX, Search, UtensilsCrossed,
+  AlertTriangle, Usb,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -11,7 +12,7 @@ import { useStaff } from '@/contexts/StaffContext';
 import { hasPermission } from '@/lib/staff-permissions';
 import { cn, formatPrice } from '@/lib/utils';
 import ItemAvailabilityModal from '@/components/dashboard/ItemAvailabilityModal';
-import type { Order, Category, Product } from '@/types';
+import type { Order, Category, Product, PrinterDevice } from '@/types';
 
 export default function KitchenStaffPage() {
   const { staff, restaurant } = useStaff();
@@ -352,6 +353,8 @@ function DefaultKitchenView() {
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [show86List, setShow86List] = useState(false);
   const [unavailableCount, setUnavailableCount] = useState(0);
+  const [disconnectedUSB, setDisconnectedUSB] = useState<PrinterDevice[]>([]);
+  const [connectingUSB, setConnectingUSB] = useState<string | null>(null);
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
   const initialLoadDone = useRef(false);
   const can86 = hasPermission(staff.role, 'menu:mark_out_of_stock');
@@ -404,6 +407,39 @@ function DefaultKitchenView() {
     const { unlockAudio } = await import('@/lib/sounds');
     await unlockAudio();
     setSoundEnabled(true);
+  }
+
+  useEffect(() => {
+    const config = restaurant.printer_config;
+    if (!config) return;
+    const connectablePrinters = config.printers.filter((p) => p.type === 'usb' || p.type === 'serial');
+    if (connectablePrinters.length === 0) return;
+
+    import('@/lib/printer-service').then(async ({ printerService }) => {
+      const results = await printerService.reconnectAll(config);
+      const failed = connectablePrinters.filter((p) => results.get(p.id) !== true);
+      setDisconnectedUSB(failed);
+    });
+  }, []);
+
+  async function connectUSBPrinter(printer: PrinterDevice) {
+    setConnectingUSB(printer.id);
+    try {
+      const { printerService } = await import('@/lib/printer-service');
+      const result = printer.type === 'serial'
+        ? await printerService.connectSerial(printer.id)
+        : await printerService.connectUSB(printer.id);
+      if (result.success) {
+        setDisconnectedUSB((prev) => prev.filter((p) => p.id !== printer.id));
+        toast.success(`${printer.name} connected`);
+      } else if (result.error && result.error !== 'No device selected') {
+        toast.error(result.error);
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Connection failed');
+    } finally {
+      setConnectingUSB(null);
+    }
   }
 
   useEffect(() => {
@@ -534,6 +570,24 @@ function DefaultKitchenView() {
           </button>
         </div>
       </div>
+
+      {/* Printer connection banners */}
+      {disconnectedUSB.map((printer) => (
+        <div key={printer.id} className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span><span className="font-semibold">{printer.name}</span> not connected — KOT prints will fail</span>
+          </div>
+          <button
+            onClick={() => connectUSBPrinter(printer)}
+            disabled={connectingUSB === printer.id}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60"
+          >
+            <Usb className="w-3.5 h-3.5" />
+            {connectingUSB === printer.id ? 'Connecting…' : 'Connect USB'}
+          </button>
+        </div>
+      ))}
 
       {/* Orders */}
       {displayOrders.length === 0 ? (
