@@ -49,7 +49,7 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
   const isCounter = staff.role === 'counter';
 
   const navItems = [
-    { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag, show: !isCounter },
+    { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag, show: !isCounter && staff.role !== 'kitchen' },
     { href: '/staff-dashboard/kitchen', label: 'Kitchen', icon: ChefHat, show: canKitchen && !isCounter },
     { href: '/staff-dashboard/counter', label: 'Counter', icon: IndianRupee, show: canPayment },
     { href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid, show: canTables },
