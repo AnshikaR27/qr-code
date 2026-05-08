@@ -53,7 +53,7 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
     { href: '/staff-dashboard/kitchen', label: 'Kitchen', icon: ChefHat, show: canKitchen && !isCounter },
     { href: '/staff-dashboard/counter', label: 'Counter', icon: IndianRupee, show: canPayment },
     { href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid, show: canTables },
-    { href: '/staff-dashboard/items', label: 'Items', icon: canEditMenu ? Pencil : UtensilsCrossed, show: canEditMenu || staff.role === 'kitchen' },
+    { href: '/staff-dashboard/items', label: 'Items', icon: canEditMenu ? Pencil : UtensilsCrossed, show: canEditMenu },
     { href: '/staff-dashboard/settings', label: 'Settings', icon: Settings, show: canPrinterSettings },
   ].filter(item => item.show);
 

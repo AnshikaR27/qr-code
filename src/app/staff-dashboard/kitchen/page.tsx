@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { formatDistanceToNow, format } from 'date-fns';
 import {
-  ChefHat, CheckCheck, Clock, Flame, Volume2, VolumeX, Search,
+  ChefHat, CheckCheck, Clock, Flame, Volume2, VolumeX, Search, UtensilsCrossed,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useStaff } from '@/contexts/StaffContext';
 import { hasPermission } from '@/lib/staff-permissions';
 import { cn, formatPrice } from '@/lib/utils';
+import ItemAvailabilityModal from '@/components/dashboard/ItemAvailabilityModal';
 import type { Order, Category, Product } from '@/types';
 
 export default function KitchenStaffPage() {
@@ -349,8 +350,11 @@ function DefaultKitchenView() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [updating, setUpdating] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
+  const [show86List, setShow86List] = useState(false);
+  const [unavailableCount, setUnavailableCount] = useState(0);
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
   const initialLoadDone = useRef(false);
+  const can86 = hasPermission(staff.role, 'menu:mark_out_of_stock');
 
   const fetchOrders = useCallback(async () => {
     const supabase = createClient();
@@ -401,6 +405,29 @@ function DefaultKitchenView() {
     await unlockAudio();
     setSoundEnabled(true);
   }
+
+  useEffect(() => {
+    if (!can86) return;
+    const supabase = createClient();
+    const fetchCount = async () => {
+      const { count } = await supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('restaurant_id', restaurant.id)
+        .eq('is_available', false);
+      setUnavailableCount(count ?? 0);
+    };
+    fetchCount();
+    const channel = supabase
+      .channel('kitchen-product-avail')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'products', filter: `restaurant_id=eq.${restaurant.id}` },
+        () => fetchCount(),
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [can86, restaurant.id]);
 
   async function markReady(order: Order) {
     setUpdating(order.id);
@@ -479,6 +506,20 @@ function DefaultKitchenView() {
               <span className="text-sm font-semibold text-green-700">{readyOrders.length} awaiting pickup</span>
             </div>
           )}
+          {can86 && (
+            <button
+              onClick={() => setShow86List(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors"
+            >
+              <UtensilsCrossed className="w-4 h-4 text-gray-600" />
+              <span className="text-sm font-semibold text-gray-700">86 List</span>
+              {unavailableCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded-full leading-none">
+                  {unavailableCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             onClick={() => soundEnabled ? setSoundEnabled(false) : enableSound()}
             className={cn(
@@ -512,6 +553,14 @@ function DefaultKitchenView() {
             />
           ))}
         </div>
+      )}
+
+      {can86 && (
+        <ItemAvailabilityModal
+          open={show86List}
+          onOpenChange={setShow86List}
+          restaurantId={restaurant.id}
+        />
       )}
     </div>
   );
