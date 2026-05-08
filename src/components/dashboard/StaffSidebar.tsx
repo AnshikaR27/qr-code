@@ -47,13 +47,14 @@ export default function StaffSidebar({ staff, restaurant }: StaffSidebarProps) {
   const canPrinterSettings = hasPermission(staff.role, 'settings:edit_printer');
 
   const isCounter = staff.role === 'counter';
+  const isManager = staff.role === 'manager';
 
   const navItems = [
-    { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag, show: !isCounter && staff.role !== 'kitchen' },
-    { href: '/staff-dashboard/kitchen', label: 'Kitchen', icon: ChefHat, show: canKitchen && !isCounter },
+    { href: '/staff-dashboard/orders', label: 'Orders', icon: ShoppingBag, show: !isCounter && !isManager && staff.role !== 'kitchen' },
+    { href: '/staff-dashboard/kitchen', label: 'Kitchen', icon: ChefHat, show: canKitchen && !isCounter && !isManager },
     { href: '/staff-dashboard/counter', label: 'Counter', icon: IndianRupee, show: canPayment },
     { href: '/staff-dashboard/tables', label: 'Tables', icon: LayoutGrid, show: canTables },
-    { href: '/staff-dashboard/items', label: 'Items', icon: canEditMenu ? Pencil : UtensilsCrossed, show: canEditMenu },
+    { href: '/staff-dashboard/items', label: 'Items', icon: canEditMenu ? Pencil : UtensilsCrossed, show: canEditMenu && !isManager },
     { href: '/staff-dashboard/settings', label: 'Settings', icon: Settings, show: canPrinterSettings },
   ].filter(item => item.show);
 

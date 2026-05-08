@@ -6,11 +6,11 @@ export default async function StaffDashboardHome() {
   if (!session) redirect('/staff/login');
 
   switch (session.role) {
+    case 'manager':
     case 'counter':
       redirect('/staff-dashboard/counter');
     case 'kitchen':
       redirect('/staff-dashboard/kitchen');
-    case 'manager':
     case 'floor':
     default:
       redirect('/staff-dashboard/orders');
