@@ -471,6 +471,22 @@ export default function CustomerMenuV2({ restaurant, categories, products, addon
 
               {/* Scrolling content */}
               <div style={{ paddingBottom: `calc(${sizeScale.cartBarH} + env(safe-area-inset-bottom, 0px) + 24px)` }}>
+                {/* Service mode indicator */}
+                <p
+                  className="m-0 text-center"
+                  style={{
+                    fontSize: typeScale.xs,
+                    color: 'var(--sunday-text-muted, #7A6040)',
+                    fontFamily: 'var(--sunday-font-body)',
+                    paddingTop: 6,
+                    opacity: 0.75,
+                  }}
+                >
+                  {(restaurant.service_mode ?? 'self_service') === 'table_service'
+                    ? <>{'🍽️'} We&apos;ll serve at your table</>
+                    : <>{'📍'} Collect from counter</>}
+                </p>
+
                 {/* Repeat order banner */}
                 {showRepeat && repeatOrder && (
                   <div

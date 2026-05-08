@@ -484,17 +484,24 @@ export default function OrderStatusPage() {
           )}
         </div>
 
-        {/* ── Notification banner — Android only ── */}
+        {/* ── Notification banner — Android only, subtle for table service ── */}
         {!ios && !isCancelled && !isCompleted && !isReady && notifPerm === 'default' && (
-          <button onClick={enableNotifications} style={bannerBase}>
-            <span className="text-xl shrink-0">🔔</span>
+          <button onClick={enableNotifications} style={{
+            ...bannerBase,
+            ...(isTableService ? { opacity: 0.7, padding: '8px 12px' } : {}),
+          }}>
+            <span className={isTableService ? 'text-base shrink-0' : 'text-xl shrink-0'}>🔔</span>
             <div className="flex-1 min-w-0">
               <p className="font-semibold m-0" style={{ fontSize: typeScale.sm, color: 'var(--sunday-text, #1D1208)', fontFamily: 'var(--sunday-font-body)' }}>
-                wanna know the second your food&apos;s ready?
+                {isTableService
+                  ? 'want updates on your order?'
+                  : <>wanna know the second your food&apos;s ready?</>}
               </p>
-              <p className="mt-0.5 m-0" style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
-                tap to get a ping — even if your phone&apos;s locked
-              </p>
+              {!isTableService && (
+                <p className="mt-0.5 m-0" style={{ fontSize: typeScale.xs, color: 'var(--sunday-text-muted, #7A6040)', fontFamily: 'var(--sunday-font-body)' }}>
+                  tap to get a ping — even if your phone&apos;s locked
+                </p>
+              )}
             </div>
           </button>
         )}
@@ -509,7 +516,9 @@ export default function OrderStatusPage() {
           >
             <span className="text-xl shrink-0">✅</span>
             <p className="font-semibold m-0" style={{ fontSize: typeScale.sm, color: 'var(--sunday-text, #1D1208)', fontFamily: 'var(--sunday-font-body)' }}>
-              you&apos;re all set — we&apos;ll let you know when it&apos;s ready!
+              {isTableService
+                ? <>we&apos;ll let you know when your food is served!</>
+                : <>you&apos;re all set — we&apos;ll let you know when it&apos;s ready!</>}
             </p>
           </div>
         )}
