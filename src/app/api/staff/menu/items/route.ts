@@ -122,6 +122,7 @@ export async function PATCH(req: NextRequest) {
     'name', 'name_hindi', 'description', 'image_url', 'category_id',
     'is_veg', 'is_jain', 'spice_level', 'allergens', 'dietary_tags',
     'is_available', 'sort_order',
+    ...(session.role === 'manager' ? ['price'] : []),
   ];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {

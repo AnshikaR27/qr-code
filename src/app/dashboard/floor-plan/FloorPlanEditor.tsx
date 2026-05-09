@@ -316,11 +316,12 @@ interface LabelEditForm {
 
 interface Props {
   restaurant: Restaurant;
+  useStaffApi?: boolean;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function FloorPlanEditor({ restaurant }: Props) {
+export default function FloorPlanEditor({ restaurant, useStaffApi }: Props) {
   // ── Editor state ───────────────────────────────────────────────────────────
   const [plan, setPlan] = useState<FloorPlan>(() => {
     const raw = restaurant.floor_plan;
@@ -584,6 +585,14 @@ export default function FloorPlanEditor({ restaurant }: Props) {
   // ── Populate DB table-ID map on mount ─────────────────────────────────────
   useEffect(() => {
     (async () => {
+      if (useStaffApi) {
+        const res = await fetch('/api/staff/manage/floor-plan');
+        if (res.ok) {
+          const data = await res.json();
+          (data.tables ?? []).forEach((r: { id: string; table_number: number }) => dbTableIds.current.set(r.table_number, r.id));
+        }
+        return;
+      }
       const supabase = createClient();
       const { data } = await supabase
         .from('tables')
@@ -596,6 +605,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
 
   // ── Realtime subscription + fallback poll ──────────────────────────────────
   useEffect(() => {
+    if (useStaffApi) return;
     fetchLiveData();
     const supabase = createClient();
 
@@ -662,6 +672,27 @@ export default function FloorPlanEditor({ restaurant }: Props) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSaveStatus('saving');
+
+      if (useStaffApi) {
+        const tables = next.tables.map(t => ({
+          id: dbTableIds.current.get(t.table_number) ?? t.id,
+          table_number: t.table_number,
+          display_name: t.display_name ?? null,
+        }));
+        const res = await fetch('/api/staff/manage/floor-plan', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ floor_plan: next, tables }),
+        });
+        if (!res.ok) {
+          toast.error('Save failed');
+          setSaveStatus('unsaved');
+          return;
+        }
+        setSaveStatus('saved');
+        return;
+      }
+
       const supabase = createClient();
 
       // 1. Save the visual layout JSONB
@@ -1464,10 +1495,11 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         <div className="overflow-auto rounded-xl border shadow-sm">
           <ViewCanvas
             plan={plan}
-            tableStatusMap={tableStatusMap}
-            onTableClick={t => setSheetTableId(t.id)}
+            tableStatusMap={useStaffApi ? undefined : tableStatusMap}
+            onTableClick={useStaffApi ? undefined : (t => setSheetTableId(t.id))}
           />
         </div>
+        {!useStaffApi && (
         <TableDetailSheet
           table={sheetTable}
           mergeGroup={sheetMergeGroup}
@@ -1486,13 +1518,14 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           onUnmergeGroup={unmergeGroup}
           serviceMode={restaurant.service_mode ?? 'self_service'}
         />
+        )}
       </div>
     );
   }
 
   // ── Desktop editor ────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className={cn('flex flex-col overflow-hidden', useStaffApi ? 'h-[80vh] rounded-xl border' : 'h-screen')}>
 
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2 px-5 py-2.5 border-b bg-white flex-shrink-0">
@@ -1531,13 +1564,15 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         )}
 
         <div className="ml-auto flex items-center gap-4">
-          <div className="flex items-center gap-1.5 text-xs">
-            {realtimeConnected ? (
-              <><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /><span className="font-medium text-green-700">Live</span></>
-            ) : (
-              <><WifiOff className="w-3.5 h-3.5 text-amber-500" /><span className="text-amber-600">Reconnecting…</span></>
-            )}
-          </div>
+          {!useStaffApi && (
+            <div className="flex items-center gap-1.5 text-xs">
+              {realtimeConnected ? (
+                <><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /><span className="font-medium text-green-700">Live</span></>
+              ) : (
+                <><WifiOff className="w-3.5 h-3.5 text-amber-500" /><span className="text-amber-600">Reconnecting…</span></>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             {saveStatus === 'saving'  && <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>}
             {saveStatus === 'saved'   && <><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Saved</>}
@@ -1547,6 +1582,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       </div>
 
       {/* ── Status summary bar ── */}
+      {!useStaffApi && (
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-2 border-b bg-gray-50 flex-shrink-0 text-xs">
         <span className="text-muted-foreground font-medium">
           {plan.tables.length} table{plan.tables.length !== 1 ? 's' : ''}:
@@ -1582,6 +1618,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
           )}
         </div>
       </div>
+      )}
 
       {/* ── Mode info bars ── */}
       {mode === 'addTable' && (
@@ -1933,7 +1970,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
                 onShapeChange={s => changeShape(editSelectedTable.id, s)}
                 onDisplayNameCommit={(name) => commitDisplayName(editSelectedTable.id, name)}
                 onDelete={() => { removeTable(editSelectedTable.id); setEditSelectedId(null); }}
-                onViewStatus={() => setSheetTableId(editSelectedTable.id)}
+                onViewStatus={useStaffApi ? undefined : () => setSheetTableId(editSelectedTable.id)}
                 onDuplicate={() => duplicateTable(editSelectedTable.id)}
               />
             )}
@@ -2094,6 +2131,7 @@ export default function FloorPlanEditor({ restaurant }: Props) {
       </Dialog>
 
       {/* ── Live status sheet ── */}
+      {!useStaffApi && (
       <TableDetailSheet
         table={sheetTable}
         mergeGroup={sheetMergeGroup}
@@ -2112,14 +2150,17 @@ export default function FloorPlanEditor({ restaurant }: Props) {
         onUnmergeGroup={unmergeGroup}
         serviceMode={restaurant.service_mode ?? 'self_service'}
       />
+      )}
 
       {/* ── Billing sheet ── */}
+      {!useStaffApi && (
       <BillingSheet
         orders={billingOrders ?? (paymentOrder ? [paymentOrder] : null)}
         restaurant={restaurant}
         onConfirm={handleBillingConfirm}
         onClose={() => { setPaymentOrder(null); setBillingOrders(null); }}
       />
+      )}
     </div>
   );
 }
@@ -2132,7 +2173,7 @@ interface FloatingToolbarProps {
   onShapeChange: (s: FloorShape) => void;
   onDisplayNameCommit: (name: string) => void;
   onDelete: () => void;
-  onViewStatus: () => void;
+  onViewStatus?: () => void;
   onDuplicate: () => void;
 }
 
@@ -2225,6 +2266,7 @@ function FloatingToolbar({
         <div className="w-px h-4 bg-gray-200 mx-0.5" />
 
         {/* View live status */}
+        {onViewStatus && (
         <button
           onClick={onViewStatus}
           className="p-1 rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
@@ -2232,6 +2274,7 @@ function FloatingToolbar({
         >
           <Eye className="w-3.5 h-3.5" />
         </button>
+        )}
 
         {/* Duplicate */}
         <button
@@ -2693,8 +2736,8 @@ function OrderCard({
 
 interface ViewCanvasProps {
   plan: FloorPlan;
-  tableStatusMap: Map<number, TableStatusInfo>;
-  onTableClick: (table: FloorTable) => void;
+  tableStatusMap?: Map<number, TableStatusInfo>;
+  onTableClick?: (table: FloorTable) => void;
 }
 
 function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
@@ -2748,8 +2791,8 @@ function ViewCanvas({ plan, tableStatusMap, onTableClick }: ViewCanvasProps) {
           key={t.id}
           table={t}
           viewOnly
-          statusInfo={tableStatusMap.get(t.table_number)}
-          onClick={() => onTableClick(t)}
+          statusInfo={tableStatusMap?.get(t.table_number)}
+          onClick={onTableClick ? () => onTableClick(t) : undefined}
         />
       ))}
     </div>

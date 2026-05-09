@@ -3,6 +3,7 @@ import { getStaffSession } from '@/lib/staff-auth';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { hasPermission } from '@/lib/staff-permissions';
 import PrinterSettings from '@/components/dashboard/PrinterSettings';
+import ManagerSettingsClient from './ManagerSettingsClient';
 import type { Category, Restaurant } from '@/types';
 
 export default async function StaffSettingsPage() {
@@ -28,6 +29,18 @@ export default async function StaffSettingsPage() {
   ]);
 
   if (!restaurant) redirect('/staff/login');
+
+  const isManager = session.role === 'manager';
+
+  if (isManager) {
+    return (
+      <ManagerSettingsClient
+        restaurant={restaurant as Restaurant}
+        categories={(categories ?? []) as Category[]}
+        staffId={session.staff_id}
+      />
+    );
+  }
 
   return (
     <div className="p-6 max-w-3xl mx-auto">

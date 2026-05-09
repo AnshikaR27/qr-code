@@ -18,6 +18,10 @@ export type Permission =
   | 'menu:edit_items'
   | 'menu:edit_categories'
   | 'settings:edit_printer'
+  | 'settings:edit_restaurant'
+  | 'settings:edit_floor_plan'
+  | 'staff:manage'
+  | 'activity:view_log'
   | 'reports:view';
 
 const FLOOR: Set<Permission> = new Set([
@@ -70,6 +74,10 @@ const MANAGER: Set<Permission> = new Set([
   'menu:edit_items',
   'menu:edit_categories',
   'settings:edit_printer',
+  'settings:edit_restaurant',
+  'settings:edit_floor_plan',
+  'staff:manage',
+  'activity:view_log',
 ]);
 
 const ROLE_PERMISSIONS: Record<StaffRole, Set<Permission>> = {

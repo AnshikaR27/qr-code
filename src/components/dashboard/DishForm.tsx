@@ -312,6 +312,7 @@ export default function DishForm({
 
       if (useStaffApi) {
         if (editProduct) {
+          if (!hidePriceEdit) payload.price = parseFloat(form.price);
           const res = await fetch('/api/staff/menu/items', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
