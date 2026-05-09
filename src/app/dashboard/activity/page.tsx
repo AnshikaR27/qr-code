@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { RefreshCw, Filter } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import ErrorState from '@/components/shared/ErrorState';
 import type { ActivityLogEntry } from '@/types';
 
 const ACTION_LABELS: Record<string, string> = {
@@ -31,6 +32,7 @@ const ACTOR_COLORS: Record<string, string> = {
 export default function ActivityPage() {
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [actorFilter, setActorFilter] = useState<string | null>(null);
@@ -38,6 +40,7 @@ export default function ActivityPage() {
 
   const fetchActivity = useCallback(async () => {
     setLoading(true);
+    setError(false);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (actorFilter) params.set('actor_type', actorFilter);
@@ -48,7 +51,7 @@ export default function ActivityPage() {
       setEntries(data.entries ?? []);
       setTotal(data.total ?? 0);
     } catch {
-      // silent
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -91,6 +94,8 @@ export default function ActivityPage() {
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
+      ) : error ? (
+        <ErrorState title="Couldn't load activity" onRetry={fetchActivity} />
       ) : entries.length === 0 ? (
         <div className="text-center py-12 border rounded-lg bg-white text-muted-foreground">
           No activity recorded yet

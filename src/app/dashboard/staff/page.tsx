@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, UserCheck, UserX, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, UserCheck, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import StaffForm from '@/components/dashboard/StaffForm';
+import ErrorState from '@/components/shared/ErrorState';
 import type { StaffMember } from '@/types';
 
 export default function StaffPage() {
@@ -67,14 +68,7 @@ export default function StaffPage() {
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
       ) : error ? (
-        <div className="text-center py-12 border rounded-lg bg-white">
-          <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
-          <p className="font-medium mb-1">Couldn&apos;t load staff</p>
-          <p className="text-sm text-muted-foreground mb-4">Check your connection and try again.</p>
-          <Button variant="outline" onClick={fetchStaff}>
-            <RefreshCw className="w-4 h-4 mr-2" /> Retry
-          </Button>
-        </div>
+        <ErrorState title="Couldn't load staff" onRetry={fetchStaff} />
       ) : staff.length === 0 ? (
         <div className="text-center py-12 border rounded-lg bg-white">
           <p className="text-muted-foreground mb-4">No staff members yet</p>
