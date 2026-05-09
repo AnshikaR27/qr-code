@@ -655,9 +655,9 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
       <div className="flex items-center justify-between pt-2">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            {staffSession?.role === 'counter'
-              ? <><ShoppingBag className="w-6 h-6" /> Orders</>
-              : <><ChefHat className="w-6 h-6" /> Kitchen</>}
+            {staffSession?.role === 'kitchen'
+              ? <><ChefHat className="w-6 h-6" /> Kitchen</>
+              : <><ShoppingBag className="w-6 h-6" /> Orders</>}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Today&apos;s orders · {orders.length} total

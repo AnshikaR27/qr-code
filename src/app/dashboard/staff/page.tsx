@@ -15,13 +15,20 @@ export default function StaffPage() {
   const [editing, setEditing] = useState<StaffMember | null>(null);
 
   const fetchStaff = useCallback(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
-      const res = await fetch('/api/staff');
-      if (!res.ok) throw new Error();
+      const res = await fetch('/api/staff', { signal: controller.signal });
+      if (!res.ok) throw new Error(`${res.status}`);
       setStaff(await res.json());
-    } catch {
-      toast.error('Failed to load staff');
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast.error('Request timed out — please refresh');
+      } else {
+        toast.error('Failed to load staff');
+      }
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }, []);
