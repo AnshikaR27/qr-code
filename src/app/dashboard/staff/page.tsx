@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Plus, Pencil, Trash2, UserCheck, UserX, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import StaffForm from '@/components/dashboard/StaffForm';
@@ -11,24 +11,20 @@ import type { StaffMember } from '@/types';
 export default function StaffPage() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<StaffMember | null>(null);
 
   const fetchStaff = useCallback(async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
+    setLoading(true);
+    setError(false);
     try {
-      const res = await fetch('/api/staff', { signal: controller.signal });
-      if (!res.ok) throw new Error(`${res.status}`);
+      const res = await fetch('/api/staff');
+      if (!res.ok) throw new Error();
       setStaff(await res.json());
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        toast.error('Request timed out — please refresh');
-      } else {
-        toast.error('Failed to load staff');
-      }
+    } catch {
+      setError(true);
     } finally {
-      clearTimeout(timeout);
       setLoading(false);
     }
   }, []);
@@ -70,6 +66,15 @@ export default function StaffPage() {
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
+      ) : error ? (
+        <div className="text-center py-12 border rounded-lg bg-white">
+          <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+          <p className="font-medium mb-1">Couldn&apos;t load staff</p>
+          <p className="text-sm text-muted-foreground mb-4">Check your connection and try again.</p>
+          <Button variant="outline" onClick={fetchStaff}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Retry
+          </Button>
+        </div>
       ) : staff.length === 0 ? (
         <div className="text-center py-12 border rounded-lg bg-white">
           <p className="text-muted-foreground mb-4">No staff members yet</p>
