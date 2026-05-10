@@ -36,6 +36,12 @@ export interface BillingConfirmData {
   discount_type: 'flat' | 'percentage' | null;
   discount_before_tax: boolean;
   grand_total: number;
+  subtotal: number;
+  tax_amount: number;
+  cgst_amount: number;
+  sgst_amount: number;
+  gst_rate_snapshot: number;
+  service_charge_amount: number;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -146,9 +152,17 @@ export default function BillingSheet({ orders, restaurant, onConfirm, onClose }:
   })();
 
   async function handleConfirm() {
-    if (!orders || !canConfirm) return;
+    if (!orders || !canConfirm || !bill) return;
     setSubmitting(true);
     try {
+      const taxRatio = discountBeforeTax && discountAmount > 0 && bill.subtotal > 0
+        ? discountedSubtotal / bill.subtotal : 1;
+      const adjustedTax = r2(bill.total_tax * taxRatio);
+      const adjustedCgst = r2(adjustedTax / 2);
+      const adjustedSgst = r2(adjustedTax - adjustedCgst);
+      const adjustedSc = bill.service_charge_amount > 0
+        ? r2(bill.service_charge_amount * taxRatio) : 0;
+
       const data: BillingConfirmData = {
         payment_method: isSplit ? splitRows[0].method : payMethod!,
         payment_methods: isSplit
@@ -160,6 +174,12 @@ export default function BillingSheet({ orders, restaurant, onConfirm, onClose }:
         discount_type: discountAmount > 0 ? discountMode : null,
         discount_before_tax: discountBeforeTax,
         grand_total: grandTotal,
+        subtotal: discountBeforeTax ? discountedSubtotal : bill.subtotal,
+        tax_amount: adjustedTax,
+        cgst_amount: adjustedCgst,
+        sgst_amount: adjustedSgst,
+        gst_rate_snapshot: config?.gst_rate ?? 5,
+        service_charge_amount: adjustedSc,
       };
       await onConfirm(orders.map(o => o.id), data);
     } finally {

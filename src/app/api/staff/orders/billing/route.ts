@@ -24,6 +24,13 @@ export async function POST(req: NextRequest) {
     discount_amount?: number | null;
     discount_type?: 'flat' | 'percentage' | null;
     discount_before_tax?: boolean;
+    subtotal?: number;
+    tax_amount?: number;
+    cgst_amount?: number;
+    sgst_amount?: number;
+    gst_rate_snapshot?: number;
+    service_charge_amount?: number;
+    grand_total?: number;
   };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
@@ -73,6 +80,13 @@ export async function POST(req: NextRequest) {
         discount_amount: body.discount_amount ?? null,
         discount_type: body.discount_type ?? null,
         discount_before_tax: body.discount_before_tax ?? false,
+        subtotal: body.subtotal ?? null,
+        tax_amount: body.tax_amount ?? null,
+        cgst_amount: body.cgst_amount ?? null,
+        sgst_amount: body.sgst_amount ?? null,
+        gst_rate_snapshot: body.gst_rate_snapshot ?? null,
+        service_charge_amount: body.service_charge_amount ?? null,
+        grand_total: body.grand_total ?? null,
         merge_group_id: null,
       })
       .eq('id', id);

@@ -257,6 +257,13 @@ export interface Order {
   discount_type: 'flat' | 'percentage' | null;
   discount_before_tax: boolean;
   total: number;
+  subtotal: number | null;
+  tax_amount: number | null;
+  cgst_amount: number | null;
+  sgst_amount: number | null;
+  gst_rate_snapshot: number | null;
+  service_charge_amount: number | null;
+  grand_total: number | null;
   notes: string | null;
   internal_notes?: OrderNote[];
   order_number: number;

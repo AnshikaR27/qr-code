@@ -249,6 +249,13 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
             discount_amount: data.discount_amount,
             discount_type: data.discount_type,
             discount_before_tax: data.discount_before_tax,
+            subtotal: data.subtotal,
+            tax_amount: data.tax_amount,
+            cgst_amount: data.cgst_amount,
+            sgst_amount: data.sgst_amount,
+            gst_rate_snapshot: data.gst_rate_snapshot,
+            service_charge_amount: data.service_charge_amount,
+            grand_total: data.grand_total,
           }),
         });
         if (!res.ok) {
@@ -272,6 +279,13 @@ export default function KitchenDashboard({ restaurant, staffSession }: Props) {
               discount_amount: data.discount_amount,
               discount_type: data.discount_type,
               discount_before_tax: data.discount_before_tax,
+              subtotal: data.subtotal,
+              tax_amount: data.tax_amount,
+              cgst_amount: data.cgst_amount,
+              sgst_amount: data.sgst_amount,
+              gst_rate_snapshot: data.gst_rate_snapshot,
+              service_charge_amount: data.service_charge_amount,
+              grand_total: data.grand_total,
               merge_group_id: null,
             })
             .eq('id', id);

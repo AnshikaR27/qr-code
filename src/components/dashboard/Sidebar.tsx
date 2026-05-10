@@ -17,6 +17,9 @@ import {
   ScrollText,
   ChevronsLeft,
   ChevronsRight,
+  FileText,
+  TrendingUp,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -30,6 +33,9 @@ const NAV_ITEMS = [
   { href: '/dashboard/floor-plan', label: 'Floor Plan', icon: LayoutGrid,    exact: false },
   { href: '/dashboard/staff',      label: 'Staff',     icon: Users,          exact: false },
   { href: '/dashboard/activity',   label: 'Activity',  icon: ScrollText,     exact: false },
+  { href: '/dashboard/reports/gst',       label: 'GST Report', icon: FileText,    exact: false },
+  { href: '/dashboard/reports/revenue',   label: 'Revenue',    icon: TrendingUp,  exact: false },
+  { href: '/dashboard/reports/top-items', label: 'Top Items',  icon: BarChart3,   exact: false },
   { href: '/dashboard/settings',   label: 'Settings',  icon: Settings,       exact: false },
 ];
 
